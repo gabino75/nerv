@@ -42,6 +42,13 @@ export class InstanceOperations {
     const db = this.getDb()
     const processId = process.pid
 
+    // In test mode, clear all existing locks and instances to prevent
+    // stale locks from previous test runs blocking project selection
+    if (process.env.NERV_TEST_MODE === 'true') {
+      db.prepare(`DELETE FROM project_locks`).run()
+      db.prepare(`DELETE FROM nerv_instances`).run()
+    }
+
     db.prepare(`
       INSERT INTO nerv_instances (instance_id, process_id, project_id, started_at, last_heartbeat)
       VALUES (?, ?, NULL, datetime('now'), datetime('now'))

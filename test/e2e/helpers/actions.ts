@@ -227,6 +227,8 @@ export async function selectProject(window: Page, projectNamePattern: string): P
   if (await projectItem.isVisible({ timeout: TIMEOUT.short }).catch(() => false)) {
     await projectItem.click()
     await window.waitForTimeout(300)
+    // Auto-dismiss locked project dialog if it appears
+    await dismissLockedDialog(window)
     log('pass', 'Project selected', { pattern: projectNamePattern })
     return true
   }
@@ -355,6 +357,21 @@ export async function dismissRecoveryDialog(window: Page): Promise<void> {
     const dismissBtn = window.locator(SELECTORS.dismissBtn).first()
     if (await dismissBtn.isVisible({ timeout: TIMEOUT.exists }).catch(() => false)) {
       await dismissBtn.click()
+      await window.waitForTimeout(300)
+    }
+  }
+}
+
+/**
+ * Dismiss locked project dialog if present (clicks "Force Open")
+ */
+export async function dismissLockedDialog(window: Page): Promise<void> {
+  const lockedDialog = window.locator(SELECTORS.lockedProjectDialog).first()
+  if (await lockedDialog.isVisible({ timeout: TIMEOUT.exists }).catch(() => false)) {
+    log('info', 'Locked project dialog detected, clicking Force Open')
+    const forceBtn = window.locator(SELECTORS.lockedForceBtn).first()
+    if (await forceBtn.isVisible({ timeout: TIMEOUT.exists }).catch(() => false)) {
+      await forceBtn.click()
       await window.waitForTimeout(300)
     }
   }

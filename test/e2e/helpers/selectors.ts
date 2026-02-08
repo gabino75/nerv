@@ -77,6 +77,11 @@ export const SELECTORS = {
   recoveryDialog: '[data-testid="recovery-dialog"], .overlay:has-text("Recovery Required")',
   dismissBtn: 'button:has-text("Dismiss")',
 
+  // Locked Project Dialog
+  lockedProjectDialog: '[data-testid="locked-project-dialog"]',
+  lockedForceBtn: '[data-testid="locked-force-btn"]',
+  lockedCancelBtn: '[data-testid="locked-cancel-btn"]',
+
   // YOLO Benchmark
   yoloPanel: '[data-testid="yolo-panel"]',
   yoloConfigList: '[data-testid="yolo-config-list"]',

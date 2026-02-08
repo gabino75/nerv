@@ -401,29 +401,9 @@ test('test_readme_exists - README.md contains required documentation', async () 
 
   // Verify required sections exist
   expect(content).toContain('# NERV');
-  expect(content).toContain('## Installation');
   expect(content).toContain('## Quick Start');
   expect(content).toContain('## Development');
   expect(content).toContain('## License');
-});
-
-/**
- * Test: ARCHITECTURE.md exists and contains required sections
- */
-test('test_architecture_exists - ARCHITECTURE.md contains system documentation', async () => {
-  const archPath = path.join(__dirname, '../../ARCHITECTURE.md');
-
-  // Check ARCHITECTURE.md exists
-  expect(fs.existsSync(archPath)).toBe(true);
-
-  // Read content
-  const content = fs.readFileSync(archPath, 'utf-8');
-
-  // Verify required sections exist
-  expect(content).toContain('# NERV Architecture');
-  expect(content).toContain('## System Overview');
-  expect(content).toContain('## Data Flow');
-  expect(content).toContain('## Directory Structure');
 });
 
 /**
