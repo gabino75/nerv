@@ -12,10 +12,13 @@
 <!-- Demo: quick-start walkthrough -->
 <p align="center">
   <a href="https://gabino75.github.io/nerv/demos">
-    <img src="https://gabino75.github.io/nerv/demos/quick-start.gif" alt="NERV Quick Start Demo" width="720">
+    <video src="https://gabino75.github.io/nerv/demos/quick-start.webm" width="720" autoplay loop muted>
+      Your browser does not support the video tag.
+    </video>
   </a>
   <br>
-  <em>Create a project, add tasks, and launch Claude Code — all from one dashboard</em>
+  <em>Create a project, add tasks, and launch Claude Code — all from one dashboard.
+  <a href="https://gabino75.github.io/nerv/demos">Watch all demos</a></em>
 </p>
 
 ## Overview
