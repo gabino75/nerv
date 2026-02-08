@@ -1245,6 +1245,53 @@ function writePipelineOutput(
     // Non-critical
   }
 
+  // Write per-cycle output files (PRD Section 4940-4948)
+  for (const cycle of result.cycles) {
+    const cycleId = `cycle-${String(cycle.cycleNumber).padStart(3, '0')}`
+    const cycleDir = path.join(outputDir, 'cycles', cycleId)
+    fs.mkdirSync(cycleDir, { recursive: true })
+
+    // audit-report.json — cycle-level metrics summary
+    const cycleTestsPassed = cycle.tasks.reduce((s, t) => s + t.testsPassed, 0)
+    const cycleTestsFailed = cycle.tasks.reduce((s, t) => s + t.testsFailed, 0)
+    const cycleMerged = cycle.tasks.filter(t => t.merged).length
+    fs.writeFileSync(path.join(cycleDir, 'audit-report.json'), JSON.stringify({
+      cycleNumber: cycle.cycleNumber,
+      title: cycle.title,
+      tasksTotal: cycle.tasks.length,
+      tasksMerged: cycleMerged,
+      tasksFailed: cycle.tasks.length - cycleMerged,
+      testsPassed: cycleTestsPassed,
+      testsFailed: cycleTestsFailed,
+      durationMs: cycle.durationMs,
+      costUsd: cycle.costUsd,
+    }, null, 2))
+
+    // review-report.json — all review decisions for this cycle
+    const reviews = cycle.tasks
+      .filter(t => t.reviewDecision)
+      .map(t => ({
+        taskId: t.taskId,
+        decision: t.reviewDecision!.decision,
+        justification: t.reviewDecision!.justification,
+        concerns: t.reviewDecision!.concerns,
+        suggestions: t.reviewDecision!.suggestions,
+        confidence: t.reviewDecision!.confidence,
+      }))
+    fs.writeFileSync(path.join(cycleDir, 'review-report.json'), JSON.stringify({
+      cycleNumber: cycle.cycleNumber,
+      reviewsRun: reviews.length,
+      reviewsApproved: reviews.filter(r => r.decision === 'approve').length,
+      reviews,
+    }, null, 2))
+
+    // learnings.json — placeholder for cycle learnings
+    fs.writeFileSync(path.join(cycleDir, 'learnings.json'), JSON.stringify({
+      cycleNumber: cycle.cycleNumber,
+      learnings: [],
+    }, null, 2))
+  }
+
   // Write timeline
   const timelineEntries: TimelineEntry[] = [
     { timestamp: Date.now() - result.totalDurationMs, event: 'benchmark_start' },
