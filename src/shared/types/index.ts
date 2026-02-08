@@ -179,6 +179,7 @@ export type {
   SettingsSource,
   ResolvedSetting,
   SettingsEnvMapping,
+  PermissionRules,
   GlobalConfig,
   ProjectConfig,
   SettingsService

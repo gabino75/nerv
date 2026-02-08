@@ -275,6 +275,112 @@ describe('settings', () => {
     })
   })
 
+  describe('getDefaultPermissions', () => {
+    it('returns empty permission rules when no config exists', () => {
+      const service = createSettingsService()
+
+      const perms = service.getDefaultPermissions()
+      expect(perms.allow).toEqual([])
+      expect(perms.deny).toEqual([])
+      expect(perms.requireApproval).toEqual([])
+    })
+
+    it('loads permissions from global config', () => {
+      mockExistsSync.mockImplementation((path: string) => {
+        return path.includes('.nerv') && path.endsWith('config.json')
+      })
+      mockReadFileSync.mockImplementation((path: string) => {
+        if (path.includes('.nerv') && path.endsWith('config.json')) {
+          return JSON.stringify({
+            defaultPermissions: {
+              allow: ['Read', 'Grep'],
+              deny: ['Bash(sudo:*)']
+            }
+          })
+        }
+        throw new Error('File not found')
+      })
+
+      const service = createSettingsService()
+
+      const perms = service.getDefaultPermissions()
+      expect(perms.allow).toEqual(['Read', 'Grep'])
+      expect(perms.deny).toEqual(['Bash(sudo:*)'])
+      expect(perms.requireApproval).toEqual([])
+    })
+
+    it('merges org permissions with global permissions', () => {
+      mockExistsSync.mockImplementation((path: string) => {
+        return path.includes('.nerv') && path.endsWith('config.json')
+      })
+      mockReadFileSync.mockImplementation((path: string) => {
+        if (path.includes('.nerv') && path.endsWith('config.json')) {
+          return JSON.stringify({
+            defaultPermissions: {
+              allow: ['Read'],
+              deny: ['Bash(rm -rf /)']
+            }
+          })
+        }
+        throw new Error('File not found')
+      })
+
+      const service = createSettingsService()
+
+      const orgSettings: OrganizationSettings = {
+        name: 'TestOrg',
+        permissions: {
+          alwaysAllow: ['Grep', 'Glob'],
+          alwaysDeny: ['Bash(sudo:*)'],
+          alwaysRequireApproval: ['Bash(rm:*)']
+        }
+      }
+      service.setOrgSettings(orgSettings)
+
+      const perms = service.getDefaultPermissions()
+      expect(perms.allow).toEqual(['Read', 'Grep', 'Glob'])
+      expect(perms.deny).toEqual(['Bash(rm -rf /)', 'Bash(sudo:*)'])
+      expect(perms.requireApproval).toEqual(['Bash(rm:*)'])
+    })
+
+    it('merges project permissions and deduplicates', () => {
+      const projectPath = '/test/project'
+
+      mockExistsSync.mockImplementation((path: string) => {
+        if (path === join(projectPath, '.nerv', 'config.json')) return true
+        if (path.includes('.nerv') && path.endsWith('config.json')) return true
+        return false
+      })
+      mockReadFileSync.mockImplementation((path: string) => {
+        if (path === join(projectPath, '.nerv', 'config.json')) {
+          return JSON.stringify({
+            defaultPermissions: {
+              allow: ['Write'],
+              deny: ['Bash(sudo:*)']  // duplicate with global
+            },
+            requireApprovalFor: ['Bash:rm', 'Bash:sudo']
+          })
+        }
+        if (path.includes('.nerv') && path.endsWith('config.json')) {
+          return JSON.stringify({
+            defaultPermissions: {
+              allow: ['Read'],
+              deny: ['Bash(sudo:*)']
+            }
+          })
+        }
+        throw new Error('File not found')
+      })
+
+      const service = createSettingsService(projectPath)
+
+      const perms = service.getDefaultPermissions()
+      expect(perms.allow).toEqual(['Read', 'Write'])
+      expect(perms.deny).toEqual(['Bash(sudo:*)'])  // deduplicated
+      expect(perms.requireApproval).toEqual(['Bash:rm', 'Bash:sudo'])
+    })
+  })
+
   describe('getAllWithSources', () => {
     it('returns all settings with their sources', () => {
       const service = createSettingsService()

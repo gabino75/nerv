@@ -113,11 +113,24 @@ export interface SettingsEnvMapping {
 }
 
 /**
+ * Permission rules structure (PRD Section 13: GlobalSettings.defaultPermissions)
+ * Used at global and project levels to define default permission behavior
+ */
+export interface PermissionRules {
+  allow?: string[]   // e.g., ["Read", "Grep", "Glob", "Bash(npm test:*)"]
+  deny?: string[]    // e.g., ["Bash(rm -rf /)", "Bash(sudo:*)"]
+  requireApproval?: string[]  // e.g., ["Bash(rm:*)", "Write(~/.ssh/*)"]
+}
+
+/**
  * Global config file structure (~/.nerv/config.json)
  */
 export interface GlobalConfig extends PartialNervSettings {
   // Version for future migrations
   config_version?: number
+
+  // Default permission rules (PRD Section 13: GlobalSettings.defaultPermissions)
+  defaultPermissions?: PermissionRules
 
   // Custom terminal profiles (PRD Section 10: Custom Terminal Profiles)
   // User-defined profiles that appear in the [+] dropdown under "─ Custom ─"
@@ -146,8 +159,9 @@ export interface ProjectConfig extends PartialNervSettings {
   allowedTools?: string[]
   deniedTools?: string[]
 
-  // Permissions (PRD Section 13: ProjectSettings)
-  requireApprovalFor?: string[] // e.g., ["Bash:rm", "Bash:sudo"]
+  // Permission overrides for this project (PRD Section 13: ProjectSettings)
+  defaultPermissions?: PermissionRules
+  requireApprovalFor?: string[] // e.g., ["Bash:rm", "Bash:sudo"] — legacy shorthand for defaultPermissions.requireApproval
 }
 
 /**

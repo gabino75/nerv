@@ -27,7 +27,8 @@ import type {
   ProjectConfig,
   OrganizationSettings,
   RepoSettings,
-  TaskSettings
+  TaskSettings,
+  PermissionRules
 } from '../shared/types/settings.js'
 
 /**
@@ -441,6 +442,56 @@ export class SettingsServiceImpl {
     for (const key of Object.keys(DEFAULT_SETTINGS) as (keyof NervSettings)[]) {
       result[key] = this.getWithSource(key)
     }
+    return result
+  }
+
+  /**
+   * Get resolved default permissions (PRD Section 13: GlobalSettings.defaultPermissions)
+   *
+   * Merges permissions from the settings hierarchy:
+   * 1. Project config defaultPermissions + requireApprovalFor (highest priority)
+   * 2. Organization permissions
+   * 3. Global config defaultPermissions (lowest priority)
+   *
+   * Arrays are merged (union), not replaced — more specific levels add rules.
+   */
+  getDefaultPermissions(): PermissionRules {
+    const result: PermissionRules = { allow: [], deny: [], requireApproval: [] }
+
+    // Start with global config defaults
+    if (this.globalConfig?.defaultPermissions) {
+      const gp = this.globalConfig.defaultPermissions
+      if (gp.allow) result.allow!.push(...gp.allow)
+      if (gp.deny) result.deny!.push(...gp.deny)
+      if (gp.requireApproval) result.requireApproval!.push(...gp.requireApproval)
+    }
+
+    // Layer org permissions
+    if (this.orgSettings?.permissions) {
+      const op = this.orgSettings.permissions
+      if (op.alwaysAllow) result.allow!.push(...op.alwaysAllow)
+      if (op.alwaysDeny) result.deny!.push(...op.alwaysDeny)
+      if (op.alwaysRequireApproval) result.requireApproval!.push(...op.alwaysRequireApproval)
+    }
+
+    // Layer project permissions (highest priority)
+    if (this.projectConfig?.defaultPermissions) {
+      const pp = this.projectConfig.defaultPermissions
+      if (pp.allow) result.allow!.push(...pp.allow)
+      if (pp.deny) result.deny!.push(...pp.deny)
+      if (pp.requireApproval) result.requireApproval!.push(...pp.requireApproval)
+    }
+
+    // Also merge legacy requireApprovalFor from project config
+    if (this.projectConfig?.requireApprovalFor) {
+      result.requireApproval!.push(...this.projectConfig.requireApprovalFor)
+    }
+
+    // Deduplicate
+    result.allow = [...new Set(result.allow)]
+    result.deny = [...new Set(result.deny)]
+    result.requireApproval = [...new Set(result.requireApproval)]
+
     return result
   }
 
