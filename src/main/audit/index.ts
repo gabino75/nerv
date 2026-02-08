@@ -9,6 +9,7 @@ import { databaseService } from '../database'
 import { broadcastToRenderers } from '../utils'
 import { setOnCycleCompleteCallback } from '../database/cycles'
 import { AUDIT_CYCLE_FREQUENCY, AUDIT_THRESHOLDS, generateId } from '../../shared/constants'
+import { analyzeRepoHealth, mergeHealthChecks } from './code-health'
 import type {
   AuditResult,
   AuditType,
@@ -86,38 +87,30 @@ export function runAudit(
 
 /**
  * Run code health checks (coverage, DRY, types, dead code, complexity)
+ *
+ * Performs static analysis on each repo's source files:
+ * - Type safety: counts 'any' type usage in .ts/.tsx files
+ * - Complexity: counts functions exceeding line threshold
+ * - Dead code: counts exported symbols not imported elsewhere
+ * - Test coverage: reads coverage reports or estimates from file ratios
+ * - DRY violations: detects duplicate code blocks across files
  */
 function runCodeHealthChecks(projectId: string): CodeHealthCheck {
-  // Get project repos for analysis
   const repos = databaseService.getReposForProject(projectId)
 
-  // Initialize metrics (in a real implementation, these would come from actual analysis)
-  // For now, we'll use placeholder values that can be replaced with real analysis tools
-  const check: CodeHealthCheck = {
-    testCoverage: 0,
-    dryViolations: 0,
-    typeErrors: 0,
-    deadCodeCount: 0,
-    complexFunctions: 0,
-    passed: true
+  if (repos.length === 0) {
+    return {
+      testCoverage: 0,
+      dryViolations: 0,
+      typeErrors: 0,
+      deadCodeCount: 0,
+      complexFunctions: 0,
+      passed: false
+    }
   }
 
-  // Check if we have repo context with test results
-  for (const repo of repos) {
-    const contexts = databaseService.getRepoContext(repo.id)
-    // Analyze repo context for health metrics
-    // This is a simplified implementation - real implementation would
-    // run actual analysis tools (npm run test:coverage, eslint, etc.)
-  }
-
-  // Apply thresholds
-  check.passed =
-    check.testCoverage >= AUDIT_THRESHOLDS.testCoverage &&
-    check.dryViolations <= AUDIT_THRESHOLDS.dryViolationLimit &&
-    check.typeErrors <= AUDIT_THRESHOLDS.typeErrorLimit &&
-    check.deadCodeCount <= AUDIT_THRESHOLDS.deadCodeLimit
-
-  return check
+  const checks = repos.map(repo => analyzeRepoHealth(repo.path))
+  return mergeHealthChecks(checks)
 }
 
 /**
