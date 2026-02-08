@@ -7,6 +7,7 @@
 import { databaseService } from '../database'
 import { safeHandle } from './safe-handle'
 import { verifyTask, verifyManualCriterion, getVerificationSummary } from '../verification'
+import { cancelAutoIteration, isAutoIterating } from '../verification/auto-iterate'
 import type {
   AcceptanceCriterion,
   AcceptanceCriterionInput,
@@ -212,5 +213,17 @@ export function registerVerificationHandlers(): void {
     common_failure_patterns: Array<{ pattern: string; frequency: number; suggested_fix: string }>
   } => {
     return databaseService.verification.getIterationAnalytics(taskId)
+  })
+
+  // =====================
+  // Auto-Iteration Control (PRD Section 16)
+  // =====================
+
+  safeHandle('autoIterate:cancel', (_event, taskId: string): boolean => {
+    return cancelAutoIteration(taskId)
+  })
+
+  safeHandle('autoIterate:isActive', (_event, taskId: string): boolean => {
+    return isAutoIterating(taskId)
   })
 }

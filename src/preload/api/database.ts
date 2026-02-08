@@ -510,6 +510,14 @@ export const verification = {
       common_failure_patterns: Array<{ pattern: string; frequency: number; suggested_fix: string }>
     }> =>
       ipcRenderer.invoke('db:verification:getIterationAnalytics', taskId)
+  },
+
+  // Auto-Iteration Control (PRD Section 16)
+  autoIterate: {
+    cancel: (taskId: string): Promise<boolean> =>
+      ipcRenderer.invoke('autoIterate:cancel', taskId),
+    isActive: (taskId: string): Promise<boolean> =>
+      ipcRenderer.invoke('autoIterate:isActive', taskId)
   }
 }
 

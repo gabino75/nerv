@@ -12,6 +12,7 @@ import { claudeSessions, finishedSessions, FINISHED_SESSION_TTL_MS, USE_MOCK_CLA
 import { generateSessionId, getClaudeCommand, buildClaudeArgs } from './utils'
 import { processStreamOutput, streamJsonToTerminal } from './stream-parser'
 import { startSessionMonitor, stopSessionMonitor, recordSessionOutput } from '../recovery'
+import { onSessionExitAutoIterate } from '../verification/auto-iterate'
 
 // Spawn Claude Code for a task
 export function spawnClaude(config: ClaudeSpawnConfig): ClaudeSpawnResult {
@@ -168,6 +169,21 @@ export function spawnClaude(config: ClaudeSpawnConfig): ClaudeSpawnResult {
     console.log(`[NERV] Claude session ${id} exited with code ${exitCode}, signal ${signal}`)
 
     broadcastToRenderers('claude:exit', id, exitCode, signal)
+
+    // Auto-iteration: if task has auto_iterate enabled, check criteria
+    // and re-spawn Claude if they fail (PRD Section 16, lines 3709-3770)
+    if (session.taskId && exitCode === 0) {
+      onSessionExitAutoIterate(
+        session.taskId,
+        exitCode,
+        session.projectId,
+        config.cwd,
+        session.sessionId,
+        session.model
+      ).catch(err => {
+        console.error(`[NERV] Auto-iteration error for task ${session.taskId}:`, err)
+      })
+    }
   })
 
   return { success: true, sessionId: id }
@@ -311,6 +327,21 @@ export function resumeClaude(config: ClaudeSpawnConfig, claudeSessionId: string)
     }
 
     broadcastToRenderers('claude:exit', id, exitCode, signal)
+
+    // Auto-iteration: if task has auto_iterate enabled, check criteria
+    // and re-spawn Claude if they fail (PRD Section 16, lines 3709-3770)
+    if (session.taskId && exitCode === 0) {
+      onSessionExitAutoIterate(
+        session.taskId,
+        exitCode,
+        session.projectId,
+        config.cwd,
+        session.sessionId,
+        session.model
+      ).catch(err => {
+        console.error(`[NERV] Auto-iteration error for task ${session.taskId}:`, err)
+      })
+    }
   })
 
   return { success: true, sessionId: id }
