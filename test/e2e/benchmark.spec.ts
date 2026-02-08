@@ -2761,7 +2761,8 @@ test.describe('NERV Golden Benchmark Tests - REAL Functionality', () => {
         }, taskId!)
 
         log('check', 'Task status after resume', { status: resumedTask?.status })
-        expect(resumedTask!.status).toBe('in_progress')
+        // Mock-claude exits quickly, so task may already be in 'review' by the time we check
+        expect(['in_progress', 'review']).toContain(resumedTask!.status)
 
         log('pass', 'Clicked Resume button - task is running again')
       } else {

@@ -338,9 +338,9 @@ test.describe('NERV Task Lifecycle Tests', () => {
       await cyclesBtn.click()
       await slowWait(window, 'CyclePanel opening')
 
-      const startCycle0Btn = window.locator('[data-testid="start-cycle-0-btn"]')
-      await expect(startCycle0Btn).toBeVisible({ timeout: TIMEOUT.ui })
-      await startCycle0Btn.click()
+      const startFirstCycleBtn = window.locator('[data-testid="start-first-cycle-btn"]')
+      await expect(startFirstCycleBtn).toBeVisible({ timeout: TIMEOUT.ui })
+      await startFirstCycleBtn.click()
 
       const cycleGoalInput = window.locator('[data-testid="cycle-goal-input"]')
       await expect(cycleGoalInput).toBeVisible({ timeout: TIMEOUT.ui })
@@ -606,7 +606,8 @@ test.describe('NERV Task Lifecycle Tests', () => {
         }, taskId!)
 
         log('check', 'Task status after resume', { status: resumedTask?.status })
-        expect(resumedTask!.status).toBe('in_progress')
+        // Mock-claude exits quickly, so task may already be in 'review' by the time we check
+        expect(['in_progress', 'review']).toContain(resumedTask!.status)
 
         log('pass', 'Clicked Resume button - task is running again')
       } else {
