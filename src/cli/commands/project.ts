@@ -15,6 +15,7 @@ import type { DatabaseService } from '../../core/database.js'
 import type { Project } from '../../shared/types.js'
 import { CLI_EXIT_CODES } from '../../shared/constants.js'
 import { colors } from '../colors.js'
+import { parseSpec } from '../../core/spec-parser.js'
 
 function formatProject(project: Project, detailed: boolean = false, isCurrent: boolean = false): string {
   const lines: string[] = []
@@ -36,9 +37,15 @@ function formatProject(project: Project, detailed: boolean = false, isCurrent: b
 }
 
 function handleProjectCreate(args: string[], db: DatabaseService): void {
+  const specIndex = args.indexOf('--from-spec')
+  if (specIndex !== -1) {
+    return handleProjectCreateFromSpec(args, db, specIndex)
+  }
+
   if (args.length < 2) {
     console.error(`${colors.red}Error: Project name required${colors.reset}`)
     console.log('Usage: nerv project create <name> [--goal "description"]')
+    console.log('       nerv project create --from-spec <spec-file>')
     process.exit(CLI_EXIT_CODES.INVALID_ARGS)
   }
 
@@ -54,6 +61,56 @@ function handleProjectCreate(args: string[], db: DatabaseService): void {
   db.setCurrentProjectId(project.id)
   console.log(`${colors.green}✓${colors.reset} Created project: ${colors.bold}${project.name}${colors.reset}`)
   console.log(`  ID: ${colors.cyan}${project.id}${colors.reset}`)
+  console.log(`  ${colors.gray}(set as current project)${colors.reset}`)
+}
+
+function handleProjectCreateFromSpec(args: string[], db: DatabaseService, specIndex: number): void {
+  const specPath = args[specIndex + 1]
+  if (!specPath) {
+    console.error(`${colors.red}Error: Spec file path required after --from-spec${colors.reset}`)
+    console.log('Usage: nerv project create --from-spec <spec-file>')
+    process.exit(CLI_EXIT_CODES.INVALID_ARGS)
+  }
+
+  const resolvedPath = path.resolve(specPath)
+  if (!fs.existsSync(resolvedPath)) {
+    console.error(`${colors.red}Error: Spec file not found: ${resolvedPath}${colors.reset}`)
+    process.exit(CLI_EXIT_CODES.INVALID_ARGS)
+  }
+
+  const specContent = fs.readFileSync(resolvedPath, 'utf-8')
+  const parsed = parseSpec(specContent)
+
+  // Use spec title as project name, allow override via positional arg
+  const nameArg = args.find((a, i) => i >= 1 && !a.startsWith('--') && i !== specIndex + 1)
+  const projectName = nameArg || parsed.title
+
+  let goal: string | undefined
+  const goalIndex = args.indexOf('--goal')
+  if (goalIndex !== -1 && args[goalIndex + 1]) {
+    goal = args[goalIndex + 1]
+  }
+
+  const project = db.createProject(projectName, goal)
+  db.setCurrentProjectId(project.id)
+
+  console.log(`${colors.green}✓${colors.reset} Created project: ${colors.bold}${project.name}${colors.reset}`)
+  console.log(`  ID: ${colors.cyan}${project.id}${colors.reset}`)
+  console.log(`  Spec: ${colors.gray}${resolvedPath}${colors.reset}`)
+
+  // Create a cycle and tasks for each parsed cycle
+  let totalTasks = 0
+  for (const cycle of parsed.cycles) {
+    const dbCycle = db.createCycle(project.id, cycle.cycleNumber, cycle.title)
+    for (const subtask of cycle.subtasks) {
+      db.createTask(project.id, subtask.title, subtask.description, dbCycle.id)
+      totalTasks++
+    }
+  }
+
+  console.log(`  Cycles: ${colors.cyan}${parsed.cycles.length}${colors.reset}`)
+  console.log(`  Tasks: ${colors.cyan}${totalTasks}${colors.reset}`)
+  console.log(`  Acceptance criteria: ${colors.cyan}${parsed.totalAcceptanceCriteria}${colors.reset}`)
   console.log(`  ${colors.gray}(set as current project)${colors.reset}`)
 }
 
