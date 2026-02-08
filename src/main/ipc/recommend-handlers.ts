@@ -65,11 +65,18 @@ function gatherContext(projectId: string, direction?: string): RecommendContext 
   }
 }
 
-function callClaude(prompt: string): string {
-  // In mock/test mode, return realistic sample recommendations
-  if (process.env.NERV_MOCK_CLAUDE === '1' || process.env.NERV_TEST_MODE === '1') {
-    const hasCycle = prompt.includes('Cycle: #')
-    const hasTasks = prompt.includes('todo:') || prompt.includes('in_progress:')
+function callClaude(prompt: string, ctx?: RecommendContext): string {
+  // In mock/test mode, return realistic sample recommendations based on context
+  if (process.env.NERV_MOCK_CLAUDE === 'true' || process.env.NERV_TEST_MODE === 'true') {
+    // Use structured context when available (more reliable than prompt parsing)
+    const hasCycle = ctx ? ctx.hasCycle : prompt.includes('Cycle: #')
+    const hasTasks = ctx
+      ? ctx.tasks.some(t => t.status === 'todo' || t.status === 'in_progress')
+      : prompt.includes('todo:') || prompt.includes('in_progress:')
+    const hasInProgress = ctx
+      ? ctx.tasks.some(t => t.status === 'in_progress')
+      : prompt.includes('in_progress:')
+    console.log(`[NERV Mock] hasCycle=${hasCycle}, hasTasks=${hasTasks}, hasInProgress=${hasInProgress}, tasks=${ctx?.tasks.length ?? '?'}, cycleNum=${ctx?.cycleNumber ?? 'N/A'}`)
     if (!hasCycle) {
       return JSON.stringify([
         { phase: 'mvp', action: 'create_cycle', title: 'Start your first development cycle', description: 'Create a cycle to organize your work into focused iterations.', details: 'A cycle groups related tasks. Start with a small MVP scope.', params: { cycleGoal: 'MVP: Core functionality with tests' } },
@@ -82,8 +89,14 @@ function callClaude(prompt: string): string {
         { phase: 'mvp', action: 'create_task', title: 'Add integration tests', description: 'Ensure the core feature works end-to-end.', details: 'Write tests that cover the happy path.', params: { taskTitle: 'Add integration tests', taskType: 'implementation' } },
       ])
     }
+    if (!hasInProgress) {
+      return JSON.stringify([
+        { phase: 'building', action: 'start_task', title: 'Start working on the next task', description: 'Pick up the highest priority todo task.', details: 'Claude will work in an isolated worktree.' },
+        { phase: 'building', action: 'run_audit', title: 'Audit code health', description: 'Check code quality and test coverage.', details: 'Review recent changes for issues.' },
+      ])
+    }
     return JSON.stringify([
-      { phase: 'building', action: 'start_task', title: 'Start working on the next task', description: 'Pick up the highest priority todo task.', details: 'Claude will work in an isolated worktree.' },
+      { phase: 'building', action: 'review_task', title: 'Review the current task', description: 'Check the in-progress task for completion.', details: 'Review output and decide whether to approve or iterate.' },
       { phase: 'building', action: 'run_audit', title: 'Audit code health', description: 'Check code quality and test coverage.', details: 'Review recent changes for issues.' },
     ])
   }
@@ -107,7 +120,7 @@ export function registerRecommendHandlers(): void {
     if (!ctx) return null
 
     try {
-      const result = callClaude(buildRecommendPrompt(ctx))
+      const result = callClaude(buildRecommendPrompt(ctx), ctx)
       return parseRecommendation(result)
     } catch (err) {
       console.error('[NERV] Recommendation failed:', err instanceof Error ? err.message : err)
@@ -121,7 +134,7 @@ export function registerRecommendHandlers(): void {
     if (!ctx) return []
 
     try {
-      const result = callClaude(buildRecommendPrompt(ctx))
+      const result = callClaude(buildRecommendPrompt(ctx), ctx)
       return parseRecommendations(result)
     } catch (err) {
       console.error('[NERV] Recommendation failed:', err instanceof Error ? err.message : err)

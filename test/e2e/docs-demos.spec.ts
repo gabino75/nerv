@@ -218,14 +218,22 @@ async function demoWait(page: Page, label: string, ms: number = ACTION_DELAY): P
 async function moveVideoToDocsDemo(videoPath: string, demoName: string): Promise<string> {
   const destPath = path.join(DOCS_DEMOS_PATH, `${demoName}.webm`)
 
-  // Ensure destination directory exists
+  // Ensure destination directories exist
   if (!fs.existsSync(DOCS_DEMOS_PATH)) {
     fs.mkdirSync(DOCS_DEMOS_PATH, { recursive: true })
   }
+  if (!fs.existsSync(TEST_RESULTS_PATH)) {
+    fs.mkdirSync(TEST_RESULTS_PATH, { recursive: true })
+  }
 
-  // Copy video file (keep original for debugging)
+  // Copy to docs-site for local dev
   fs.copyFileSync(videoPath, destPath)
   console.log(`Demo video saved: ${destPath}`)
+
+  // Also copy with proper name to test-results/demos/ (Docker entrypoint copies this to host)
+  const testResultsDest = path.join(TEST_RESULTS_PATH, `${demoName}.webm`)
+  fs.copyFileSync(videoPath, testResultsDest)
+  console.log(`Demo video (test-results): ${testResultsDest}`)
 
   return destPath
 }
@@ -555,8 +563,14 @@ test('demo_quick_start', async () => {
   if (await startTaskBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
     await glideToElement(window, SELECTORS.startTaskBtn)
     await demoWait(window, 'About to start Claude on this task', 800)
-    await startTaskBtn.click()
-    await demoWait(window, 'Claude session starting...', 2000)
+    // Button may be disabled if no repo path is configured — click only if enabled
+    const isEnabled = await startTaskBtn.isEnabled().catch(() => false)
+    if (isEnabled) {
+      await startTaskBtn.click()
+      await demoWait(window, 'Claude session starting...', 2000)
+    } else {
+      await demoWait(window, 'Start Task button (requires repo path)', 1200)
+    }
   }
 
   // ========================================
@@ -1098,14 +1112,24 @@ test('demo_multi_repo', async () => {
     await demoWait(window, 'Knowledge Base — CLAUDE.md and project context', 1500)
     await zoomInto(window, '.panel', 2500, 1.5)
 
-    // Close knowledge panel
-    const closeBtn = window.locator('.panel .close-btn, .overlay .close-btn').first()
-    if (await closeBtn.isVisible({ timeout: 1000 }).catch(() => false)) {
-      await closeBtn.click()
+    // Close knowledge panel — click the overlay backdrop to dismiss
+    const overlay = window.locator('.overlay[role="dialog"]').first()
+    if (await overlay.isVisible({ timeout: 1000 }).catch(() => false)) {
+      // Click the overlay edge (outside the panel) to dismiss
+      await overlay.click({ position: { x: 10, y: 10 } })
     } else {
       await window.keyboard.press('Escape')
     }
-    await window.waitForTimeout(500)
+    await window.waitForTimeout(800)
+
+    // Ensure overlay is gone before proceeding
+    try {
+      await window.locator('.overlay[role="dialog"]').waitFor({ state: 'detached', timeout: 3000 })
+    } catch {
+      // Force close via Escape if overlay persists
+      await window.keyboard.press('Escape')
+      await window.waitForTimeout(500)
+    }
   }
 
   // ========================================
