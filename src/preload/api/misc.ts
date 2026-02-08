@@ -4,6 +4,14 @@
 
 import { ipcRenderer } from 'electron'
 import type { Project, ProjectExport, ProjectImport, Subagent, SubagentStatus, SubagentUsage, BuiltInSkill, SkillDefinition, MarketplaceSkill, CrashReport } from '../../shared/types'
+import type { Recommendation } from '../../shared/prompts/recommend'
+
+interface ExecuteResult {
+  success: boolean
+  action: string
+  data?: Record<string, unknown>
+  error?: string
+}
 
 export const versions = {
   node: () => process.versions.node,
@@ -76,6 +84,16 @@ export const skills = {
     ipcRenderer.invoke('skills:searchMarketplace', query),
   installSkill: (skillId: string, scope: 'global' | 'project'): Promise<BuiltInSkill> =>
     ipcRenderer.invoke('skills:installSkill', skillId, scope)
+}
+
+// "What's Next?" recommendation
+export const recommend = {
+  getNext: (projectId: string): Promise<Recommendation | null> =>
+    ipcRenderer.invoke('recommend:getNext', projectId),
+  getNextWithDirection: (projectId: string, direction?: string): Promise<Recommendation[]> =>
+    ipcRenderer.invoke('recommend:getNextWithDirection', projectId, direction),
+  execute: (projectId: string, recommendation: Recommendation): Promise<ExecuteResult> =>
+    ipcRenderer.invoke('recommend:execute', projectId, recommendation),
 }
 
 // PRD Section 24 Phase 8: Crash reporting

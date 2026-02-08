@@ -1,94 +1,75 @@
 # Installation
 
-## Desktop Application
-
-### Windows
-
-1. Download `NERV-Setup-x.x.x.exe` from [GitHub Releases](https://github.com/gabino75/nerv/releases)
-2. Run the installer
-3. Launch NERV from the Start menu
-
-### macOS
-
-No pre-built binary is available for macOS yet. To run on macOS, clone the repo and build from source:
-
-```bash
-git clone https://github.com/gabino75/nerv.git
-cd nerv && npm install && npm run dev
-```
-
-### Linux
-
-**AppImage:**
-```bash
-chmod +x NERV-x.x.x.AppImage
-./NERV-x.x.x.AppImage
-```
-
-**Debian/Ubuntu:**
-```bash
-sudo dpkg -i nerv_x.x.x_amd64.deb
-```
-
-## CLI Installation
-
-Install the CLI globally via npm:
-
-```bash
-npm install -g nerv
-```
-
-Verify the installation:
-
-```bash
-nerv --version
-```
-
 ## Prerequisites
 
 ### Claude Code CLI
 
-NERV requires the Claude Code CLI to be installed and configured:
+NERV requires the Claude Code CLI to be installed and authenticated:
 
 ```bash
 # Install Claude Code
-npm install -g @anthropic/claude-code
+npm install -g @anthropic-ai/claude-code
 
 # Authenticate (follow the prompts)
 claude auth
 ```
 
+An active Claude Code subscription is required.
+
 ### Git
 
-NERV uses Git for worktree management. Ensure Git is installed:
+NERV uses Git for worktree management. Version 2.20 or later is required:
 
 ```bash
 git --version
 ```
 
-## Configuration
+### Node.js
 
-After installation, NERV creates a configuration directory at `~/.nerv/`:
+Node.js 18+ is required:
+
+```bash
+node --version
+```
+
+## Build from Source
+
+```bash
+git clone https://github.com/gabino75/nerv.git
+cd nerv
+npm install
+npm run dev
+```
+
+This starts NERV in development mode with hot reload. For a production build:
+
+```bash
+npm run build
+```
+
+## Data Storage
+
+NERV stores all data in `~/.nerv/`:
 
 ```
 ~/.nerv/
-├── config.json       # Global settings
-├── permissions.json  # Permission rules
-└── state.db          # SQLite database
+├── state.db          # SQLite database (settings, projects, tasks, sessions, permissions)
+├── projects/         # Per-project worktree data
+└── benchmarks/       # Benchmark history
+    └── history.jsonl
 ```
 
-### Global Settings
+All configuration, permissions, and project data live in the SQLite database. Use the CLI to manage settings:
 
-Edit `~/.nerv/config.json` to configure defaults:
+```bash
+# View all settings
+nerv config list
 
-```json
-{
-  "theme": "dark",
-  "defaultModel": "claude-sonnet-4-20250514",
-  "notificationsEnabled": true,
-  "maxConcurrentSessions": 4,
-  "monthlyBudgetAlert": 100.00
-}
+# Set a value
+nerv config set monthly_budget_usd 50
+
+# View settings with sources
+nerv config get theme
 ```
 
 ## Troubleshooting
@@ -101,7 +82,7 @@ Error: claude command not found
 
 **Solution:** Install Claude Code CLI and ensure it's in your PATH:
 ```bash
-npm install -g @anthropic/claude-code
+npm install -g @anthropic-ai/claude-code
 ```
 
 ### Permission Denied
@@ -122,5 +103,5 @@ npm run rebuild
 
 ## Next Steps
 
-- [Quick Start](/guide/quick-start) - Create your first project
-- [Core Concepts](/guide/concepts) - Learn about NERV's architecture
+- [Getting Started](/guide/getting-started) — create your first project
+- [Core Concepts](/guide/concepts) — learn about NERV's architecture

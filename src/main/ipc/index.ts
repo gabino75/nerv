@@ -31,6 +31,7 @@ import { registerSuccessMetricsHandlers } from './success-metrics-handlers'
 import { registerCrashReporterHandlers } from './crash-reporter-handlers'
 import { registerUserStatementsHandlers } from './user-statements-handlers'
 import { registerSpecProposalHandlers } from './spec-proposal-handlers'
+import { registerRecommendHandlers } from './recommend-handlers'
 
 /**
  * Register all IPC handlers.
@@ -66,4 +67,5 @@ export function registerIpcHandlers(): void {
   registerCrashReporterHandlers()
   registerUserStatementsHandlers()
   registerSpecProposalHandlers()
+  registerRecommendHandlers()
 }

@@ -105,15 +105,28 @@ Benchmark specs define what to build:
 
 ### Scoring
 
-NERV scores benchmarks on 5 categories:
+Benchmarks are scored in two parts:
+
+**NERV Operations (Deterministic)** - scored from `summary.json` metrics:
 
 | Category | Weight |
 |----------|--------|
-| Requirements Met | 30% |
-| Test Coverage | 25% |
-| Code Quality | 20% |
-| Documentation | 15% |
-| Performance | 10% |
+| Worktree Usage | 25% |
+| Parallelism | 15% |
+| Cycle Management | 20% |
+| Review Process | 15% |
+| Error Handling | 10% |
+| Cost Efficiency | 15% |
+
+**Code Quality (Claude-Graded)** - a separate Claude instance evaluates the output:
+
+| Category | Weight |
+|----------|--------|
+| Implementation | 35% |
+| Functionality | 35% |
+| User Experience | 30% |
+
+The overall score is the average of NERV Ops (normalized to 10) and Code Quality (weighted average of the three categories).
 
 ## Safety Features
 
@@ -160,18 +173,6 @@ The YOLO dashboard shows:
 - Cost accumulation
 - Test results
 - Session history
-
-### Logs
-
-View detailed logs:
-
-```bash
-# Tail logs
-tail -f ~/.nerv/logs/yolo.log
-
-# Or via CLI
-nerv logs --follow
-```
 
 ## Best Practices
 

@@ -93,8 +93,8 @@ nerv benchmark history        # View history
 Settings are resolved in priority order:
 
 1. Environment variables (`NERV_*`)
-2. Project config (`.nerv/config.json`)
-3. Global config (`~/.nerv/config.json`)
+2. Project-level settings (stored in SQLite, set with `--project`)
+3. Global settings (stored in SQLite at `~/.nerv/state.db`)
 4. Default values
 
 ## Quick Reference

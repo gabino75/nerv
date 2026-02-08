@@ -254,9 +254,9 @@ test.describe('NERV Real Claude Benchmark', () => {
         await cyclesBtn.click()
         await slowWait(window, 'Cycles panel opening')
 
-        const startCycle0Btn = window.locator(SELECTORS.startCycle0Btn)
-        if (await startCycle0Btn.isVisible({ timeout: 5000 }).catch(() => false)) {
-          await startCycle0Btn.click()
+        const startFirstCycleBtn = window.locator(SELECTORS.startFirstCycleBtn)
+        if (await startFirstCycleBtn.isVisible({ timeout: 5000 }).catch(() => false)) {
+          await startFirstCycleBtn.click()
 
           const cycleGoalInput = window.locator(SELECTORS.cycleGoalInput)
           if (await cycleGoalInput.isVisible({ timeout: 5000 }).catch(() => false)) {

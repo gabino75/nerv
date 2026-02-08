@@ -76,35 +76,74 @@ Build a simple todo application with CRUD operations.
 
 ## Scoring
 
+Scoring has two components: deterministic NERV operations metrics and Claude-graded code quality.
+
 ### Score Command
 
 ```bash
 nerv benchmark score test-results/benchmark-20260101/
 ```
 
-### Scoring Categories
+You can also use the standalone scoring script:
+
+```bash
+node scripts/score-benchmark.js test-results/benchmark-20260101/ --spec specs/todo-app.md
+```
+
+### NERV Operations Score (Deterministic)
+
+Scored automatically from `summary.json` metrics:
 
 | Category | Weight | What's Evaluated |
 |----------|--------|------------------|
-| Requirements Met | 30% | Checkboxes completed in spec |
-| Test Coverage | 25% | Code coverage percentage |
-| Code Quality | 20% | Linting, type safety |
-| Documentation | 15% | Comments, README |
-| Performance | 10% | Build time, test speed |
+| Worktree Usage | 25% | Worktrees created, merged, per-task isolation |
+| Parallelism | 15% | Parallel tasks run, coverage ratio |
+| Cycle Management | 20% | Cycles completed, spec completion %, tasks done |
+| Review Process | 15% | Reviews run and approved, coverage |
+| Error Handling | 10% | Tool errors, loops detected, stuck states |
+| Cost Efficiency | 15% | Total cost, cost per spec item, duration |
+
+### Code Quality Score (Claude-Graded)
+
+A separate Claude Code session evaluates the produced code:
+
+| Category | Weight | What's Evaluated |
+|----------|--------|------------------|
+| Implementation | 35% | Code organization, naming, tests, type safety, DRY |
+| Functionality | 35% | Spec requirements met, API correctness, edge cases |
+| User Experience | 30% | App works, intuitive UI, proper feedback, matches README |
 
 ### Score Output
 
 ```
-Benchmark Score: 8.5/10
+============================================================
+  NERV Benchmark Scores
+============================================================
 
-Requirements Met:     9/10  (27/30 points)
-Test Coverage:        8/10  (20/25 points)
-Code Quality:         9/10  (18/20 points)
-Documentation:        7/10  (10.5/15 points)
-Performance:          9/10  (9/10 points)
+  --- NERV Operations (Deterministic) ---
+  NERV Ops Total           ████████░░ 78/100
 
-Total: 84.5/100 points
+    Worktree Usage (25%)   ████████░░ 8/10
+    Parallelism (15%)      ██████░░░░ 6/10
+    Cycle Mgmt (20%)       █████████░ 9/10
+    Review Process (15%)   ████████░░ 8/10
+    Error Handling (10%)   ██████████ 10/10
+    Cost Efficiency (15%)  ███████░░░ 7/10
+
+  --- Code Quality (Claude Graded) ---
+
+    Implementation (35%)   █████████░ 9/10
+    Functionality (35%)    ████████░░ 8/10
+    User Experience (30%)  ██████████ 10/10
+
+------------------------------------------------------------
+  NERV Ops Score             7.8/10
+  Code Quality Score         8.9/10
+  Overall Score              ████████░░ 8.4/10
+============================================================
 ```
+
+Exit code is 0 if overall score >= 7, or 1 if below.
 
 ## History Tracking
 
@@ -114,26 +153,9 @@ Total: 84.5/100 points
 nerv benchmark history
 ```
 
-### Output
+### History Storage
 
-```
-Benchmark History
-
-Date       | Spec              | Score | Cycles | Cost
------------|-------------------|-------|--------|-------
-2026-01-15 | todo-app.md       | 8.5   | 5      | $1.23
-2026-01-14 | todo-app.md       | 7.2   | 8      | $2.45
-2026-01-13 | chat-app.md       | 9.1   | 4      | $0.98
-```
-
-### History File
-
-History is stored in `~/.nerv/benchmarks/history.jsonl`:
-
-```json
-{"date":"2026-01-15","spec":"todo-app.md","score":8.5,"cycles":5,"cost":1.23}
-{"date":"2026-01-14","spec":"todo-app.md","score":7.2,"cycles":8,"cost":2.45}
-```
+History is appended to `~/.nerv/benchmarks/history.jsonl` after each scored run.
 
 ## Creating Good Specs
 
@@ -156,7 +178,7 @@ Build a todo app with:
 
 ### Use Checkboxes
 
-NERV counts completed checkboxes for scoring:
+NERV counts completed checkboxes for spec completion tracking:
 
 ```markdown
 ## Requirements

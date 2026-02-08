@@ -2,11 +2,42 @@
 
 Understanding NERV's key concepts will help you work more effectively.
 
+## Project Lifecycle
+
+The complete NERV development flow from project creation to completion:
+
+```mermaid
+stateDiagram-v2
+    [*] --> ProjectCreated: Create Project
+    ProjectCreated --> GoalSet: Set goal / add repos
+    GoalSet --> CycleActive: Create Cycle (via recommend or manual)
+
+    state CycleActive {
+        [*] --> TaskTodo: Create Tasks
+        TaskTodo --> TaskInProgress: Start Task
+        TaskInProgress --> WorktreeCreated: NERV creates worktree
+        WorktreeCreated --> ClaudeWorking: Claude Code spawns
+        ClaudeWorking --> PermissionPending: Permission request
+        PermissionPending --> ClaudeWorking: Approve / Always Allow
+        ClaudeWorking --> TaskReview: Claude finishes
+        TaskReview --> TaskDone: Approve merge
+        TaskReview --> TaskInProgress: Reject (iterate)
+        TaskDone --> [*]: More tasks?
+    }
+
+    CycleActive --> CycleComplete: All tasks done
+    CycleComplete --> LearningsRecorded: Record learnings
+    LearningsRecorded --> AuditRun: Run audit
+    AuditRun --> CycleActive: Next cycle (via recommend)
+    AuditRun --> ProjectComplete: Spec 100% complete
+    ProjectComplete --> [*]
+```
+
 ## Projects
 
 A **Project** represents a development goal that may span one or more repositories.
 
-- Each project has its own database storing tasks, sessions, and learnings
+- Each project has its own tasks, sessions, and learnings in the database
 - Projects are isolated - work on multiple projects simultaneously
 - Multi-repo projects use `--add-dir` to give Claude access to all repos
 
@@ -64,6 +95,9 @@ nerv cycle create "Authentication MVP"
 
 # Complete with learnings
 nerv cycle complete --learnings "OAuth patterns established"
+
+# Run a code health audit
+nerv cycle audit
 ```
 
 ## Worktrees
@@ -72,8 +106,8 @@ NERV uses **git worktrees** to isolate task work:
 
 - Each task gets its own worktree with a unique branch
 - Your main branch is never directly modified
-- Branch naming: `nerv/{project-id}-{task-id}`
-- Worktrees are created in `~/.nerv/projects/{project}/worktrees/`
+- Branch naming: `nerv/{taskId}-{timestamp}`
+- Worktrees are created adjacent to your repo: `{repo-parent}/{repo-name}-worktrees/`
 
 Benefits:
 - Work on multiple tasks in parallel without conflicts
@@ -106,8 +140,14 @@ A **Session** is a Claude Code conversation. Sessions can be:
 # Start a task session
 nerv start <taskId>
 
-# Resume a session
+# Resume a previous session
 nerv resume --session <sessionId>
+
+# List sessions
+nerv sessions
+
+# Fork a session for experimentation
+nerv session fork --name "experiment"
 ```
 
 ## Permission Rules
@@ -120,25 +160,35 @@ Bash(rm -rf ./build) # Allow specific rm command
 Read(~/.ssh/*)       # Deny reading SSH keys
 ```
 
-Rules are stored in `~/.nerv/permissions.json` and can be learned from your approval history:
+Rules are stored in the SQLite database and can be managed via CLI or UI:
 
 ```bash
+# List rules
+nerv permissions list
+
+# Add a rule
+nerv permissions add "allow Bash(npm test:*)"
+
+# Learn suggested rules from approval history
 nerv permissions learn
 ```
 
-## Settings Hierarchy
+## Settings
 
-Settings are resolved in priority order:
-
-1. **Environment variables** (`NERV_*`)
-2. **Project config** (`.nerv/config.json`)
-3. **Global config** (`~/.nerv/config.json`)
-4. **Default values**
+Settings are stored in the SQLite database and managed via the CLI or UI:
 
 ```bash
-# View all settings
+# View all settings with sources
 nerv config list
 
-# Set a value
+# Set a value (global)
 nerv config set monthly_budget_usd 50
+
+# Set a project-level value
+nerv config set theme dark --project
+
+# Get a specific setting
+nerv config get monthly_budget_usd
 ```
+
+Settings can also be overridden with environment variables using the `NERV_` prefix (e.g., `NERV_LOG_LEVEL=debug`).

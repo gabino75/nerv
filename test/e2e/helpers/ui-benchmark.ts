@@ -212,7 +212,7 @@ export class UIBenchmarkRunner {
     }
 
     // Click "Start Cycle 0"
-    const startBtn = this.window.locator(SELECTORS.startCycle0Btn).first()
+    const startBtn = this.window.locator(SELECTORS.startFirstCycleBtn).first()
     if (await startBtn.isVisible({ timeout: TIMEOUT.ui }).catch(() => false)) {
       await startBtn.click()
       await this.window.waitForTimeout(500)

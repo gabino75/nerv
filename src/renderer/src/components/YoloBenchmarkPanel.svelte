@@ -1,11 +1,14 @@
 <script lang="ts">
   /**
-   * YoloBenchmarkPanel - YOLO Mode autonomous benchmark execution UI
+   * YoloBenchmarkPanel - YOLO Mode autonomous execution UI
+   *
+   * YOLO Mode lets Claude work autonomously through cycles with auto-approvals.
+   * This is separate from CLI benchmarks (nerv benchmark) which are CLI-only.
    *
    * Features:
-   * - Configure and start YOLO benchmark runs
+   * - Configure and start YOLO autonomous runs
    * - View real-time progress during execution
-   * - Compare benchmark results across models
+   * - Compare results across models
    * - View grades and scores
    */
 
@@ -355,7 +358,7 @@
     <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
     <div class="panel" onclick={(e) => e.stopPropagation()} data-testid="yolo-panel" role="presentation">
       <div class="panel-header">
-        <h2>YOLO Benchmark</h2>
+        <h2>YOLO Mode</h2>
         <div class="tab-buttons">
           <button
             class="tab-btn"

@@ -49,133 +49,80 @@ nerv start <taskId> --agent builder
 3. Configure the agent settings
 4. Save
 
-### Via Config File
+### Via CLI
 
-Create agents in `~/.nerv/agents/`:
+```bash
+# Create a new agent
+nerv agent create my-agent
 
-```yaml
-# ~/.nerv/agents/api-builder.yaml
-name: API Builder
-description: Builds REST APIs with best practices
+# Edit an existing agent
+nerv agent edit my-agent
 
-system_prompt: |
-  You are an expert API developer. When building APIs:
-  - Follow REST conventions
-  - Use proper HTTP status codes
-  - Include input validation
-  - Add error handling
-  - Write OpenAPI documentation
+# Delete an agent
+nerv agent delete my-agent
 
-model: claude-sonnet-4-20250514
-temperature: 0.3
+# List all agents
+nerv agents
 
-tools:
-  allowed:
-    - Read
-    - Write
-    - Edit
-    - Bash
-  restricted:
-    - Bash(rm -rf *)
+# List with tool access details
+nerv agents --verbose
 ```
 
+Agents are stored in the SQLite database, not as YAML files on disk.
+
 ## Agent Configuration
+
+When creating or editing an agent, you can configure:
 
 ### System Prompt
 
 The system prompt defines the agent's persona and instructions:
 
-```yaml
-system_prompt: |
-  You are a security-focused code reviewer.
+```
+You are a security-focused code reviewer.
 
-  When reviewing code:
-  1. Check for OWASP top 10 vulnerabilities
-  2. Identify hardcoded credentials
-  3. Review input validation
-  4. Check authentication logic
+When reviewing code:
+1. Check for OWASP top 10 vulnerabilities
+2. Identify hardcoded credentials
+3. Review input validation
+4. Check authentication logic
 ```
 
 ### Tools
 
 Control which tools the agent can use:
 
-```yaml
-tools:
-  allowed:
-    - Read
-    - Grep
-    - Glob
-  restricted:
-    - Write
-    - Edit
-    - Bash
-```
+- **Allowed:** Read, Write, Edit, Bash, Grep, Glob
+- **Restricted:** Specific tool patterns to block
 
 ### Model Selection
 
 Choose the appropriate model:
 
-```yaml
-model: claude-sonnet-4-20250514  # Balanced
-model: claude-opus-4-20250514    # Most capable
-```
+- `claude-sonnet-4-20250514` - Balanced speed and capability
+- `claude-opus-4-20250514` - Most capable
 
 ### Temperature
 
 Control response variability:
 
-```yaml
-temperature: 0.0  # Deterministic (tests, reviews)
-temperature: 0.5  # Balanced (general coding)
-temperature: 1.0  # Creative (brainstorming)
-```
+- `0.0` - Deterministic (tests, reviews)
+- `0.5` - Balanced (general coding)
+- `1.0` - Creative (brainstorming)
 
-## Project-Specific Agents
-
-Define agents for specific projects in `.nerv/agents/`:
-
-```yaml
-# .nerv/agents/frontend-dev.yaml
-name: Frontend Developer
-description: React/TypeScript specialist
-
-system_prompt: |
-  You specialize in React with TypeScript.
-  Follow these patterns:
-  - Functional components with hooks
-  - TypeScript strict mode
-  - CSS modules or Tailwind
-```
-
-## Sharing Agents
-
-### Export
-
-```bash
-nerv agent export <name> > agent.yaml
-```
-
-### Import
-
-```bash
-nerv agent import < agent.yaml
-```
-
-### Organization Agents
+## Organization Agents
 
 Organizations can define shared agents via org config:
 
-```json
-{
-  "agents": [
-    {
-      "name": "company-standard",
-      "config_url": "https://config.company.com/agents/standard.yaml"
-    }
-  ]
-}
+```bash
+# List organization agents
+nerv org agents
+
+# Sync organization config
+nerv org sync
 ```
+
+Organization agents are distributed via the org config system and appear alongside your custom agents.
 
 ## Best Practices
 

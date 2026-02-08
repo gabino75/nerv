@@ -109,6 +109,15 @@ export const SELECTORS = {
   cycleDirectionInput: '[data-testid="cycle-direction-input"]',
   approveTaskBtn: '[data-testid="approve-task-btn"]',
 
+  // Recommend panel
+  recommendBtn: '[data-testid="recommend-btn"]',
+  recommendPanel: '[data-testid="recommend-panel"]',
+  recommendDirectionInput: '[data-testid="recommend-direction-input"]',
+  recommendAskBtn: '[data-testid="recommend-ask-btn"]',
+  recommendCard: (index: number) => `[data-testid="recommend-card-${index}"]`,
+  recommendApprove: (index: number) => `[data-testid="recommend-approve-${index}"]`,
+  recommendExecuteSuccess: '[data-testid="recommend-execute-success"]',
+
   // Generic
   closeBtn: '.close-btn',
   modal: '.modal',

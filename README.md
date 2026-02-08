@@ -30,8 +30,8 @@ NERV is spec-driven AI development. Write a spec defining what you want to build
 You define *what* to build. NERV handles *how*: breaking work into cycles, prioritizing test coverage, managing git worktrees, and keeping Claude on track with AI-guided recommendations at every step.
 
 **Key features:**
+- **"What's Next?" recommendations** — Claude analyzes your project and recommends 2-3 ranked next steps. Approve to execute, or give direction to steer.
 - **Spec-driven workflow** — write a markdown spec with checkboxes, NERV tracks completion as Claude builds
-- **AI-guided iteration** — "What's Next?" analyzes your project and recommends the next step
 - **Test-first by design** — MVP scope and E2E tests are prioritized in early cycles
 - **Permission control** — approve or deny commands through a hook system with pattern-based rules
 - **Git worktree isolation** — every task gets its own branch, your main is never touched
@@ -59,22 +59,23 @@ npm install
 npm run dev
 ```
 
-**Pre-built binaries** for Windows and Linux are available on the [Releases](https://github.com/gabino75/nerv/releases) page.
-
-> **macOS:** No pre-built binary yet. Clone the repo and run `npm run dev` or `npm run build && npx electron-builder --mac` to build locally.
+For a production build: `npm run build`
 
 ## Usage
 
 ### GUI
 
-Launch with `npm run dev` or run the installed app. Write a spec, click **"What's Next?"**, and let Claude plan your cycles and tasks. Review suggestions and accept them, or take the wheel and specify everything manually.
+Launch with `npm run dev` or run the installed app. Click **"What's Next?"** to get 2-3 ranked recommendations. Click **Approve** to execute them directly — NERV creates cycles, tasks, and other resources for you. Give direction in the input field to steer suggestions. Or take the wheel and do everything manually.
+
+![NERV Recommend Panel](docs-site/public/screenshots/recommend-panel.png)
 
 ### CLI
 
 ```bash
 # Claude-guided flow
 nerv project create my-app       # Create a project
-nerv recommend                   # Ask Claude what to do next
+nerv recommend                   # Get 2-3 ranked recommendations
+nerv recommend --direction "focus on tests"  # Steer with direction
 nerv cycle create                # Let Claude plan the cycle + tasks
 nerv start <taskId>              # Start building
 nerv learn "Key insight"         # Record a learning

@@ -1,9 +1,11 @@
 import { defineConfig } from 'vitepress'
+import { withMermaid } from 'vitepress-plugin-mermaid'
 
-export default defineConfig({
+export default withMermaid(defineConfig({
   title: 'NERV',
   description: 'AI-Orchestrated Multi-Repository Development',
   base: '/nerv/',
+  appearance: 'dark',
 
   head: [
     ['link', { rel: 'icon', type: 'image/png', href: '/nerv/nerv-logo.png' }]
@@ -14,7 +16,7 @@ export default defineConfig({
 
     nav: [
       { text: 'Guide', link: '/guide/getting-started' },
-      { text: 'Features', link: '/features/multi-tab' },
+      { text: 'Features', link: '/features/recommend' },
       { text: 'CLI', link: '/cli/' },
       { text: 'Architecture', link: '/architecture/' },
       { text: 'Benchmarking', link: '/benchmarking/overview' },
@@ -36,7 +38,6 @@ export default defineConfig({
           items: [
             { text: 'Introduction', link: '/guide/getting-started' },
             { text: 'Installation', link: '/guide/installation' },
-            { text: 'Quick Start', link: '/guide/quick-start' },
             { text: 'Core Concepts', link: '/guide/concepts' }
           ]
         }
@@ -45,6 +46,7 @@ export default defineConfig({
         {
           text: 'Features',
           items: [
+            { text: "What's Next? (Recommend)", link: '/features/recommend' },
             { text: 'Multi-Tab Sessions', link: '/features/multi-tab' },
             { text: 'YOLO Mode', link: '/features/yolo-mode' },
             { text: 'Permission System', link: '/features/permissions' },
@@ -71,6 +73,7 @@ export default defineConfig({
           text: 'Benchmarking',
           items: [
             { text: 'Overview', link: '/benchmarking/overview' },
+            { text: 'Architecture', link: '/benchmarking/architecture' },
             { text: 'Running Benchmarks', link: '/benchmarking/running-benchmarks' },
             { text: 'Scoring System', link: '/benchmarking/scoring-system' },
             { text: 'Creating Specs', link: '/benchmarking/creating-specs' }
@@ -113,5 +116,19 @@ export default defineConfig({
       message: 'Released under the MIT License.',
       copyright: 'Copyright 2026-present'
     }
-  }
-})
+  },
+
+  mermaid: {
+    theme: 'dark',
+    themeVariables: {
+      primaryColor: '#7B2D8E',
+      primaryTextColor: '#e0e0e0',
+      primaryBorderColor: '#9B4DBA',
+      lineColor: '#4ADE80',
+      secondaryColor: '#1a1a24',
+      tertiaryColor: '#12121a',
+      noteBkgColor: '#1a1a24',
+      noteTextColor: '#e0e0e0',
+    }
+  },
+}))

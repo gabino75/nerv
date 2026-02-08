@@ -80,9 +80,9 @@ test.describe('NERV Cycle Management Tests', () => {
 
       // STEP 2: Click "Start Cycle 0" button
       log('step', 'Clicking Start Cycle 0 button')
-      const startCycle0Btn = window.locator('[data-testid="start-cycle-0-btn"]')
-      await expect(startCycle0Btn).toBeVisible({ timeout: TIMEOUT.ui })
-      await startCycle0Btn.click()
+      const startFirstCycleBtn = window.locator('[data-testid="start-first-cycle-btn"]')
+      await expect(startFirstCycleBtn).toBeVisible({ timeout: TIMEOUT.ui })
+      await startFirstCycleBtn.click()
       await slowWait(window, 'NewCycleModal opening')
 
       // STEP 3: Fill in cycle goal in the modal
@@ -191,9 +191,9 @@ test.describe('NERV Cycle Management Tests', () => {
 
       // STEP 2: Create and complete Cycle 0
       log('step', 'Creating Cycle 0')
-      const startCycle0Btn = window.locator('[data-testid="start-cycle-0-btn"]')
-      await expect(startCycle0Btn).toBeVisible({ timeout: TIMEOUT.ui })
-      await startCycle0Btn.click()
+      const startFirstCycleBtn = window.locator('[data-testid="start-first-cycle-btn"]')
+      await expect(startFirstCycleBtn).toBeVisible({ timeout: TIMEOUT.ui })
+      await startFirstCycleBtn.click()
       await slowWait(window, 'NewCycleModal opening')
 
       // Fill cycle goal

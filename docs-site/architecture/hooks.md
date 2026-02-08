@@ -130,22 +130,17 @@ Claude ← nerv-hook ← Named Pipe ← NERV Main Process
 
 ## Permission Rules
 
-Rules are stored in `~/.nerv/permissions.json`:
+Rules are stored in the SQLite database (`~/.nerv/state.db`) and managed via CLI or UI:
 
-```json
-{
-  "allow": [
-    "Read",
-    "Grep",
-    "Glob",
-    "Bash(npm test:*)",
-    "Bash(git log:*)"
-  ],
-  "deny": [
-    "Bash(rm -rf /)",
-    "Read(~/.ssh/*)"
-  ]
-}
+```bash
+# List all rules
+nerv permissions list
+
+# Add an allow rule
+nerv permissions add "allow Bash(npm test:*)"
+
+# Add a deny rule
+nerv permissions deny "Read(~/.ssh/*)"
 ```
 
 ### Pattern Matching

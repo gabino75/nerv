@@ -15,7 +15,7 @@ import { notifications } from './notifications'
 import { org } from './org'
 import { autoUpdate } from './auto-update'
 import { instance } from './instance'
-import { versions, projectIO, dialog, mcp, subagents, skills, crashReporter } from './misc'
+import { versions, projectIO, dialog, mcp, subagents, skills, crashReporter, recommend } from './misc'
 
 export const api = {
   versions,
@@ -46,7 +46,8 @@ export const api = {
   successMetrics,
   crashReporter,
   userStatements,
-  specProposals
+  specProposals,
+  recommend
 }
 
 export type NervAPI = typeof api

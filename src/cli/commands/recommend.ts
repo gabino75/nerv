@@ -1,21 +1,22 @@
 /**
  * Recommend command - "What's Next?" for NERV workflow
  *
- * nerv recommend          - Get Claude's recommendation for next step
- * nerv recommend --json   - Output as JSON
+ * nerv recommend                        - Get Claude's recommendations
+ * nerv recommend --direction "text"     - Steer recommendations with direction
+ * nerv recommend --json                 - Output as JSON
  *
  * Gathers current project context (cycle, tasks, learnings, decisions)
- * and asks Claude to recommend the next logical step based on the
+ * and asks Claude to recommend the next logical steps based on the
  * NERV development lifecycle from the PRD.
  */
 
 import { execSync } from 'child_process'
 import type { DatabaseService } from '../../core/database.js'
 import { CLI_EXIT_CODES } from '../../shared/constants.js'
-import { buildRecommendPrompt, parseRecommendation, type RecommendContext } from '../../shared/prompts/recommend.js'
+import { buildRecommendPrompt, parseRecommendations, type Recommendation, type RecommendContext } from '../../shared/prompts/recommend.js'
 import { colors } from '../colors.js'
 
-function gatherContext(db: DatabaseService): RecommendContext | null {
+function gatherContext(db: DatabaseService, direction?: string): RecommendContext | null {
   const project = db.getCurrentProject()
   if (!project) {
     return null
@@ -51,13 +52,23 @@ function gatherContext(db: DatabaseService): RecommendContext | null {
     decisions,
     hasCycle: !!activeCycle,
     totalCycles: allCycles.length,
+    userDirection: direction,
   }
+}
+
+function parseDirectionFlag(args: string[]): string | undefined {
+  const idx = args.indexOf('--direction')
+  if (idx === -1) return undefined
+  const value = args[idx + 1]
+  if (!value || value.startsWith('--')) return undefined
+  return value
 }
 
 export async function recommendCommand(args: string[], db: DatabaseService): Promise<void> {
   const jsonOutput = args.includes('--json')
+  const direction = parseDirectionFlag(args)
 
-  const ctx = gatherContext(db)
+  const ctx = gatherContext(db, direction)
   if (!ctx) {
     console.error(`${colors.red}No project selected.${colors.reset} Use: nerv project switch <id>`)
     process.exit(CLI_EXIT_CODES.INVALID_ARGS)
@@ -66,7 +77,11 @@ export async function recommendCommand(args: string[], db: DatabaseService): Pro
   const prompt = buildRecommendPrompt(ctx)
 
   if (!jsonOutput) {
-    console.log(`\n${colors.cyan}Analyzing project state...${colors.reset}`)
+    if (direction) {
+      console.log(`\n${colors.cyan}Analyzing project state with direction: "${direction}"...${colors.reset}`)
+    } else {
+      console.log(`\n${colors.cyan}Analyzing project state...${colors.reset}`)
+    }
   }
 
   try {
@@ -82,11 +97,11 @@ export async function recommendCommand(args: string[], db: DatabaseService): Pro
       }
     ).trim()
 
-    const recommendation = parseRecommendation(result)
+    const recommendations = parseRecommendations(result)
 
-    if (!recommendation) {
+    if (recommendations.length === 0) {
       if (jsonOutput) {
-        console.log(JSON.stringify({ error: 'Failed to parse recommendation', raw: result }))
+        console.log(JSON.stringify({ error: 'Failed to parse recommendations', raw: result }))
       } else {
         console.log(`\n${colors.yellow}Claude's suggestion:${colors.reset}`)
         console.log(result)
@@ -95,11 +110,11 @@ export async function recommendCommand(args: string[], db: DatabaseService): Pro
     }
 
     if (jsonOutput) {
-      console.log(JSON.stringify(recommendation, null, 2))
+      console.log(JSON.stringify({ recommendations }, null, 2))
       return
     }
 
-    // Pretty-print the recommendation
+    // Pretty-print recommendations
     const phaseColors: Record<string, string> = {
       discovery: colors.blue,
       mvp: colors.green,
@@ -107,15 +122,21 @@ export async function recommendCommand(args: string[], db: DatabaseService): Pro
       polish: colors.magenta,
       done: colors.green,
     }
-    const phaseColor = phaseColors[recommendation.phase] || colors.gray
 
     console.log(`\n${colors.bold}What's Next?${colors.reset}`)
     console.log(`${colors.gray}${'─'.repeat(50)}${colors.reset}`)
-    console.log(`${phaseColor}Phase: ${recommendation.phase.replace(/_/g, ' ')}${colors.reset}`)
-    console.log(`${colors.bold}${recommendation.title}${colors.reset}`)
-    console.log(`\n${recommendation.description}`)
-    console.log(`\n${colors.cyan}How:${colors.reset} ${recommendation.details}`)
-    console.log(`${colors.gray}${'─'.repeat(50)}${colors.reset}\n`)
+
+    recommendations.forEach((rec: Recommendation, i: number) => {
+      const phaseColor = phaseColors[rec.phase] || colors.gray
+      const num = i + 1
+
+      console.log(`\n  ${colors.bold}${num}. ${rec.title}${colors.reset}`)
+      console.log(`     ${phaseColor}Phase: ${rec.phase}${colors.reset}  |  Action: ${rec.action}`)
+      console.log(`     ${rec.description}`)
+      console.log(`     ${colors.cyan}How:${colors.reset} ${rec.details}`)
+    })
+
+    console.log(`\n${colors.gray}${'─'.repeat(50)}${colors.reset}\n`)
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err)
 

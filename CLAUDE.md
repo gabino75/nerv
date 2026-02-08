@@ -119,7 +119,7 @@ Use CSS custom properties defined in app.css:
 ```bash
 npm run build      # Must pass
 npm run typecheck  # No errors
-npm run test:unit  # 160+ unit tests
+npm run test:unit  # 480+ unit tests
 npm run test:e2e   # E2E tests (Playwright in Docker)
 ```
 

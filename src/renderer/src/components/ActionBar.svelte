@@ -2,6 +2,7 @@
   import { appStore, currentTask, projectTasks, selectedProject } from '../stores/appState'
   import type { Task, Project } from '../stores/appState'
   import type { Branch } from '../../../shared/types'
+  import RecommendButton from './RecommendButton.svelte'
 
   // Props for terminal panel reference and dialog references
   interface Props {
@@ -260,6 +261,28 @@ Please complete this task following best practices. When done, summarize what yo
     console.log('[NERV] Started cleared session with summary')
   }
 
+  // Handle actions from RecommendButton that need UI interaction
+  function handleRecommendAction(action: string, data?: Record<string, unknown>) {
+    switch (action) {
+      case 'start_task':
+        handleStartTask()
+        break
+      case 'open_audit':
+        // Dispatch custom event to open audit panel
+        window.dispatchEvent(new CustomEvent('nerv-open-audit'))
+        break
+      case 'resume_task':
+        handleResumeTask()
+        break
+      default:
+        console.log('[NERV] Recommend action requires manual handling:', action, data)
+        break
+    }
+  }
+
+  // More actions dropdown state
+  let showMoreActions = $state(false)
+
   // Send input field for quick messages to Claude session (PRD Section 1 mockup line 145)
   let sendInputValue = $state('')
   let sendInput: HTMLInputElement | undefined = $state(undefined)
@@ -288,104 +311,15 @@ Please complete this task following best practices. When done, summarize what yo
 </script>
 
 <footer class="action-bar">
-  <div class="action-buttons">
-    <button
-      class="action-btn start"
-      data-testid="start-task-btn"
-      onclick={handleStartTask}
-      disabled={!currentProject || isRunning || !getNextTask()}
-    >
-      {#if isRunning}
-        Running...
-      {:else}
-        Start Task
-      {/if}
-    </button>
-
-    <button
-      class="action-btn stop"
-      data-testid="stop-task-btn"
-      onclick={handleStopTask}
-      disabled={!isRunning}
-    >
-      Stop
-    </button>
-
-    {#if getInterruptedTask() && !isRunning}
-      <button
-        class="action-btn resume"
-        data-testid="resume-task-btn"
-        onclick={handleResumeTask}
-        disabled={isRunning}
-        title={canResumeTask(getInterruptedTask()!) ? "Resume interrupted task from last session" : "Start interrupted task fresh (no session to resume)"}
-      >
-        {canResumeTask(getInterruptedTask()!) ? 'Resume' : 'Restart'}
-      </button>
-    {/if}
-
-    <div class="btn-group">
-      <button
-        class="action-btn branch"
-        data-testid="branch-btn"
-        onclick={handleBranch}
-        disabled={!isRunning}
-        title="Create a branch session to experiment without polluting main context"
-      >
-        Branch
-      </button>
-
-      {#if activeBranches.length > 0}
-        <button
-          class="action-btn merge"
-          data-testid="merge-branch-btn"
-          onclick={handleMergeBranch}
-          title="Merge branch learnings back to main session"
-        >
-          Merge
-        </button>
-      {/if}
-
-      <button
-        class="action-btn clear-summary"
-        onclick={handleClearWithSummary}
-        disabled={!isRunning}
-        title="Clear context and restart with a summary of learnings"
-      >
-        Clear
-      </button>
-    </div>
-
-    {#if isInReview()}
-      <div class="btn-group review-actions">
-        <button
-          class="action-btn approve"
-          data-testid="approve-task-btn"
-          onclick={handleApproveTask}
-          title="Approve this task and mark as done"
-        >
-          Approve
-        </button>
-
-        <button
-          class="action-btn request-changes"
-          data-testid="request-changes-btn"
-          onclick={handleRequestChanges}
-          title="Request changes - move task back to in progress"
-        >
-          Request Changes
-        </button>
-      </div>
-    {/if}
-
-    <!-- Send input field per PRD Section 1 mockup (line 145) -->
+  <!-- Row 1: Send input (primary interaction) -->
+  <div class="send-row">
     <div class="send-input-wrapper">
-      <label class="send-label" for="send-input">Send:</label>
       <input
         id="send-input"
         type="text"
         class="send-input"
         data-testid="send-input"
-        placeholder="Type a message..."
+        placeholder={isRunning ? "Type a message to Claude..." : "Start a task to chat with Claude"}
         bind:value={sendInputValue}
         bind:this={sendInput}
         onkeydown={handleSendKeydown}
@@ -398,44 +332,214 @@ Please complete this task following best practices. When done, summarize what yo
         disabled={!isRunning || !sendInputValue.trim()}
         title="Send message to Claude session (Enter)"
       >
-        →
+        Send
       </button>
     </div>
   </div>
 
-  <div class="task-info">
-    {#if activeTask}
-      <span class="current-task">
-        <span class="task-label">Current:</span>
-        <span class="task-id">{activeTask.id}</span>
-        <span class="task-title">{activeTask.title}</span>
-      </span>
-    {:else if currentProject && getNextTask()}
-      <span class="next-task">
-        <span class="task-label">Next:</span>
-        <span class="task-id">{getNextTask()?.id}</span>
-        <span class="task-title">{getNextTask()?.title}</span>
-      </span>
-    {:else if currentProject}
-      <span class="no-task">No tasks available - create one to get started</span>
-    {:else}
-      <span class="no-task">Select or create a project to begin</span>
-    {/if}
+  <!-- Row 2: Action buttons + task info -->
+  <div class="controls-row">
+    <div class="action-buttons">
+      <button
+        class="action-btn start"
+        data-testid="start-task-btn"
+        onclick={handleStartTask}
+        disabled={!currentProject || isRunning || !getNextTask()}
+      >
+        {#if isRunning}
+          Running...
+        {:else}
+          Start Task
+        {/if}
+      </button>
+
+      <button
+        class="action-btn stop"
+        data-testid="stop-task-btn"
+        onclick={handleStopTask}
+        disabled={!isRunning}
+      >
+        Stop
+      </button>
+
+      {#if getInterruptedTask() && !isRunning}
+        <button
+          class="action-btn resume"
+          data-testid="resume-task-btn"
+          onclick={handleResumeTask}
+          disabled={isRunning}
+          title={canResumeTask(getInterruptedTask()!) ? "Resume interrupted task from last session" : "Start interrupted task fresh (no session to resume)"}
+        >
+          {canResumeTask(getInterruptedTask()!) ? 'Resume' : 'Restart'}
+        </button>
+      {/if}
+
+      {#if isInReview()}
+        <div class="btn-group review-actions">
+          <button
+            class="action-btn approve"
+            data-testid="approve-task-btn"
+            onclick={handleApproveTask}
+            title="Approve this task and mark as done"
+          >
+            Approve
+          </button>
+
+          <button
+            class="action-btn request-changes"
+            data-testid="request-changes-btn"
+            onclick={handleRequestChanges}
+            title="Request changes - move task back to in progress"
+          >
+            Request Changes
+          </button>
+        </div>
+      {/if}
+
+      <!-- More Actions dropdown for secondary actions -->
+      <div class="more-actions-wrapper">
+        <button
+          class="action-btn more-actions"
+          onclick={() => showMoreActions = !showMoreActions}
+          disabled={!isRunning && activeBranches.length === 0}
+          title="More actions"
+        >
+          More
+        </button>
+        {#if showMoreActions}
+          <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
+          <div class="more-actions-backdrop" onclick={() => showMoreActions = false}></div>
+          <div class="more-actions-menu" data-testid="more-actions-menu">
+            <button
+              class="more-actions-item"
+              data-testid="branch-btn"
+              onclick={() => { showMoreActions = false; handleBranch() }}
+              disabled={!isRunning}
+            >
+              Branch
+            </button>
+            {#if activeBranches.length > 0}
+              <button
+                class="more-actions-item"
+                data-testid="merge-branch-btn"
+                onclick={() => { showMoreActions = false; handleMergeBranch() }}
+              >
+                Merge
+              </button>
+            {/if}
+            <button
+              class="more-actions-item"
+              onclick={() => { showMoreActions = false; handleClearWithSummary() }}
+              disabled={!isRunning}
+            >
+              Clear Context
+            </button>
+          </div>
+        {/if}
+      </div>
+
+      <RecommendButton onExecuteAction={handleRecommendAction} />
+    </div>
+
+    <div class="task-info">
+      {#if activeTask}
+        <span class="current-task">
+          <span class="task-label">Current:</span>
+          <span class="task-id">{activeTask.id}</span>
+          <span class="task-title">{activeTask.title}</span>
+        </span>
+      {:else if currentProject && getNextTask()}
+        <span class="next-task">
+          <span class="task-label">Next:</span>
+          <span class="task-id">{getNextTask()?.id}</span>
+          <span class="task-title">{getNextTask()?.title}</span>
+        </span>
+      {:else if currentProject}
+        <span class="no-task">No tasks available - create one to get started</span>
+      {:else}
+        <span class="no-task">Select or create a project to begin</span>
+      {/if}
+    </div>
   </div>
 </footer>
 
 <style>
   .action-bar {
     display: flex;
-    align-items: center;
-    gap: 16px;
+    flex-direction: column;
+    gap: 8px;
     padding: 12px 0;
     flex-shrink: 0;
   }
 
+  /* Row 1: Prominent send input */
+  .send-row {
+    display: flex;
+    width: 100%;
+  }
+
+  .send-input-wrapper {
+    display: flex;
+    align-items: center;
+    gap: 0;
+    flex: 1;
+  }
+
+  .send-input {
+    flex: 1;
+    padding: 10px 16px;
+    border: 1px solid var(--color-nerv-border);
+    border-radius: var(--radius-nerv-md) 0 0 var(--radius-nerv-md);
+    background: var(--color-nerv-panel);
+    color: var(--color-nerv-text);
+    font-size: 14px;
+    font-family: inherit;
+  }
+
+  .send-input::placeholder {
+    color: #555;
+  }
+
+  .send-input:focus {
+    outline: none;
+    border-color: var(--color-nerv-primary);
+    background: var(--color-nerv-panel-hover);
+    box-shadow: 0 0 0 1px var(--color-nerv-primary);
+  }
+
+  .send-input:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  .action-btn.send {
+    background: var(--color-nerv-primary);
+    border-color: var(--color-nerv-primary);
+    color: white;
+    border-radius: 0 var(--radius-nerv-md) var(--radius-nerv-md) 0;
+    border-left-width: 0;
+    padding: 10px 20px;
+    font-size: 13px;
+    font-weight: 500;
+    line-height: 1;
+  }
+
+  .action-btn.send:hover:not(:disabled) {
+    background: var(--color-nerv-primary-hover);
+    border-color: var(--color-nerv-primary-hover);
+  }
+
+  /* Row 2: Controls */
+  .controls-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
   .action-buttons {
     display: flex;
-    gap: 8px;
+    gap: 6px;
+    flex-shrink: 0;
   }
 
   .btn-group {
@@ -455,10 +559,10 @@ Please complete this task following best practices. When done, summarize what yo
   }
 
   .action-btn {
-    padding: 10px 20px;
+    padding: 8px 16px;
     border: 1px solid var(--color-nerv-border);
     border-radius: var(--radius-nerv-md);
-    font-size: 13px;
+    font-size: 12px;
     font-weight: 500;
     cursor: pointer;
     transition: all var(--transition-nerv-fast);
@@ -473,7 +577,7 @@ Please complete this task following best practices. When done, summarize what yo
     background: var(--color-nerv-primary);
     border-color: var(--color-nerv-primary);
     color: white;
-    min-width: 110px;
+    min-width: 100px;
   }
 
   .action-btn.start:hover:not(:disabled) {
@@ -503,52 +607,16 @@ Please complete this task following best practices. When done, summarize what yo
     color: #8bebeb;
   }
 
-  .action-btn.branch {
-    background: var(--color-nerv-panel-hover);
-    color: var(--color-nerv-info-light);
-    padding: 10px 16px;
-  }
-
-  .action-btn.branch:hover:not(:disabled) {
-    background: var(--color-nerv-info-bg);
-    border-color: var(--color-nerv-info-border);
-    color: var(--color-nerv-info-lighter);
-  }
-
-  .action-btn.merge {
-    background: var(--color-nerv-success-bg);
-    color: #88ffbb;
-    padding: 10px 16px;
-  }
-
-  .action-btn.merge:hover:not(:disabled) {
-    background: var(--color-nerv-success-bg-hover);
-    border-color: #3a7a5a;
-    color: #aaffcc;
-  }
-
-  .action-btn.clear-summary {
-    background: var(--color-nerv-panel-hover);
-    color: #88c088;
-    padding: 10px 16px;
-  }
-
-  .action-btn.clear-summary:hover:not(:disabled) {
-    background: var(--color-nerv-success-bg);
-    border-color: #3a5a3a;
-    color: #aad4aa;
-  }
-
   .review-actions {
-    margin-left: 8px;
+    margin-left: 4px;
     border-left: 1px solid var(--color-nerv-border);
-    padding-left: 8px;
+    padding-left: 6px;
   }
 
   .action-btn.approve {
     background: var(--color-nerv-success-bg);
     color: var(--color-nerv-success);
-    padding: 10px 16px;
+    padding: 8px 14px;
   }
 
   .action-btn.approve:hover:not(:disabled) {
@@ -560,7 +628,7 @@ Please complete this task following best practices. When done, summarize what yo
   .action-btn.request-changes {
     background: var(--color-nerv-warning-bg);
     color: #ffb347;
-    padding: 10px 16px;
+    padding: 8px 14px;
   }
 
   .action-btn.request-changes:hover:not(:disabled) {
@@ -569,15 +637,79 @@ Please complete this task following best practices. When done, summarize what yo
     color: #ffc967;
   }
 
+  /* More Actions dropdown */
+  .more-actions-wrapper {
+    position: relative;
+  }
+
+  .action-btn.more-actions {
+    background: var(--color-nerv-panel-hover);
+    color: var(--color-nerv-text-muted);
+    padding: 8px 14px;
+  }
+
+  .action-btn.more-actions:hover:not(:disabled) {
+    background: var(--color-nerv-panel);
+    border-color: var(--color-nerv-border-hover);
+    color: var(--color-nerv-text);
+  }
+
+  .more-actions-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 99;
+  }
+
+  .more-actions-menu {
+    position: absolute;
+    bottom: 100%;
+    left: 0;
+    margin-bottom: 4px;
+    background: var(--color-nerv-panel-hover);
+    border: 1px solid var(--color-nerv-border);
+    border-radius: var(--radius-nerv-md);
+    box-shadow: 0 -4px 12px rgba(0, 0, 0, 0.4);
+    z-index: 100;
+    min-width: 140px;
+    overflow: hidden;
+  }
+
+  .more-actions-item {
+    display: block;
+    width: 100%;
+    padding: 8px 14px;
+    background: transparent;
+    border: none;
+    color: var(--color-nerv-text);
+    font-size: 13px;
+    cursor: pointer;
+    text-align: left;
+    transition: background var(--transition-nerv-fast);
+  }
+
+  .more-actions-item:hover:not(:disabled) {
+    background: var(--color-nerv-border);
+  }
+
+  .more-actions-item:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+
+  .more-actions-item:not(:last-child) {
+    border-bottom: 1px solid var(--color-nerv-border);
+  }
+
+  /* Task info */
   .task-info {
     flex: 1;
     display: flex;
     align-items: center;
-    padding: 8px 14px;
+    padding: 6px 12px;
     background: var(--color-nerv-panel);
     border: 1px solid var(--color-nerv-border);
     border-radius: var(--radius-nerv-md);
-    font-size: 13px;
+    font-size: 12px;
     overflow: hidden;
   }
 
@@ -602,7 +734,7 @@ Please complete this task following best practices. When done, summarize what yo
 
   .task-id {
     font-family: 'SF Mono', Monaco, 'Courier New', monospace;
-    font-size: 12px;
+    font-size: 11px;
     padding: 2px 6px;
     background: var(--color-nerv-panel-hover);
     border-radius: var(--radius-nerv-sm);
@@ -619,72 +751,5 @@ Please complete this task following best practices. When done, summarize what yo
   .no-task {
     color: #555;
     font-style: italic;
-  }
-
-  /* Send input field per PRD Section 1 mockup (line 145) */
-  .send-input-wrapper {
-    display: flex;
-    align-items: center;
-    gap: 0;
-    margin-left: 8px;
-    border-left: 1px solid var(--color-nerv-border);
-    padding-left: 8px;
-  }
-
-  .send-label {
-    font-size: 12px;
-    color: var(--color-nerv-text-muted);
-    font-weight: 500;
-    margin-right: 6px;
-    white-space: nowrap;
-  }
-
-  .send-input {
-    width: 160px;
-    padding: 8px 12px;
-    border: 1px solid var(--color-nerv-border);
-    border-radius: var(--radius-nerv-md) 0 0 var(--radius-nerv-md);
-    background: var(--color-nerv-panel);
-    color: var(--color-nerv-text);
-    font-size: 13px;
-    font-family: inherit;
-  }
-
-  .send-input::placeholder {
-    color: #555;
-  }
-
-  .send-input:focus {
-    outline: none;
-    border-color: var(--color-nerv-primary);
-    background: var(--color-nerv-panel-hover);
-  }
-
-  .send-input:disabled {
-    opacity: 0.4;
-    cursor: not-allowed;
-  }
-
-  .action-btn.send {
-    background: var(--color-nerv-primary);
-    border-color: var(--color-nerv-primary);
-    color: white;
-    border-radius: 0 var(--radius-nerv-md) var(--radius-nerv-md) 0;
-    border-left-width: 0;
-    padding: 8px 14px;
-    font-size: 16px;
-    line-height: 1;
-  }
-
-  .action-btn.send:hover:not(:disabled) {
-    background: var(--color-nerv-primary-hover);
-    border-color: var(--color-nerv-primary-hover);
-  }
-
-  /* Responsive adjustments */
-  @media (max-width: 800px) {
-    .send-input-wrapper {
-      display: none;
-    }
   }
 </style>

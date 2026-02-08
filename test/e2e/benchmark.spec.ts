@@ -2951,7 +2951,7 @@ test.describe('NERV Golden Benchmark Tests - REAL Functionality', () => {
         const message = await loopNotification.locator('[data-testid="alert-message"]').textContent()
         log('check', 'Loop notification content', { title, message })
 
-        expect(title).toContain('loop')
+        expect(title?.toLowerCase()).toContain('loop')
 
         // Verify action buttons exist
         const continueBtn = loopNotification.locator('[data-testid="alert-action-continue"]')
@@ -5550,8 +5550,8 @@ test.describe('NERV Golden Benchmark Tests - REAL Functionality', () => {
           return await api.db.tasks.get(id)
         }, taskId!)
 
-        // Status should be in_progress, awaiting_review, or completed (mock completes fast)
-        const validStatuses = ['in_progress', 'awaiting_review', 'completed']
+        // Status should be in_progress, review, or done (mock completes fast)
+        const validStatuses = ['in_progress', 'review', 'done']
         expect(validStatuses).toContain(dbTaskAfterStart!.status)
         log('check', 'DB status updated after start', { status: dbTaskAfterStart!.status })
       }

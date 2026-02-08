@@ -104,8 +104,7 @@ nerv config path
 
 **Output:**
 ```
-Global config: ~/.nerv/config.json
-Project config: /home/user/project/.nerv/config.json
+Database: ~/.nerv/state.db
 
 Environment overrides:
 - NERV_MONTHLY_BUDGET_USD=100
@@ -176,9 +175,9 @@ Environment overrides:
 Settings are resolved in priority order:
 
 1. **Environment variables** (`NERV_*`)
-2. **Project config** (`.nerv/config.json`)
+2. **Project-level settings** (stored in SQLite, set with `--project`)
 3. **Organization config** (via org sync)
-4. **Global config** (`~/.nerv/config.json`)
+4. **Global settings** (stored in SQLite at `~/.nerv/state.db`)
 5. **Default values**
 
 ## Environment Variables

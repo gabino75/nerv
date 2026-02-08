@@ -10,6 +10,26 @@ NERV intercepts potentially dangerous commands and requires approval before exec
 4. If not pre-approved, you're prompted in the UI
 5. Your response is recorded and can become a rule
 
+```mermaid
+sequenceDiagram
+    participant Claude
+    participant Hook as Permission Hook (Go)
+    participant NERV as NERV Dashboard
+    participant User
+
+    Claude->>Hook: Tool call (e.g., Bash "npm install")
+    Hook->>NERV: Check rules DB
+    alt Always Allowed
+        NERV-->>Hook: allow
+        Hook-->>Claude: proceed
+    else Needs Approval
+        NERV->>User: Show in approval queue
+        User->>NERV: Approve / Deny / Always Allow
+        NERV-->>Hook: decision
+        Hook-->>Claude: proceed or block
+    end
+```
+
 ## Permission Requests
 
 When a permission request appears:
@@ -76,33 +96,13 @@ nerv permissions list
 nerv permissions add "allow Bash(npm test:*)"
 
 # Add a deny rule
-nerv permissions add "deny Read(~/.ssh/*)"
+nerv permissions deny "Read(~/.ssh/*)"
 
 # Remove a rule
 nerv permissions remove <id>
 ```
 
-### Via Config File
-
-Edit `~/.nerv/permissions.json`:
-
-```json
-{
-  "allow": [
-    "Read",
-    "Grep",
-    "Glob",
-    "Bash(npm test:*)",
-    "Bash(npm run build)",
-    "Bash(git log:*)"
-  ],
-  "deny": [
-    "Bash(rm -rf /)",
-    "Read(~/.ssh/*)",
-    "Write(~/.nerv/*)"
-  ]
-}
-```
+All permission rules are stored in the SQLite database (`~/.nerv/state.db`), not in separate JSON files.
 
 ## Learning from History
 
@@ -138,24 +138,9 @@ NERV comes with sensible defaults:
 - `Read(~/.ssh/*)` - SSH keys
 - `Write(~/.*)` - Hidden files
 
-## Project-Specific Rules
-
-Each project can have its own rules in `.nerv/permissions.json`:
-
-```json
-{
-  "allow": [
-    "Bash(docker-compose *)"
-  ]
-}
-```
-
-Project rules merge with global rules.
-
 ## Best Practices
 
 1. **Start restrictive** - Allow as needed
 2. **Use patterns** - `npm test:*` vs individual commands
 3. **Review learnings** - Suggested rules may be too broad
-4. **Project-specific** - Docker commands for Docker projects
-5. **Audit regularly** - Remove unused rules
+4. **Audit regularly** - Remove unused rules

@@ -28,7 +28,7 @@ Click "Start Task" on any task to create a tab linked to that task.
 
 NERV supports horizontal and vertical split views:
 
-1. Click the **split icon** (⊞) in the tab bar
+1. Click the **split icon** in the tab bar
 2. Choose "Split Horizontal" or "Split Vertical"
 3. Each pane can have its own tabs
 4. Drag the handle to resize panes
@@ -97,13 +97,19 @@ The CLI can list and manage sessions:
 
 ```bash
 # List active sessions
-nerv session list
+nerv sessions
 
-# Attach to a session
-nerv session attach <id>
-
-# Resume a session
+# Resume a previous session
 nerv resume --session <id>
+
+# Fork a session for experimentation
+nerv session fork --name "experiment"
+
+# Compare forked sessions
+nerv session compare <a> <b>
+
+# Merge a fork back
+nerv session merge <fork>
 ```
 
 ## Best Practices

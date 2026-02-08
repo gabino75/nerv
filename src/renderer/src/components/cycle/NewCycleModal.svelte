@@ -3,8 +3,9 @@
    * NewCycleModal - Modal for creating a new cycle
    *
    * PRD Section 2: Cycle Structure
-   * - Cycle 0: Proof of Life - Simplest possible thing, one task, minimal scope
-   * - Cycles 1-N: Build MVP - Work toward E2E tests, 1-3 tasks per cycle
+   * - Early cycles: Focus on MVP scope and E2E tests first
+   * - Later cycles: Expand features iteratively, TDD-driven
+   * - 1-3 tasks per cycle, audit after each, record learnings
    *
    * Supports Claude-assisted planning: "Ask Claude" generates a goal + tasks suggestion.
    */
@@ -29,19 +30,19 @@
   let suggestion = $state<CycleSuggestion | null>(null)
   let planError = $state<string | null>(null)
 
-  // Determine if this is Cycle 0 (proof of life)
-  const isCycle0 = $derived(cycleNumber === 0)
+  // Determine if this is the first cycle
+  const isFirstCycle = $derived(cycleNumber === 0)
 
   // Title and hint based on cycle type (PRD Section 2)
-  const modalTitle = $derived(isCycle0 ? 'Start Cycle 0: Proof of Life' : 'Plan Next Cycle')
+  const modalTitle = $derived(isFirstCycle ? 'Start First Cycle' : 'Plan Next Cycle')
   const modalHint = $derived(
-    isCycle0
-      ? 'Cycle 0 proves your approach is viable. One task, minimal scope - NOT a full MVP.'
-      : 'Remember: Only plan 1-3 tasks. Learn, then plan more.'
+    isFirstCycle
+      ? 'Start with MVP scope and E2E tests. Get core functionality working first, then iterate.'
+      : 'Only plan 1-3 tasks per cycle. Learn from each cycle, then plan the next.'
   )
   const placeholder = $derived(
-    isCycle0
-      ? 'What is the simplest possible thing that proves the approach works? (e.g., "Can we call the API?", "Can we render the component?")'
+    isFirstCycle
+      ? 'What is the MVP goal for this cycle? Focus on core functionality and E2E tests first.'
       : 'What do you want to achieve in this cycle? Focus on the smallest increment that proves value.'
   )
 
@@ -131,7 +132,7 @@
     ></textarea>
   </FormGroup>
 
-  {#if !isCycle0}
+  {#if !isFirstCycle}
     <FormGroup label="Direction for Claude (optional)" id="cycle-direction">
       <input
         id="cycle-direction"
@@ -144,7 +145,7 @@
   {/if}
 
   {#snippet actions()}
-    {#if !isCycle0 && projectId}
+    {#if !isFirstCycle && projectId}
       <Button
         variant="secondary"
         onclick={handleAskClaude}
