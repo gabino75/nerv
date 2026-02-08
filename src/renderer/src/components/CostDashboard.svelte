@@ -142,6 +142,29 @@
     modelStats.length > 0 ? Math.max(...modelStats.map(m => m.total_cost_usd), 0.001) : 1
   )
 
+  let isExporting = $state(false)
+
+  async function handleExport() {
+    isExporting = true
+    try {
+      const csv = await window.api.db.metrics.exportCostsCsv()
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url
+      const dateStr = new Date().toISOString().slice(0, 10)
+      link.download = `nerv-costs-${dateStr}.csv`
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      URL.revokeObjectURL(url)
+    } catch (err) {
+      error = err instanceof Error ? err.message : 'Failed to export CSV'
+    } finally {
+      isExporting = false
+    }
+  }
+
   function handleKeydown(event: KeyboardEvent) {
     if (event.key === 'Escape' && isOpen) {
       onClose()
@@ -168,7 +191,18 @@
     <div class="modal">
       <header class="modal-header">
         <h2>Cost &amp; Usage</h2>
-        <button class="close-btn" onclick={onClose} title="Close">x</button>
+        <div class="header-actions">
+          <button
+            class="export-btn"
+            onclick={handleExport}
+            disabled={isExporting || isLoading}
+            title="Export costs to CSV"
+            data-testid="cost-export-btn"
+          >
+            {isExporting ? 'Exporting...' : 'Export'}
+          </button>
+          <button class="close-btn" onclick={onClose} title="Close">x</button>
+        </div>
       </header>
 
       {#if isLoading}
@@ -386,6 +420,33 @@
     margin: 0;
   }
 
+  .header-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .export-btn {
+    background: var(--color-nerv-bg);
+    border: 1px solid var(--color-nerv-border);
+    color: var(--color-nerv-text-muted);
+    font-size: 12px;
+    padding: 4px 12px;
+    border-radius: var(--radius-nerv-md);
+    cursor: pointer;
+    transition: all var(--transition-nerv-fast);
+  }
+
+  .export-btn:hover:not(:disabled) {
+    color: var(--color-nerv-text);
+    border-color: var(--color-nerv-primary);
+  }
+
+  .export-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
   .close-btn {
     background: none;
     border: none;
@@ -532,10 +593,6 @@
 
   .data-table tbody tr:hover {
     background: var(--color-nerv-bg);
-  }
-
-  .model-name, .project-name {
-    font-weight: 500;
   }
 
   .task-title {
