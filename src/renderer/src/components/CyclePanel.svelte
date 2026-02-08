@@ -127,9 +127,6 @@
       showCompleteCycleForm = false
       await loadCycles()
 
-      // Auto-show the Plan Next Cycle modal after completing a cycle
-      showNewCycleForm = true
-
       // Check if we should trigger an audit (every AUDIT_CYCLE_FREQUENCY cycles)
       // Note: cycle_number is 0-indexed, so we add 1 for the count
       const completedCount = completedCycleNumber + 1
@@ -246,7 +243,7 @@
             {:else}
               <p class="empty-text">No active cycle</p>
               <Button variant="primary" onclick={() => showNewCycleForm = true}>
-                <span data-testid="start-cycle-0-btn">Start Cycle 0</span>
+                <span data-testid="start-first-cycle-btn">Start First Cycle</span>
               </Button>
             {/if}
           </section>
