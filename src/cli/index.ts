@@ -39,6 +39,8 @@ import { resumeCommand, sessionsCommand, sessionCommand } from './commands/sessi
 import { agentsCommand, agentCommand } from './commands/agents.js'
 import { startRepl } from './commands/repl.js'
 import { skillCommand, isSlashCommand, listSkills } from './commands/skill.js'
+import { recommendCommand } from './commands/recommend.js'
+import { statusCommand } from './commands/status.js'
 import { colors } from './colors.js'
 
 // Version from package.json
@@ -156,6 +158,14 @@ ${colors.bold}COMMANDS${colors.reset}
     update check              Check for available updates
     update install            Install available update
     update notes              Show release notes
+
+  ${colors.cyan}Status${colors.reset}
+    status                    Show current project status summary
+    status --json             Output status as JSON
+
+  ${colors.cyan}Workflow Guidance${colors.reset}
+    recommend                 Get Claude's recommendation for next step
+    recommend --json          Output recommendation as JSON
 
   ${colors.cyan}Other${colors.reset}
     help                      Show this help message
@@ -308,6 +318,13 @@ async function runCommand(command: string, args: string[], database: DatabaseSer
       break
     case 'skills':
       listSkills()
+      break
+    case 'recommend':
+    case 'next':
+      await recommendCommand(args.slice(1), database)
+      break
+    case 'status':
+      await statusCommand(args.slice(1), database)
       break
     default:
       // Handle slash commands (skills) per PRD Section 12
