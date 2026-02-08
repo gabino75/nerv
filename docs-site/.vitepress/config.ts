@@ -17,6 +17,7 @@ export default defineConfig({
       { text: 'Features', link: '/features/multi-tab' },
       { text: 'CLI', link: '/cli/' },
       { text: 'Architecture', link: '/architecture/' },
+      { text: 'Benchmarking', link: '/benchmarking/overview' },
       { text: 'Demos', link: '/demos' },
       { text: 'Contributing', link: '/contributing' },
       {
@@ -62,6 +63,17 @@ export default defineConfig({
             { text: 'Session Commands', link: '/cli/session' },
             { text: 'Config Commands', link: '/cli/config' },
             { text: 'Benchmark Commands', link: '/cli/benchmark' }
+          ]
+        }
+      ],
+      '/benchmarking/': [
+        {
+          text: 'Benchmarking',
+          items: [
+            { text: 'Overview', link: '/benchmarking/overview' },
+            { text: 'Running Benchmarks', link: '/benchmarking/running-benchmarks' },
+            { text: 'Scoring System', link: '/benchmarking/scoring-system' },
+            { text: 'Creating Specs', link: '/benchmarking/creating-specs' }
           ]
         }
       ],
