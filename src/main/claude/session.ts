@@ -49,6 +49,7 @@ export function spawnClaude(config: ClaudeSpawnConfig): ClaudeSpawnResult {
       env: {
         ...process.env,
         ...(config.taskId ? { NERV_TASK_ID: config.taskId } : {}),
+        ...(config.agentTeams ? { CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS: '1' } : {}),
         NERV_PROJECT_ID: config.projectId,
         FORCE_COLOR: '1',
         TERM: 'xterm-256color'
@@ -216,6 +217,7 @@ export function resumeClaude(config: ClaudeSpawnConfig, claudeSessionId: string)
       env: {
         ...process.env,
         ...(config.taskId ? { NERV_TASK_ID: config.taskId } : {}),
+        ...(config.agentTeams ? { CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS: '1' } : {}),
         NERV_PROJECT_ID: config.projectId,
         FORCE_COLOR: '1',
         TERM: 'xterm-256color'

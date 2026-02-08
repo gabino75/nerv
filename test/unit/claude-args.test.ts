@@ -286,4 +286,65 @@ describe('buildClaudeArgs', () => {
     expect(args).not.toContain('--continue')
     expect(args[args.length - 1]).toBe('Build the auth module')
   })
+
+  it('should append team lead system prompt when agentTeams and teammates are provided', () => {
+    const config: ClaudeSpawnConfig = {
+      ...minimalConfig,
+      agentTeams: true,
+      teammates: [
+        { name: 'backend', prompt: 'Implement the API endpoints' },
+        { name: 'frontend', prompt: 'Build the React components' }
+      ]
+    }
+    const args = buildClaudeArgs(config)
+
+    // Should have an --append-system-prompt with teammate info
+    const indices: number[] = []
+    args.forEach((arg, i) => { if (arg === '--append-system-prompt') indices.push(i) })
+    expect(indices.length).toBeGreaterThanOrEqual(1)
+
+    const teamPromptIdx = indices[indices.length - 1]
+    const teamPrompt = args[teamPromptIdx + 1]
+    expect(teamPrompt).toContain('team lead')
+    expect(teamPrompt).toContain('backend: Implement the API endpoints')
+    expect(teamPrompt).toContain('frontend: Build the React components')
+  })
+
+  it('should not append team prompt when agentTeams is false', () => {
+    const config: ClaudeSpawnConfig = {
+      ...minimalConfig,
+      agentTeams: false,
+      teammates: [
+        { name: 'backend', prompt: 'Implement the API endpoints' }
+      ]
+    }
+    const args = buildClaudeArgs(config)
+
+    // Count --append-system-prompt occurrences - should be 0 (no systemPrompt either)
+    const count = args.filter(a => a === '--append-system-prompt').length
+    expect(count).toBe(0)
+  })
+
+  it('should not append team prompt when teammates array is empty', () => {
+    const config: ClaudeSpawnConfig = {
+      ...minimalConfig,
+      agentTeams: true,
+      teammates: []
+    }
+    const args = buildClaudeArgs(config)
+
+    const count = args.filter(a => a === '--append-system-prompt').length
+    expect(count).toBe(0)
+  })
+
+  it('should not append team prompt when teammates is undefined', () => {
+    const config: ClaudeSpawnConfig = {
+      ...minimalConfig,
+      agentTeams: true
+    }
+    const args = buildClaudeArgs(config)
+
+    const count = args.filter(a => a === '--append-system-prompt').length
+    expect(count).toBe(0)
+  })
 })

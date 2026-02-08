@@ -145,6 +145,15 @@ export function buildClaudeArgs(config: ClaudeSpawnConfig): string[] {
     args.push('--input-format', config.inputFormat)
   }
 
+  // Agent Teams: embed teammate definitions in system prompt (PRD Agent Teams section)
+  if (config.agentTeams && config.teammates && config.teammates.length > 0) {
+    const teammateLines = config.teammates
+      .map(t => `- ${t.name}: ${t.prompt}`)
+      .join('\n')
+    const teamPrompt = `\n\nYou are the team lead. Delegate work to these teammates using the Task tool:\n${teammateLines}`
+    args.push('--append-system-prompt', teamPrompt)
+  }
+
   // Use -- to separate options from the positional prompt argument
   args.push('--')
   args.push(config.prompt)

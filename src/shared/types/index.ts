@@ -56,6 +56,7 @@ export type {
 
 // Claude Code types
 export type {
+  TeammateConfig,
   ClaudeSpawnConfig,
   ClaudeTokenUsage,
   ClaudeSessionInfo,

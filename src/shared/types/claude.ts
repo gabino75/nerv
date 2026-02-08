@@ -4,6 +4,12 @@
 
 import type { CustomAgentsConfig } from './agents'
 
+/** Teammate definition for Agent Teams (PRD Agent Teams section) */
+export interface TeammateConfig {
+  name: string
+  prompt: string
+}
+
 export interface ClaudeSpawnConfig {
   taskId?: string  // Optional for standalone sessions
   projectId: string
@@ -27,6 +33,10 @@ export interface ClaudeSpawnConfig {
   inputFormat?: 'text' | 'stream-json'
   /** Adaptive thinking effort level (maps to --thinking-budget-tokens) */
   thinkingEffort?: 'low' | 'medium' | 'high' | 'max'
+  /** Enable Agent Teams mode (PRD Agent Teams section) */
+  agentTeams?: boolean
+  /** Teammate definitions for Agent Teams (PRD Agent Teams section) */
+  teammates?: TeammateConfig[]
 }
 
 export interface ClaudeTokenUsage {
