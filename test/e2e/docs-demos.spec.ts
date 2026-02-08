@@ -415,9 +415,9 @@ test('demo_quick_start', async () => {
     await demoWait(window, 'Task dialog opened', 1000)
 
     // Fill in task details with slow typing
-    const taskTitleInput = window.locator('[data-testid="task-title-input"], input[placeholder*="title" i], input[placeholder*="task" i]').first()
+    const taskTitleInput = window.locator('[data-testid="task-title-input"]')
     if (await taskTitleInput.isVisible({ timeout: 2000 }).catch(() => false)) {
-      await slowType(window, '[data-testid="task-title-input"], input[placeholder*="title" i], input[placeholder*="task" i]', 'Add user login endpoint')
+      await slowType(window, '[data-testid="task-title-input"]', 'Add user login endpoint')
       await demoWait(window, 'Task title entered', 800)
     }
 
@@ -830,9 +830,9 @@ test('demo_multi_repo', async () => {
     await addTaskBtn.click()
     await demoWait(window, 'Create task - can span multiple repos', 1000)
 
-    const taskTitleInput = window.locator('[data-testid="task-title-input"], input[placeholder*="title" i], input[placeholder*="task" i]').first()
+    const taskTitleInput = window.locator('[data-testid="task-title-input"]')
     if (await taskTitleInput.isVisible({ timeout: 2000 }).catch(() => false)) {
-      await slowType(window, '[data-testid="task-title-input"], input[placeholder*="title" i], input[placeholder*="task" i]', 'Add User type to shared-types and use in API + frontend')
+      await slowType(window, '[data-testid="task-title-input"]', 'Add User type to shared-types and use in API + frontend')
       await demoWait(window, 'Cross-repo task description', 1000)
     }
 
