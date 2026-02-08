@@ -81,7 +81,8 @@ export function spawnClaude(config: ClaudeSpawnConfig): ClaudeSpawnResult {
     isPaused: false,
     spawnArgs: args,
     pendingSubagents: new Map(),
-    activeFiles: new Map()
+    activeFiles: new Map(),
+    lastAssistantText: ''
   }
 
   claudeSessions.set(id, session)
@@ -129,7 +130,8 @@ export function spawnClaude(config: ClaudeSpawnConfig): ClaudeSpawnResult {
       model: session.model,
       tokenUsage: { ...session.tokenUsage },
       compactionCount: session.compactionCount,
-      finishedAt: Date.now()
+      finishedAt: Date.now(),
+      lastAssistantText: session.lastAssistantText
     })
 
     // Clean up old finished sessions
@@ -245,7 +247,8 @@ export function resumeClaude(config: ClaudeSpawnConfig, claudeSessionId: string)
     isPaused: false,
     spawnArgs: args,
     pendingSubagents: new Map(),
-    activeFiles: new Map()
+    activeFiles: new Map(),
+    lastAssistantText: ''
   }
 
   claudeSessions.set(id, session)
@@ -283,7 +286,8 @@ export function resumeClaude(config: ClaudeSpawnConfig, claudeSessionId: string)
       model: session.model,
       tokenUsage: { ...session.tokenUsage },
       compactionCount: session.compactionCount,
-      finishedAt: Date.now()
+      finishedAt: Date.now(),
+      lastAssistantText: session.lastAssistantText
     })
 
     claudeSessions.delete(id)

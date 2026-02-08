@@ -78,6 +78,8 @@ export interface ClaudeSession {
   pendingSubagents: Map<string, string>
   // Files this session is currently accessing (PRD Section 10: Conflict detection)
   activeFiles: Map<string, FileAccessType>
+  // Last assistant text output for review summary (PRD Review Modes section)
+  lastAssistantText: string
 }
 
 // Finished session info (for recently finished sessions)
@@ -89,4 +91,5 @@ export interface FinishedSessionInfo {
   tokenUsage: TokenUsage
   compactionCount: number
   finishedAt: number
+  lastAssistantText: string
 }

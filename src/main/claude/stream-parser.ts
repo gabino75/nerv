@@ -225,6 +225,15 @@ export function processStreamOutput(session: ClaudeSession, data: string): void 
       notifyTokenUsage(session.id, session.tokenUsage, session.compactionCount, session.compactionsSinceClear)
     }
 
+    // Capture last assistant text for review summary (PRD Review Modes section)
+    if (msg.type === 'assistant' && msg.message?.content) {
+      for (const content of msg.message.content) {
+        if (content.type === 'text' && content.text) {
+          session.lastAssistantText = content.text
+        }
+      }
+    }
+
     // Handle result (session ended)
     if (msg.type === 'result' && msg.result) {
       notifyResult(session.id, msg.result)
@@ -252,8 +261,10 @@ export function streamJsonToTerminal(data: string): string {
   for (const line of lines) {
     const msg = parseStreamJsonLine(line)
     if (!msg) {
-      if (line.trim()) {
-        output.push(line)
+      // Pass through non-JSON content but skip empty lines to reduce whitespace
+      const trimmed = line.trim()
+      if (trimmed) {
+        output.push(trimmed)
       }
       continue
     }
@@ -261,7 +272,12 @@ export function streamJsonToTerminal(data: string): string {
     if (msg.type === 'assistant' && msg.message?.content) {
       for (const content of msg.message.content) {
         if (content.type === 'text' && content.text) {
-          output.push(content.text)
+          // Trim leading whitespace from each line to prevent indentation drift
+          const text = content.text.replace(/^\s+/gm, (match) => {
+            // Preserve intentional indentation (2-4 spaces) but remove excessive whitespace
+            return match.length > 4 ? '    ' : match
+          })
+          output.push(text)
         } else if (content.type === 'tool_use') {
           output.push(`\x1b[36m[Tool: ${content.name}]\x1b[0m`)
         }
@@ -271,5 +287,7 @@ export function streamJsonToTerminal(data: string): string {
     }
   }
 
-  return output.join('\n')
+  // Filter consecutive empty lines to prevent excess whitespace
+  const result = output.join('\n')
+  return result.replace(/\n{3,}/g, '\n\n')
 }

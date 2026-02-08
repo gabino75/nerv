@@ -9,6 +9,7 @@ import { promisify } from 'util'
 import { databaseService } from '../database'
 import { safeHandle } from './safe-handle'
 import { broadcastToRenderers } from '../utils'
+import { finishedSessions } from '../claude/state'
 import type { TaskReview, ReviewContext } from '../../shared/types'
 
 const execAsync = promisify(exec)
@@ -162,14 +163,21 @@ export function registerReviewHandlers(): void {
       }
     }
 
-    // For now, test results and Claude summary are placeholders
-    // These would be populated from task execution data in a full implementation
+    // Populate Claude summary from finished session data (PRD Review Modes section)
+    let claudeSummary: string | null = null
+    for (const finished of finishedSessions.values()) {
+      if (finished.taskId === taskId && finished.lastAssistantText) {
+        claudeSummary = finished.lastAssistantText
+        break
+      }
+    }
+
     return {
       gitDiff,
       gitDiffStats,
       testResults: null,
       testsPass: null,
-      claudeSummary: null
+      claudeSummary
     }
   })
 }
