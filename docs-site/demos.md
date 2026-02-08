@@ -13,15 +13,9 @@ A 2-minute introduction to getting started with NERV.
 - Starting a Claude session for the task
 - Terminal showing Claude working on your code
 
-<video controls width="100%" poster="/nerv/demos/quick-start-poster.png">
+<video controls width="100%">
   <source src="/nerv/demos/quick-start.webm" type="video/webm">
-  <source src="/nerv/demos/quick-start.mp4" type="video/mp4">
-  Your browser does not support the video tag.
 </video>
-
-::: tip Not loading?
-If the video doesn't appear, [record the demos locally](#recording-demos) and rebuild the docs.
-:::
 
 ---
 
@@ -38,8 +32,6 @@ Watch NERV autonomously complete a benchmark task with AI review.
 
 <video controls width="100%">
   <source src="/nerv/demos/yolo-mode.webm" type="video/webm">
-  <source src="/nerv/demos/yolo-mode.mp4" type="video/mp4">
-  Your browser does not support the video tag.
 </video>
 
 ---
@@ -55,11 +47,9 @@ Managing tasks across multiple connected repositories.
 - Cross-repo task coordination on the Kanban board
 - Split view for working on repos side by side
 
-<video controls width="100%">
-  <source src="/nerv/demos/multi-repo.webm" type="video/webm">
-  <source src="/nerv/demos/multi-repo.mp4" type="video/mp4">
-  Your browser does not support the video tag.
-</video>
+::: info Coming Soon
+Multi-repo demo video will be added in a future update. Run `./test/scripts/record-demos.sh --demo multi-repo` to record locally.
+:::
 
 ---
 
