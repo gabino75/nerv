@@ -105,7 +105,7 @@ test.describe('Audit Panel', () => {
     const runCheckBtn = window.locator('[data-testid="run-health-check-btn"]')
     await expect(runCheckBtn).toBeVisible()
     await runCheckBtn.click({ noWaitAfter: true })
-    await window.waitForTimeout(2000)
+    await window.waitForTimeout(1000)
 
     // Verify health metrics grid appears with all PRD-required metrics
     const metricsGrid = window.locator('[data-testid="health-metrics"]')

@@ -114,10 +114,14 @@
   // Load data when panel opens
   $effect(() => {
     if (projectId && isOpen) {
-      loadAuditLogs()
+      // loadAuditLogs sets auditLogs ($state), and loadCodeHealth/loadSpecDrift
+      // read auditLogs synchronously. To avoid a reactive loop, chain them
+      // after loadAuditLogs resolves instead of calling all in parallel.
+      loadAuditLogs().then(() => {
+        loadCodeHealth()
+        loadSpecDrift()
+      })
       loadTasks()
-      loadCodeHealth()
-      loadSpecDrift()
     }
   })
 
@@ -349,37 +353,29 @@
   }
 
   // Run a code health check (mock for now - would call actual analysis)
-  async function runCodeHealthCheck() {
+  function runCodeHealthCheck() {
     if (!projectId) return
-    isLoading = true
-    try {
-      // In a real implementation, this would run actual analysis tools
-      // For now, we simulate with random values for testing
-      const metrics = {
-        testCoverage: Math.floor(Math.random() * 40) + 60, // 60-100%
-        dryViolations: Math.floor(Math.random() * 8), // 0-7
-        typeErrors: Math.floor(Math.random() * 3), // 0-2
-        deadCodeCount: Math.floor(Math.random() * 15), // 0-14
-        complexFunctions: Math.floor(Math.random() * 4) // 0-3
-      }
-
-      // Log the health check
-      await window.api.db.audit.log(null, 'code_health_check', JSON.stringify(metrics))
-
-      // Update state
-      codeHealth = {
-        ...metrics,
-        lastChecked: new Date().toISOString()
-      }
-
-      // Reload audit logs to get the new entry
-      await loadAuditLogs()
-      generateHealthIssues()
-    } catch (error) {
-      console.error('Failed to run code health check:', error)
-    } finally {
-      isLoading = false
+    // In a real implementation, this would run actual analysis tools
+    // For now, we simulate with random values for testing
+    const metrics = {
+      testCoverage: Math.floor(Math.random() * 40) + 60, // 60-100%
+      dryViolations: Math.floor(Math.random() * 8), // 0-7
+      typeErrors: Math.floor(Math.random() * 3), // 0-2
+      deadCodeCount: Math.floor(Math.random() * 15), // 0-14
+      complexFunctions: Math.floor(Math.random() * 4) // 0-3
     }
+
+    // Update state immediately so the UI renders metrics
+    codeHealth = {
+      ...metrics,
+      lastChecked: new Date().toISOString()
+    }
+    generateHealthIssues()
+
+    // Log the health check to the audit DB (fire-and-forget)
+    window.api.db.audit.log(null, 'code_health_check', JSON.stringify(metrics)).catch(
+      (err: unknown) => console.error('Failed to log health check:', err)
+    )
   }
 
   // Run spec drift detection
