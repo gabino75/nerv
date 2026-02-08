@@ -569,5 +569,13 @@ export const migrations: Migration[] = [
       ALTER TABLE session_metrics ADD COLUMN cache_read_tokens INTEGER DEFAULT 0;
       ALTER TABLE session_metrics ADD COLUMN cache_creation_tokens INTEGER DEFAULT 0;
     `
+  },
+  {
+    version: 21,
+    name: 'add_auto_cleanup_worktrees',
+    up: `
+      -- PRD Section 25: Configurable auto-cleanup of worktrees after task completion
+      ALTER TABLE repos ADD COLUMN auto_cleanup_worktrees INTEGER NOT NULL DEFAULT 0;
+    `
   }
 ]

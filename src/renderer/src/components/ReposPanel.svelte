@@ -104,6 +104,9 @@
                   {#if repo.auto_fetch_on_open}
                     <span class="setting-badge" title="Auto-fetches when project opens">auto-fetch</span>
                   {/if}
+                  {#if repo.auto_cleanup_worktrees}
+                    <span class="setting-badge" title="Auto-cleans worktrees after task completion">auto-cleanup</span>
+                  {/if}
                 </div>
                 <div class="repo-actions">
                   <button class="action-btn" onclick={() => handleViewContext(repo)}>

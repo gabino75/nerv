@@ -28,6 +28,7 @@ export class RepoOperations {
       baseBranch?: string
       fetchBeforeWorktree?: boolean
       autoFetchOnOpen?: boolean
+      autoCleanupWorktrees?: boolean
     }
   ): Repo {
     const id = this.generateId()
@@ -35,10 +36,11 @@ export class RepoOperations {
     const baseBranch = options?.baseBranch ?? 'main'
     const fetchBeforeWorktree = options?.fetchBeforeWorktree ?? true
     const autoFetchOnOpen = options?.autoFetchOnOpen ?? true
+    const autoCleanupWorktrees = options?.autoCleanupWorktrees ?? false
 
     this.getDb().prepare(`
-      INSERT INTO repos (id, project_id, name, path, stack, source_type, base_branch, fetch_before_worktree, auto_fetch_on_open)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO repos (id, project_id, name, path, stack, source_type, base_branch, fetch_before_worktree, auto_fetch_on_open, auto_cleanup_worktrees)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       id,
       projectId,
@@ -48,7 +50,8 @@ export class RepoOperations {
       sourceType,
       baseBranch,
       fetchBeforeWorktree ? 1 : 0,
-      autoFetchOnOpen ? 1 : 0
+      autoFetchOnOpen ? 1 : 0,
+      autoCleanupWorktrees ? 1 : 0
     )
     return this.getDb().prepare('SELECT * FROM repos WHERE id = ?').get(id) as Repo
   }

@@ -92,6 +92,7 @@ export interface Repo {
   base_branch: string | null  // PRD Section 25: branch to base features from
   fetch_before_worktree: boolean  // PRD Section 25: fetch latest before creating worktrees
   auto_fetch_on_open: boolean  // PRD Section 25: auto-fetch on project open
+  auto_cleanup_worktrees: boolean  // PRD Section 25: auto-cleanup worktrees after task completion
 }
 
 export interface Decision {

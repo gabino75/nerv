@@ -43,9 +43,23 @@ export function registerTaskHandlers(): void {
     // PRD: Merge worktree branch into base branch when task is approved (done)
     if (task && status === 'done' && taskBefore?.worktree_path) {
       try {
-        const { mergeWorktreeBranch } = await import('../worktree.js')
+        const { mergeWorktreeBranch, removeWorktree } = await import('../worktree.js')
         const result = await mergeWorktreeBranch(taskBefore.worktree_path)
         console.log(`[NERV] Merge ${result.merged ? 'succeeded' : 'failed'} for task ${id}${result.error ? ': ' + result.error : ''}`)
+
+        // PRD Section 25: Auto-cleanup worktree after successful merge if configured
+        if (result.merged && taskBefore.project_id) {
+          const repos = databaseService.getReposForProject(taskBefore.project_id)
+          const repo = repos.find(r => taskBefore.worktree_path?.startsWith(r.path.replace(/[/\\][^/\\]*$/, '')))
+          if (repo?.auto_cleanup_worktrees) {
+            try {
+              await removeWorktree(taskBefore.worktree_path)
+              console.log(`[NERV] Auto-cleaned worktree for task ${id}`)
+            } catch (cleanupError) {
+              console.warn(`[NERV] Auto-cleanup failed for task ${id}:`, cleanupError)
+            }
+          }
+        }
       } catch (error) {
         console.warn(`[NERV] Merge error for task ${id}:`, error)
       }
