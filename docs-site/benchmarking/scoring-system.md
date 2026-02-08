@@ -80,6 +80,22 @@ powershell -File test/scripts/run-e2e.ps1 -Suite benchmark -RealClaude -GradeCla
 
 This only runs if all tests pass and benchmark output exists with the required files.
 
+## Required Files for Grading
+
+The scoring script requires specific files in the benchmark results directory:
+
+| File | Required | Purpose |
+|------|----------|---------|
+| `summary.json` | Yes | Overall metrics, updated with scores |
+| `spec.md` | Yes | Original spec for context |
+| `timeline.jsonl` | Yes | Event log for workflow analysis |
+| `tasks/*/metrics.json` | Yes | Per-task metrics |
+| `tasks/*/tools.jsonl` | Yes | Tool usage for efficiency analysis |
+| `tasks/*/git-diff.patch` | No | Code changes for implementation analysis |
+| `tasks/*/errors.json` | No | Error analysis |
+
+If required files are missing, the scorer outputs warnings but still attempts partial scoring.
+
 ## Manual Scoring
 
 ```bash

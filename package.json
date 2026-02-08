@@ -41,7 +41,8 @@
     "quality:strict": "powershell -File scripts/code-quality.ps1 -Strict",
     "docs:dev": "cd docs-site && npm run dev",
     "docs:build": "cd docs-site && npm run build",
-    "docs:preview": "cd docs-site && npm run preview"
+    "docs:preview": "cd docs-site && npm run preview",
+    "docs:screenshots": "npx playwright test --config=test/e2e/playwright.config.ts test/e2e/docs-screenshots.spec.ts"
   },
   "keywords": [
     "electron",
@@ -64,7 +65,7 @@
     "@typescript-eslint/parser": "^8.54.0",
     "autoprefixer": "^10.4.23",
     "cross-env": "^10.1.0",
-    "electron": "^40.0.0",
+    "electron": "^40.2.1",
     "electron-builder": "^26.7.0",
     "electron-rebuild": "^3.2.9",
     "electron-vite": "^5.0.0",
@@ -80,6 +81,7 @@
     "vitest": "^3.1.0"
   },
   "dependencies": {
+    "@rollup/rollup-linux-x64-gnu": "^4.57.1",
     "@xterm/addon-fit": "^0.11.0",
     "@xterm/xterm": "^6.0.0",
     "better-sqlite3": "^12.6.2",
