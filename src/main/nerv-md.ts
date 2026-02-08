@@ -16,6 +16,7 @@ import { join } from 'path'
 import { writeFileSync, mkdirSync, existsSync } from 'fs'
 import { databaseService } from './database'
 import type { Task, Repo } from './database'
+import type { ParsedClaudeMd, RepoSkill } from '../shared/types'
 
 // Status emoji mapping for tasks
 const STATUS_ICONS: Record<Task['status'], string> = {
@@ -41,8 +42,6 @@ const DEFAULT_OPTIONS: NervMdOptions = {
 }
 
 // Helper: Format repositories as a table (per PRD Section 17)
-// NOTE: NERV.md keeps repository info minimal to stay within token limits
-// Detailed per-repo context (CLAUDE.md content, skills) is discovered by Claude at runtime
 function formatRepositoriesTable(repos: Repo[]): string[] {
   if (repos.length === 0) return []
   const lines = ['## Repositories', '| Repo | Path | Stack |', '|------|------|-------|']
@@ -111,6 +110,10 @@ export function generateNervMd(
     sections.push(...formatCurrentTask(currentTask))
   }
 
+  // Repository context: CLAUDE.md constraints & skills (PRD Section 24)
+  sections.push(...formatRepoConstraints(projectId))
+  sections.push(...formatRepoSkills(projectId))
+
   // Documentation, Learnings, Decisions, Constraints
   sections.push(...formatDocSources(projectId))
   sections.push(...formatLearnings(completedCycles))
@@ -152,6 +155,56 @@ function formatCurrentTask(task: Task): string[] {
   if (task.description) lines.push(task.description, '')
   if (task.worktree_path) lines.push(`Working in: ${task.worktree_path}`, '')
   return lines
+}
+
+// Helper: Format repo CLAUDE.md constraints (PRD Section 24 - Context Scanning)
+function formatRepoConstraints(projectId: string): string[] {
+  try {
+    const claudeMdContexts = databaseService.getProjectClaudeMdContexts(projectId)
+    if (claudeMdContexts.length === 0) return []
+
+    const lines = ['## Repository Constraints']
+    for (const ctx of claudeMdContexts) {
+      if (!ctx.parsed_sections) continue
+      try {
+        const parsed = JSON.parse(ctx.parsed_sections) as ParsedClaudeMd
+        const constraints = parsed.constraints || []
+        const errorConstraints = constraints.filter(c => c.severity === 'error')
+        if (errorConstraints.length === 0) continue
+
+        lines.push(`### ${ctx.repo_name}`)
+        for (const c of errorConstraints.slice(0, 5)) {
+          lines.push(`- ${c.rule}`)
+        }
+      } catch {
+        // Skip unparseable sections
+      }
+    }
+
+    if (lines.length <= 1) return [] // Only header, no content
+    lines.push('')
+    return lines
+  } catch {
+    return []
+  }
+}
+
+// Helper: Format available repo skills (PRD Section 24 - Skill Discovery)
+function formatRepoSkills(projectId: string): string[] {
+  try {
+    const skills: RepoSkill[] = databaseService.getProjectSkills(projectId)
+    if (skills.length === 0) return []
+
+    const lines = ['## Available Skills']
+    for (const skill of skills.slice(0, 10)) {
+      const desc = skill.description ? ` — ${skill.description}` : ''
+      lines.push(`- \`/${skill.skill_name}\`${desc}`)
+    }
+    lines.push('')
+    return lines
+  } catch {
+    return []
+  }
 }
 
 // Helper: Format documentation sources
