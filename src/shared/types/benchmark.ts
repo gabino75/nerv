@@ -80,21 +80,18 @@ export interface BenchmarkSummary {
 }
 
 /**
- * Two-dimension benchmark scoring per PRD Section 27.
- * Dimension 1: NERV Ops (deterministic from summary.json)
- * Dimension 2: Code Quality (Claude-graded)
+ * Three-category benchmark scoring — all Claude-graded.
+ * Planning (15%), Code Quality (50%), NERV Ops (35%).
  */
 export interface BenchmarkScores {
-  nervOps: NervOpsScore
-  codeQuality: {
-    implementation: BenchmarkScoreDetail
-    functionality: BenchmarkScoreDetail
-    ux: BenchmarkScoreDetail
-  }
+  planning: BenchmarkScoreDetail
+  codeQuality: BenchmarkScoreDetail
+  nervOps: BenchmarkScoreDetail
   progression: BenchmarkProgression | null
   combined: {
+    planningScore: number
+    codeScore: number
     nervOpsScore: number
-    codeQualityScore: number
     overallScore: number
   }
   overall: BenchmarkOverallScore
@@ -205,8 +202,9 @@ export interface BenchmarkHistoryEntry {
   spec: string
   outcome: BenchmarkOutcome
   scores: {
-    nervOps: number
+    planning: number
     codeQuality: number
+    nervOps: number
     overall: number
   } | null
   duration: number
@@ -326,23 +324,7 @@ export interface ParsedSpec {
   totalAcceptanceCriteria: number
 }
 
-// ============================================================================
-// NERV Ops Scoring Types
-// ============================================================================
-
-export interface NervOpsBreakdown {
-  worktreeUsage: { score: number; max: number; details: string }
-  parallelism: { score: number; max: number; details: string }
-  cycleManagement: { score: number; max: number; details: string }
-  reviewProcess: { score: number; max: number; details: string }
-  errorHandling: { score: number; max: number; details: string }
-  costEfficiency: { score: number; max: number; details: string }
-}
-
-export interface NervOpsScore {
-  score: number
-  breakdown: NervOpsBreakdown
-}
+// NervOpsBreakdown and NervOpsScore removed — all scoring is now Claude-graded
 
 // ============================================================================
 // Review Decision Types (CLI-compatible)

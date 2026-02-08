@@ -2,22 +2,16 @@
 /**
  * NERV Benchmark Scoring Script
  *
- * Analyzes benchmark output and generates scores using Claude Code CLI.
- * A separate Claude Code session evaluates the results for unbiased grading.
- * Uses Claude Code subscription (not API SDK) - consistent with NERV's architecture.
+ * All 3 scoring categories are Claude-graded (non-deterministic):
+ *   1. Planning (15%) — cycle progression, task decomposition, spec coverage
+ *   2. Code Quality (50%) — implementation, functionality, UX
+ *   3. NERV Ops (35%) — workflow patterns compared against PRD
  *
- * PRD Section 27: Benchmark Scoring System
- *
- * Score categories (1-10):
- * 1. Implementation Quality - Code cleanliness, organization, types
- * 2. Workflow Quality - Worktrees, commits, branching
- * 3. Efficiency - Token usage, time, loops
- * 4. User Experience - App works, intuitive, responsive
- * 5. Overall - Weighted combination + holistic adjustment
+ * Mock mode: When NERV_MOCK_CLAUDE=1 or NERV_TEST_MODE=1, returns fixed
+ * passing scores without calling Claude.
  *
  * Usage:
  *   node scripts/score-benchmark.js <benchmark-dir> [--spec <spec-file>]
- *   node scripts/score-benchmark.js test-results/benchmark-20260203 --spec specs/todo-app.md
  *
  * Requires: Claude Code CLI installed and authenticated (subscription)
  *
@@ -37,253 +31,149 @@ const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 
 // ============================================================================
-// NERV Ops Deterministic Scoring (from summary.json metrics)
+// Mock Mode
 // ============================================================================
 
-const NERV_OPS_WEIGHTS = {
-  worktreeUsage: 25,
-  parallelism: 15,
-  cycleManagement: 20,
-  reviewProcess: 15,
-  errorHandling: 10,
-  costEfficiency: 15,
+function isMockMode() {
+  return process.env.NERV_MOCK_CLAUDE === '1' ||
+    process.env.NERV_MOCK_CLAUDE === 'true' ||
+    process.env.NERV_TEST_MODE === '1' ||
+    process.env.NERV_TEST_MODE === 'true'
 }
 
-function scoreNervOps(summary) {
-  if (!summary) return null
-
-  const breakdown = {
-    worktreeUsage: scoreWorktreeUsage(summary),
-    parallelism: scoreParallelism(summary),
-    cycleManagement: scoreCycleManagement(summary),
-    reviewProcess: scoreReviewProcess(summary),
-    errorHandling: scoreErrorHandling(summary),
-    costEfficiency: scoreCostEfficiency(summary),
+function mockScoreDetail() {
+  return {
+    score: 8,
+    strengths: ['Mock mode'],
+    weaknesses: [],
+    evidence: 'Mock',
   }
-
-  const totalScore =
-    (breakdown.worktreeUsage.score / breakdown.worktreeUsage.max) * NERV_OPS_WEIGHTS.worktreeUsage +
-    (breakdown.parallelism.score / breakdown.parallelism.max) * NERV_OPS_WEIGHTS.parallelism +
-    (breakdown.cycleManagement.score / breakdown.cycleManagement.max) * NERV_OPS_WEIGHTS.cycleManagement +
-    (breakdown.reviewProcess.score / breakdown.reviewProcess.max) * NERV_OPS_WEIGHTS.reviewProcess +
-    (breakdown.errorHandling.score / breakdown.errorHandling.max) * NERV_OPS_WEIGHTS.errorHandling +
-    (breakdown.costEfficiency.score / breakdown.costEfficiency.max) * NERV_OPS_WEIGHTS.costEfficiency
-
-  return { score: Math.round(totalScore), breakdown }
-}
-
-function scoreWorktreeUsage(summary) {
-  const wf = summary.workflow || {}
-  let score = 0
-  const max = 10
-  const details = []
-
-  if (wf.worktreesCreated > 0) { score += 3; details.push(`${wf.worktreesCreated} worktrees created`) }
-  else { details.push('No worktrees created (0/3)') }
-
-  if (wf.worktreesMerged > 0) { score += 3; details.push(`${wf.worktreesMerged} worktrees merged`) }
-  else { details.push('No worktrees merged (0/3)') }
-
-  const tasksCompleted = summary.tasks?.completed || 0
-  if (tasksCompleted > 0 && (wf.worktreesCreated || 0) >= tasksCompleted) { score += 2; details.push('Per-task worktree isolation') }
-  else if ((wf.worktreesCreated || 0) > 0) { score += 1; details.push('Partial worktree isolation') }
-
-  if ((wf.worktreesCreated || 0) > 0 && (wf.worktreesDiscarded || 0) === 0) { score += 2; details.push('No worktrees discarded') }
-  else if ((wf.worktreesCreated || 0) > 0) { score += 1; details.push(`${wf.worktreesDiscarded} worktrees discarded`) }
-
-  return { score: Math.min(score, max), max, details: details.join('; ') }
-}
-
-function scoreParallelism(summary) {
-  const wf = summary.workflow || {}
-  let score = 0
-  const max = 10
-  const details = []
-
-  if ((wf.parallelTasksRun || 0) > 0) { score += 5; details.push(`${wf.parallelTasksRun} parallel tasks ran`) }
-  else { details.push('No parallel tasks (0/5)') }
-
-  if ((wf.parallelTasksRun || 0) >= 4) { score += 3; details.push('Strong parallelism (4+)') }
-  else if ((wf.parallelTasksRun || 0) >= 2) { score += 2; details.push('Moderate parallelism (2-3)') }
-  else if ((wf.parallelTasksRun || 0) === 1) { score += 1; details.push('Minimal parallelism (1)') }
-
-  if ((summary.tasks?.total || 0) > 1 && (wf.parallelTasksRun || 0) >= (summary.tasks.total || 0) * 0.5) {
-    score += 2; details.push('50%+ tasks ran in parallel')
-  }
-
-  return { score: Math.min(score, max), max, details: details.join('; ') }
-}
-
-function scoreCycleManagement(summary) {
-  let score = 0
-  const max = 10
-  const details = []
-
-  const totalCycles = summary.cycles?.total || 0
-  if (totalCycles >= 3) { score += 4; details.push(`${totalCycles} cycles completed (good progression)`) }
-  else if (totalCycles >= 2) { score += 2; details.push(`${totalCycles} cycles completed`) }
-  else if (totalCycles === 1) { score += 1; details.push('Single cycle only') }
-  else { details.push('No cycles completed (0/4)') }
-
-  const specCompletion = summary.spec?.completionPercent || 0
-  if (specCompletion >= 80) { score += 3; details.push(`${specCompletion}% spec completion`) }
-  else if (specCompletion >= 50) { score += 2; details.push(`${specCompletion}% spec completion`) }
-  else if (specCompletion > 0) { score += 1; details.push(`${specCompletion}% spec completion`) }
-
-  if ((summary.tasks?.total || 0) > 0 && summary.tasks.completed === summary.tasks.total) { score += 2; details.push('All tasks completed') }
-  else if ((summary.tasks?.completed || 0) > 0) { score += 1; details.push(`${summary.tasks.completed}/${summary.tasks.total} tasks completed`) }
-
-  if ((summary.cycles?.auditsRun || 0) > 0) { score += 1; details.push(`${summary.cycles.auditsRun} audits ran`) }
-
-  return { score: Math.min(score, max), max, details: details.join('; ') }
-}
-
-function scoreReviewProcess(summary) {
-  let score = 0
-  const max = 10
-  const details = []
-
-  const wf = summary.workflow || {}
-  const reviewsRun = wf.reviewsRun || 0
-  const reviewsApproved = wf.reviewsApproved || 0
-
-  if (reviewsRun > 0) { score += 5; details.push(`${reviewsRun} reviews ran`) }
-  else { details.push('No reviews ran (0/5)') }
-
-  if (reviewsApproved > 0) { score += 3; details.push(`${reviewsApproved} reviews approved`) }
-
-  if (reviewsRun >= (summary.tasks?.completed || 0) && (summary.tasks?.completed || 0) > 0) {
-    score += 2; details.push('Full review coverage')
-  }
-
-  return { score: Math.min(score, max), max, details: details.join('; ') }
-}
-
-function scoreErrorHandling(summary) {
-  let score = 10
-  const max = 10
-  const details = []
-
-  const issues = summary.issues || {}
-  if ((issues.toolErrors || 0) > 20) { score -= 4; details.push(`${issues.toolErrors} tool errors (high)`) }
-  else if ((issues.toolErrors || 0) > 10) { score -= 2; details.push(`${issues.toolErrors} tool errors (moderate)`) }
-  else if ((issues.toolErrors || 0) > 0) { score -= 1; details.push(`${issues.toolErrors} tool errors (low)`) }
-  else { details.push('No tool errors') }
-
-  if ((issues.loopsDetected || 0) > 0) { score -= 3; details.push(`${issues.loopsDetected} loops detected`) }
-  if ((issues.stuckDetections || 0) > 0) { score -= 2; details.push(`${issues.stuckDetections} stuck detections`) }
-  if ((issues.compactions || 0) > 3) { score -= 1; details.push(`${issues.compactions} compactions (high context usage)`) }
-
-  if (score >= 9) { details.push('Clean execution') }
-
-  return { score: Math.max(0, Math.min(score, max)), max, details: details.join('; ') }
-}
-
-function scoreCostEfficiency(summary) {
-  let score = 0
-  const max = 10
-  const details = []
-
-  const costUsd = summary.cost?.totalUsd || 0
-  const specItems = summary.spec?.totalItems || 1
-  const costPerItem = costUsd / specItems
-
-  if (costUsd <= 0.50) { score += 4; details.push(`Total cost $${costUsd.toFixed(2)} (very efficient)`) }
-  else if (costUsd <= 2.00) { score += 3; details.push(`Total cost $${costUsd.toFixed(2)} (efficient)`) }
-  else if (costUsd <= 5.00) { score += 2; details.push(`Total cost $${costUsd.toFixed(2)} (moderate)`) }
-  else { score += 1; details.push(`Total cost $${costUsd.toFixed(2)} (expensive)`) }
-
-  if (costPerItem <= 0.10) { score += 3; details.push(`$${costPerItem.toFixed(3)}/item (very efficient)`) }
-  else if (costPerItem <= 0.25) { score += 2; details.push(`$${costPerItem.toFixed(3)}/item (efficient)`) }
-  else if (costPerItem <= 0.50) { score += 1; details.push(`$${costPerItem.toFixed(3)}/item (moderate)`) }
-
-  const durationMin = (summary.duration?.totalMs || 0) / 60000
-  if (durationMin > 0 && durationMin <= 5) { score += 3; details.push(`${durationMin.toFixed(1)}min duration (fast)`) }
-  else if (durationMin <= 15) { score += 2; details.push(`${durationMin.toFixed(1)}min duration (moderate)`) }
-  else if (durationMin <= 30) { score += 1; details.push(`${durationMin.toFixed(1)}min duration (slow)`) }
-
-  return { score: Math.min(score, max), max, details: details.join('; ') }
 }
 
 // ============================================================================
-// Scoring Prompt (PRD Section 27) - Code Quality Only
+// PRD Workflow Excerpt (embedded for .js compatibility)
 // ============================================================================
 
-const SCORING_PROMPT = `You are evaluating the CODE QUALITY of a NERV benchmark run. NERV is a system that orchestrates Claude Code to implement features from a spec.
+const PRD_WORKFLOW_EXCERPT = `
+## NERV Workflow Patterns (from PRD)
 
-Your job is to analyze the produced source code and assign objective scores. Be critical but fair. Look for specific evidence.
+### Single-App Experience
+NERV presents one unified dashboard. Users open NERV, create a project,
+add repositories, define tasks, and let Claude Code handle implementation.
+The user's role is planning, reviewing, and approving — not coding.
 
-NOTE: Workflow metrics (worktrees, parallelism, cycles, reviews) are scored SEPARATELY by a deterministic system. You are ONLY scoring the quality of the produced code and application.
+### Test-Driven Iterative Development
+Each cycle follows: plan → implement → test → review → merge.
+Tasks are scoped so Claude can complete them in one session.
+"Only plan one cycle ahead — learn from results, then plan more."
 
-## Scoring Categories
+### Worktree Isolation
+"NERV creates git worktrees — your main repo is never modified directly."
+Every task gets its own worktree branched from the base repo.
+On approval, the worktree branch is merged back. On rejection, it is discarded.
+This ensures the main branch always contains reviewed, approved code.
 
-### 1. Implementation Quality (1-10)
-Evaluate the resulting code:
-- Code organization and structure
-- Documentation quality
-- Naming conventions and consistency
-- Test coverage and quality
-- DRY violations and code smells
-- Type safety and error handling
-- Security considerations
+### Cycle Management
+Cycles group related tasks into an iteration.
+Each cycle has a goal derived from the spec.
+Spec completion should increase across cycles.
+Audits can run at the end of a cycle to verify progress.
+
+### Permission System
+"All dangerous commands require your explicit approval."
+NERV's hook system intercepts tool calls and presents them for review.
+The benchmark should show permissions being requested and resolved,
+not bypassed entirely. Always-allow rules can reduce friction
+while still exercising the permission pipeline.
+
+### Review Gates
+Before merging, completed work goes through review.
+The review agent (or human) checks code quality, test results,
+and spec compliance. Rejected work gets feedback and iterates.
+Approved work is merged into the base branch.
+
+### Error Recovery
+Loop detection catches Claude spinning on the same error.
+Stuck detection identifies stalled sessions.
+Compaction handles context window limits.
+The system should recover gracefully, not crash or hang.
+
+### Cost Tracking
+Token usage and cost are tracked per task and per cycle.
+Efficient runs complete specs with reasonable token budgets.
+Cost relative to complexity (spec items) matters more than absolute cost.
+`
+
+// ============================================================================
+// Scoring Prompts — 3 categories, all Claude-graded
+// ============================================================================
+
+const PLANNING_PROMPT = `You are evaluating the PLANNING quality of a NERV benchmark run.
+NERV orchestrates Claude Code to build applications from a spec across multiple cycles.
+
+Score how well the project was planned and decomposed (1-10):
+- Were cycles well-scoped and progressive?
+- Were tasks appropriately decomposed?
+- Did spec coverage increase across cycles?
+- Were decisions and learnings captured?
+- Was there evidence of adaptive planning (adjusting based on results)?
 
 | Score | Criteria |
 |-------|----------|
-| 9-10 | Exceptional: Clean, well-documented, follows all conventions, excellent test coverage |
-| 7-8 | Good: Readable, documented, follows most conventions, adequate tests |
-| 5-6 | Acceptable: Works but has issues - missing docs, inconsistent style |
+| 9-10 | Exceptional: Multiple well-scoped cycles, clear progression, adaptive planning |
+| 7-8 | Good: 2+ cycles, reasonable task scoping, spec completion improves |
+| 5-6 | Acceptable: Some cycle structure but issues (single cycle, poor scoping) |
+| 3-4 | Poor: Minimal planning, tasks too large or too small |
+| 1-2 | Failing: No discernible planning, chaotic execution |
+
+Respond with ONLY a JSON object (no markdown fences, no extra text):
+{"score": <1-10>, "strengths": ["...", "..."], "weaknesses": ["...", "..."], "evidence": "Specific observations about planning quality"}`
+
+const CODE_QUALITY_PROMPT = `You are evaluating the CODE QUALITY of a NERV benchmark run.
+NERV orchestrates Claude Code to build applications from a spec.
+
+Score the produced source code (1-10):
+- Code organization, structure, naming
+- Test coverage and quality
+- Type safety and error handling
+- Functionality — does it match the spec?
+- UX — does the app work, is it intuitive?
+
+| Score | Criteria |
+|-------|----------|
+| 9-10 | Exceptional: Clean, well-tested, follows all conventions, spec fully met |
+| 7-8 | Good: Readable, adequate tests, follows most conventions, spec mostly met |
+| 5-6 | Acceptable: Works but has issues — missing docs, inconsistent style |
 | 3-4 | Poor: Hard to read, undocumented, violates conventions |
 | 1-2 | Failing: Broken, unmaintainable, major issues |
 
-### 2. Functionality (1-10)
-Evaluate whether the application works:
-- Does it implement the spec requirements?
-- Do API endpoints work correctly?
-- Does the app start and run without errors?
-- Are edge cases handled?
-- Does error handling work properly?
-- Are there any critical bugs?
+Respond with ONLY a JSON object (no markdown fences, no extra text):
+{"score": <1-10>, "strengths": ["...", "..."], "weaknesses": ["...", "..."], "evidence": "Specific examples from the code"}`
 
-### 3. User Experience (1-10)
-Evaluate the running application (you may receive screenshots and interaction results):
-- Does the app load and work correctly?
-- Is navigation intuitive and clear?
-- Do forms work with proper validation?
-- Is feedback clear (loading, success, error states)?
-- Does it look reasonable (functional, not necessarily beautiful)?
-- Does it match what the README describes?
+const NERV_OPS_PROMPT = `You are evaluating how well this benchmark used NERV's orchestration features.
+Compare the observed workflow against the NERV PRD (provided below).
 
-## Output Format
+Score (1-10) how well the build followed NERV's intended patterns:
+- Worktree isolation: separate worktrees per task, merged on approval
+- Cycle-based iteration: progressive cycles with increasing spec completion
+- Permission management: permissions requested and resolved (not bypassed)
+- Review gates: review before merge, feedback acted upon
+- Error recovery and loop handling: graceful recovery from issues
+- Cost efficiency relative to complexity
+
+| Score | Criteria |
+|-------|----------|
+| 9-10 | Exceptional: All PRD patterns followed, clean workflow |
+| 7-8 | Good: Most patterns followed, minor deviations |
+| 5-6 | Acceptable: Some patterns followed, notable gaps |
+| 3-4 | Poor: Few PRD patterns observed |
+| 1-2 | Failing: No PRD patterns observed, chaotic workflow |
+
+## NERV PRD Reference
+${PRD_WORKFLOW_EXCERPT}
 
 Respond with ONLY a JSON object (no markdown fences, no extra text):
-{
-  "implementation": {
-    "score": <1-10>,
-    "strengths": ["...", "..."],
-    "weaknesses": ["...", "..."],
-    "evidence": "Specific examples from the code"
-  },
-  "functionality": {
-    "score": <1-10>,
-    "strengths": ["...", "..."],
-    "weaknesses": ["...", "..."],
-    "evidence": "Specific examples of what works/doesn't"
-  },
-  "ux": {
-    "score": <1-10>,
-    "strengths": ["...", "..."],
-    "weaknesses": ["...", "..."],
-    "evidence": "Specific observations from testing or code review"
-  },
-  "progression": {
-    "narrative": "3-5 sentence summary of how the project was built across cycles. What was completed in each cycle? Were there hiccups? How did the review agent help?",
-    "cycleHighlights": ["Cycle 1: ...", "Cycle 2: ...", "..."],
-    "hiccups": ["Any errors, retries, stuck states, review rejections..."],
-    "reviewAgentFindings": ["What the review agent caught and suggested"]
-  },
-  "summary": "2-3 sentence overall code quality assessment",
-  "recommendations": ["...", "..."]
-}`
+{"score": <1-10>, "strengths": ["...", "..."], "weaknesses": ["...", "..."], "evidence": "Specific observations about workflow compliance"}`
 
 // ============================================================================
 // Stream Summarization
@@ -533,8 +423,16 @@ function formatDataForScoring(data, specContent) {
 - Worktrees Discarded: ${s.workflow.worktreesDiscarded}
 - Parallel Tasks: ${s.workflow.parallelTasksRun}
 - Commits Created: ${s.workflow.commitsCreated || 'unknown'}
-- Git Log: ${s.workflow.gitLog ? 'available (see below)' : 'not captured'}
+- Reviews Run: ${s.workflow.reviewsRun || 0}
+- Reviews Approved: ${s.workflow.reviewsApproved || 0}
 `)
+    }
+
+    if (s.cycles) {
+      sections.push(`## Cycles
+- Total: ${s.cycles.total}
+- Audits Run: ${s.cycles.auditsRun}
+- Audits Passed: ${s.cycles.auditsPassed}`)
     }
 
     if (s.issues) {
@@ -793,7 +691,7 @@ Start by reading the README, then proceed with testing.`
 
 /**
  * Spawn Claude Code CLI to grade benchmark results.
- * Uses `claude --print -p <prompt>` for subscription-based billing.
+ * Uses `claude --print` for subscription-based billing.
  * Returns the raw text output from Claude.
  */
 function spawnClaudeForGrading(prompt) {
@@ -844,12 +742,54 @@ function spawnClaudeForGrading(prompt) {
 }
 
 /**
+ * Parse a Claude response into a score detail object.
+ * Handles JSON with or without markdown fences.
+ */
+function parseScoreResponse(output, category) {
+  try {
+    return JSON.parse(output.trim())
+  } catch {
+    const jsonMatch = output.match(/\{[\s\S]*"score"[\s\S]*\}/m)
+    if (!jsonMatch) {
+      throw new Error(`Could not parse Claude ${category} response:\n${output.slice(0, 500)}`)
+    }
+    return JSON.parse(jsonMatch[0])
+  }
+}
+
+/**
  * Score a benchmark run using Claude Code CLI for objective evaluation.
- * PRD: "A separate Claude instance analyzes the output and assigns objective scores"
+ * Makes 3 separate Claude calls: Planning, Code Quality, NERV Ops.
+ * In mock mode, returns fixed passing scores.
  */
 async function scoreWithClaude(resultsDir, specContent, skipVisual) {
   const data = loadBenchmarkData(resultsDir)
   const formattedData = formatDataForScoring(data, specContent)
+
+  // Mock mode: return fixed scores
+  if (isMockMode()) {
+    console.log('Mock mode: returning fixed benchmark scores')
+    const scores = {
+      planning: mockScoreDetail(),
+      codeQuality: mockScoreDetail(),
+      nervOps: mockScoreDetail(),
+      progression: null,
+      combined: {
+        planningScore: 8,
+        codeScore: 8,
+        nervOpsScore: 8,
+        overallScore: 8,
+      },
+      overall: {
+        score: 8,
+        adjustment: 0,
+        adjustmentReason: '',
+        summary: 'Mock mode — fixed scores',
+        recommendations: [],
+      },
+    }
+    return { scores, visualResults: null, data }
+  }
 
   // Run visual tests if possible
   let visualResults = null
@@ -882,84 +822,82 @@ async function scoreWithClaude(resultsDir, specContent, skipVisual) {
     }
   }
 
-  // Build the grading prompt with all data
-  let gradingPrompt = `${SCORING_PROMPT}\n\n## Benchmark Data\n${formattedData}`
-
-  // Add visual test results
+  // Add visual test context to data for code quality grading
+  let visualContext = ''
   if (visualResults?.success) {
     const visualDir = path.dirname(visualResults.screenshotsDir)
-
-    let interactionLog = ''
-    let uxAssessment = ''
-    let readmeAccuracy = ''
-
+    const parts = []
     if (visualResults.hasInteractionLog) {
-      interactionLog = fs.readFileSync(path.join(visualDir, 'interaction-log.md'), 'utf-8')
+      parts.push(`### Interaction Log\n${fs.readFileSync(path.join(visualDir, 'interaction-log.md'), 'utf-8')}`)
     }
     if (visualResults.hasUxAssessment) {
-      uxAssessment = fs.readFileSync(path.join(visualDir, 'ux-assessment.md'), 'utf-8')
+      parts.push(`### UX Assessment\n${fs.readFileSync(path.join(visualDir, 'ux-assessment.md'), 'utf-8')}`)
     }
     if (visualResults.hasReadmeAccuracy) {
-      readmeAccuracy = fs.readFileSync(path.join(visualDir, 'readme-accuracy.md'), 'utf-8')
+      parts.push(`### README Accuracy\n${fs.readFileSync(path.join(visualDir, 'readme-accuracy.md'), 'utf-8')}`)
     }
-
-    gradingPrompt += `\n\n## Visual/UX Test Results\n` +
-      `A Claude instance tested the running application:\n\n` +
-      `### Interaction Log\n${interactionLog || '(not recorded)'}\n\n` +
-      `### README Accuracy\n${readmeAccuracy || '(not evaluated)'}\n\n` +
-      `### UX Assessment\n${uxAssessment || '(not evaluated)'}`
+    visualContext = `\n\n## Visual/UX Test Results\n${parts.join('\n\n')}`
   } else if (visualResults && !visualResults.success) {
-    gradingPrompt += `\n\n## Visual Test Results\nVisual testing failed: ${visualResults.error}\n\nScore UX based on code review only.`
-  } else {
-    gradingPrompt += '\n\n## Visual Test Results\nVisual testing was not performed. Score UX based on code review and available data only.'
+    visualContext = `\n\n## Visual Test Results\nVisual testing failed: ${visualResults.error}\nScore based on code review only.`
   }
 
-  // Call Claude Code CLI for scoring
-  console.log('Spawning Claude Code CLI for objective grading...')
-  const claudeOutput = await spawnClaudeForGrading(gradingPrompt)
+  // Make 3 Claude calls
+  console.log('Spawning Claude Code CLI for Planning grading...')
+  const planningOutput = await spawnClaudeForGrading(
+    `${PLANNING_PROMPT}\n\n## Benchmark Data\n${formattedData}`
+  )
+  const planningResult = parseScoreResponse(planningOutput, 'Planning')
 
-  // Parse the JSON response (code quality scores from Claude)
-  let codeQuality
-  try {
-    codeQuality = JSON.parse(claudeOutput.trim())
-  } catch {
-    // Extract JSON from response (may have markdown fences or extra text)
-    const jsonMatch = claudeOutput.match(/\{[\s\S]*"implementation"[\s\S]*\}/m)
-    if (!jsonMatch) {
-      throw new Error(`Could not parse Claude scoring response:\n${claudeOutput.slice(0, 500)}`)
-    }
-    codeQuality = JSON.parse(jsonMatch[0])
-  }
+  console.log('Spawning Claude Code CLI for Code Quality grading...')
+  const codeOutput = await spawnClaudeForGrading(
+    `${CODE_QUALITY_PROMPT}\n\n## Benchmark Data\n${formattedData}${visualContext}`
+  )
+  const codeResult = parseScoreResponse(codeOutput, 'Code Quality')
 
-  // Compute deterministic NERV ops score from summary.json
-  const nervOps = scoreNervOps(data.summary)
+  console.log('Spawning Claude Code CLI for NERV Ops grading...')
+  const nervOpsOutput = await spawnClaudeForGrading(
+    `${NERV_OPS_PROMPT}\n\n## Observed Workflow Metrics\n${formattedData}`
+  )
+  const nervOpsResult = parseScoreResponse(nervOpsOutput, 'NERV Ops')
 
-  // Compute combined scores
-  const nervOpsScore10 = nervOps ? Math.round((nervOps.score / 10) * 10) / 10 : 0
-  const codeQualityScore10 = Math.round(
-    ((codeQuality.implementation?.score || 0) * 0.35 +
-     (codeQuality.functionality?.score || 0) * 0.35 +
-     (codeQuality.ux?.score || 0) * 0.30) * 10
+  // Extract scores
+  const planningScore = Math.max(1, Math.min(10, planningResult.score || 5))
+  const codeScore = Math.max(1, Math.min(10, codeResult.score || 5))
+  const nervOpsScore = Math.max(1, Math.min(10, nervOpsResult.score || 5))
+
+  // Weighted overall: Planning 15%, Code 50%, NERV Ops 35%
+  const overallScore = Math.round(
+    (planningScore * 0.15 + codeScore * 0.50 + nervOpsScore * 0.35) * 10
   ) / 10
-  const overallScore = Math.round(((nervOpsScore10 + codeQualityScore10) / 2) * 10) / 10
+
+  const toDetail = (result) => ({
+    score: Math.max(1, Math.min(10, result.score || 5)),
+    strengths: result.strengths || [],
+    weaknesses: result.weaknesses || [],
+    evidence: result.evidence || '',
+  })
 
   const scores = {
-    nervOps: nervOps || { score: 0, breakdown: {} },
-    codeQuality: {
-      implementation: codeQuality.implementation || { score: 0, strengths: [], weaknesses: [], evidence: '' },
-      functionality: codeQuality.functionality || { score: 0, strengths: [], weaknesses: [], evidence: '' },
-      ux: codeQuality.ux || { score: 0, strengths: [], weaknesses: [], evidence: '' },
-    },
+    planning: toDetail(planningResult),
+    codeQuality: toDetail(codeResult),
+    nervOps: toDetail(nervOpsResult),
+    progression: null,
     combined: {
-      nervOpsScore: nervOpsScore10,
-      codeQualityScore: codeQualityScore10,
+      planningScore,
+      codeScore,
+      nervOpsScore,
       overallScore,
     },
-    progression: codeQuality.progression || null,
     overall: {
       score: Math.round(overallScore),
-      summary: codeQuality.summary || '',
-      recommendations: codeQuality.recommendations || []
+      adjustment: 0,
+      adjustmentReason: '',
+      summary: `Planning: ${planningScore}/10, Code: ${codeScore}/10, NERV Ops: ${nervOpsScore}/10`,
+      recommendations: [
+        ...(planningResult.weaknesses || []).slice(0, 1),
+        ...(codeResult.weaknesses || []).slice(0, 1),
+        ...(nervOpsResult.weaknesses || []).slice(0, 1),
+      ],
     },
   }
 
@@ -978,10 +916,9 @@ function saveScoringResults(resultsDir, scores, visualResults) {
   if (fs.existsSync(summaryPath)) {
     const summary = JSON.parse(fs.readFileSync(summaryPath, 'utf-8'))
     summary.scores = {
+      planning: scores.planning?.score || 0,
+      codeQuality: scores.codeQuality?.score || 0,
       nervOps: scores.nervOps?.score || 0,
-      codeQualityImplementation: scores.codeQuality?.implementation?.score || 0,
-      codeQualityFunctionality: scores.codeQuality?.functionality?.score || 0,
-      codeQualityUx: scores.codeQuality?.ux?.score || 0,
       overall: scores.overall?.score || 0,
     }
     summary.scoreDetails = scores
@@ -1010,8 +947,9 @@ function appendHistory(resultsDir, scores, data) {
     spec: data.summary?.specFile || data.spec ? 'provided' : 'none',
     outcome: data.summary?.outcome || (data.summary?.allPassed ? 'success' : 'unknown'),
     scores: {
-      nervOps: scores.nervOps?.score || 0,
-      codeQuality: scores.combined?.codeQualityScore || 0,
+      planning: scores.combined?.planningScore || 0,
+      codeQuality: scores.combined?.codeScore || 0,
+      nervOps: scores.combined?.nervOpsScore || 0,
       overall: scores.combined?.overallScore || 0,
     },
     duration: data.summary?.duration?.totalMs || data.summary?.totalDuration || data.summary?.metrics?.durationMs || null,
@@ -1029,57 +967,28 @@ function printScores(scores) {
   }
 
   console.log('\n' + '='.repeat(60))
-  console.log('  \x1b[1mNERV Benchmark Scores\x1b[0m')
+  console.log('  \x1b[1mNERV Benchmark Scores (All Claude Graded)\x1b[0m')
   console.log('='.repeat(60))
 
-  // NERV Ops (deterministic from summary.json)
-  if (scores.nervOps && scores.nervOps.score !== undefined) {
-    console.log()
-    console.log('  \x1b[1m--- NERV Operations (Deterministic) ---\x1b[0m')
-    console.log(`  ${'NERV Ops Total'.padEnd(24)} ${bar(scores.nervOps.score, 100)} ${scores.nervOps.score}/100`)
-    console.log()
-
-    const breakdown = scores.nervOps.breakdown
-    if (breakdown) {
-      const dims = [
-        ['worktreeUsage', 'Worktree Usage (25%)'],
-        ['parallelism', 'Parallelism (15%)'],
-        ['cycleManagement', 'Cycle Mgmt (20%)'],
-        ['reviewProcess', 'Review Process (15%)'],
-        ['errorHandling', 'Error Handling (10%)'],
-        ['costEfficiency', 'Cost Efficiency (15%)'],
-      ]
-      for (const [key, name] of dims) {
-        const d = breakdown[key]
-        if (d) {
-          console.log(`    ${name.padEnd(22)} ${bar(d.score, d.max)} ${d.score}/${d.max}`)
-          if (d.details) console.log(`      \x1b[90m${d.details}\x1b[0m`)
-        }
-      }
-    }
-  }
-
-  // Code Quality (Claude-graded)
-  console.log()
-  console.log('  \x1b[1m--- Code Quality (Claude Graded) ---\x1b[0m')
-  console.log()
-
-  const cqCategories = [
-    ['implementation', 'Implementation (35%)'],
-    ['functionality', 'Functionality (35%)'],
-    ['ux', 'User Experience (30%)'],
+  const categories = [
+    ['planning', 'Planning (15%)'],
+    ['codeQuality', 'Code Quality (50%)'],
+    ['nervOps', 'NERV Ops (35%)'],
   ]
 
-  const cq = scores.codeQuality || {}
-  for (const [key, name] of cqCategories) {
-    const s = cq[key]
+  for (const [key, name] of categories) {
+    const s = scores[key]
     if (!s) continue
-    console.log(`    ${name.padEnd(22)} ${bar(s.score)} ${s.score}/10`)
+    console.log()
+    console.log(`  ${name.padEnd(22)} ${bar(s.score)} ${s.score}/10`)
     if (s.strengths?.length) {
-      console.log(`      \x1b[32m+\x1b[0m ${s.strengths.slice(0, 2).join(', ')}`)
+      console.log(`    \x1b[32m+\x1b[0m ${s.strengths.slice(0, 2).join(', ')}`)
     }
     if (s.weaknesses?.length) {
-      console.log(`      \x1b[31m-\x1b[0m ${s.weaknesses.slice(0, 2).join(', ')}`)
+      console.log(`    \x1b[31m-\x1b[0m ${s.weaknesses.slice(0, 2).join(', ')}`)
+    }
+    if (s.evidence) {
+      console.log(`    \x1b[90m${s.evidence.slice(0, 120)}\x1b[0m`)
     }
   }
 
@@ -1088,8 +997,9 @@ function printScores(scores) {
   console.log('-'.repeat(60))
 
   const c = scores.combined || {}
+  console.log(`  ${'Planning Score'.padEnd(24)} ${c.planningScore || 0}/10`)
+  console.log(`  ${'Code Quality Score'.padEnd(24)} ${c.codeScore || 0}/10`)
   console.log(`  ${'NERV Ops Score'.padEnd(24)} ${c.nervOpsScore || 0}/10`)
-  console.log(`  ${'Code Quality Score'.padEnd(24)} ${c.codeQualityScore || 0}/10`)
   console.log(`  \x1b[1m${'Overall Score'.padEnd(24)} ${bar(c.overallScore || 0)} ${c.overallScore || 0}/10\x1b[0m`)
 
   const o = scores.overall
@@ -1102,28 +1012,6 @@ function printScores(scores) {
     console.log()
     console.log('  \x1b[1mRecommendations:\x1b[0m')
     o.recommendations.forEach((r, i) => console.log(`    ${i + 1}. ${r}`))
-  }
-
-  // Progression narrative (comes from Claude grading response)
-  const p = scores.progression || scores.overall?.progression
-  if (p) {
-    console.log()
-    console.log('  \x1b[1m--- Build Progression ---\x1b[0m')
-    if (p.narrative) console.log(`  ${p.narrative}`)
-    if (p.cycleHighlights?.length) {
-      console.log()
-      p.cycleHighlights.forEach(h => console.log(`    ${h}`))
-    }
-    if (p.hiccups?.length) {
-      console.log()
-      console.log('  \x1b[33mHiccups:\x1b[0m')
-      p.hiccups.forEach(h => console.log(`    - ${h}`))
-    }
-    if (p.reviewAgentFindings?.length) {
-      console.log()
-      console.log('  \x1b[36mReview Agent Findings:\x1b[0m')
-      p.reviewAgentFindings.forEach(f => console.log(`    - ${f}`))
-    }
   }
 
   console.log()
@@ -1140,7 +1028,7 @@ async function main() {
 
   if (args.length === 0 || args.includes('--help') || args.includes('-h')) {
     console.log(`
-NERV Benchmark Scoring Script (Claude Code Graded)
+NERV Benchmark Scoring Script (All Claude Graded)
 
 Usage:
   node scripts/score-benchmark.js <benchmark-dir> [options]
@@ -1155,8 +1043,14 @@ Options:
   --json           Output JSON only (no formatted display)
   --help, -h       Show this help
 
+Scoring Categories:
+  Planning (15%)     — cycle progression, task decomposition, spec coverage
+  Code Quality (50%) — implementation, functionality, UX
+  NERV Ops (35%)     — workflow patterns compared against PRD
+
+Mock mode: Set NERV_MOCK_CLAUDE=1 or NERV_TEST_MODE=1 to skip Claude calls.
+
 Requires: Claude Code CLI installed and authenticated (subscription).
-No API key needed - uses your Claude Code subscription.
 
 Examples:
   node scripts/score-benchmark.js test-results/benchmark-20260203

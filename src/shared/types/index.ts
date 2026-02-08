@@ -146,8 +146,6 @@ export type {
   ParsedSpec,
   ParsedCycle,
   ParsedSubtask,
-  NervOpsScore,
-  NervOpsBreakdown,
   ReviewDecision,
   BenchmarkPipelineConfig,
   BenchmarkPipelineResult,

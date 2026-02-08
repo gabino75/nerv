@@ -24,7 +24,7 @@ flowchart LR
         I --> J{More cycles?}
         J -->|Yes| D
     end
-    subgraph "Phase 3: Grade"
+    subgraph "Phase 3: Grade (All Claude)"
         K["Score Planning (15%)"] --> N[Overall Score]
         L["Score Code (50%)"] --> N
         M["Score NERV Ops (35%)"] --> N
@@ -79,13 +79,15 @@ Executes tasks in a loop:
 
 ### Phase 3: Grade
 
-Scores the benchmark result across three categories:
+All 3 scoring categories are Claude-graded. In mock mode, fixed passing scores are returned without calling Claude.
 
 | Category | Weight | Scoring Method |
 |----------|--------|----------------|
-| Planning | 15% | Deterministic — cycles completed, spec completion, task completion rate |
-| Code Quality | 50% | Claude `--print` analysis (real) or deterministic formula (mock) |
-| NERV Ops | 35% | Deterministic — worktree usage, cycle management, error handling |
+| Planning | 15% | Claude-graded — cycle progression, task decomposition, spec coverage |
+| Code Quality | 50% | Claude-graded — implementation quality, functionality, UX |
+| NERV Ops | 35% | Claude-graded — workflow patterns compared against PRD |
+
+**Mock mode:** When `NERV_MOCK_CLAUDE=1` or `NERV_TEST_MODE=1`, all 3 categories return a fixed score of 8/10 without calling Claude. This keeps E2E tests fast and deterministic.
 
 **Pass threshold:** overall >= 7.0 (exit code 0), below 7.0 (exit code 1)
 
@@ -93,46 +95,46 @@ Scores the benchmark result across three categories:
 
 ### Planning Score (15%)
 
-Starts at 10, deducts for:
-- Cycles not completing normally
-- Loop thrashing (multiple loops in a task)
-- Phase progression errors
+Claude evaluates:
+- Were cycles well-scoped and progressive?
+- Were tasks appropriately decomposed?
+- Did spec coverage increase across cycles?
+- Were decisions and learnings captured?
+- Was there evidence of adaptive planning?
 
 ### Code Quality Score (50%)
 
-**Real Claude mode:** Uses `claude --print` to analyze the built repository:
+Claude evaluates:
+- Code organization, structure, naming
+- Test coverage and quality
+- Type safety and error handling
 - Functionality — does it match the spec?
-- Code structure — organization, naming, DRY
-- TypeScript — types, no `any`
-- Tests — coverage, assertions
-- UX — user experience quality
-- Error handling — edge cases
+- UX — does the app work, is it intuitive?
 
-**Mock mode:** Formula: `baseline(4) + taskCompletion + failurePenalties` (max 10)
+Visual test results (if available) are included in the code quality prompt.
 
 ### NERV Ops Score (35%)
 
-Deterministic scoring from benchmark metrics:
+Claude compares the observed workflow against the NERV PRD:
+- **Worktree isolation** — separate worktrees per task, merged on approval
+- **Cycle-based iteration** — progressive cycles with increasing spec completion
+- **Permission management** — permissions requested and resolved (not bypassed)
+- **Review gates** — review before merge, feedback acted upon
+- **Error recovery** — loop handling, stuck detection, graceful recovery
+- **Cost efficiency** — reasonable cost relative to complexity
 
-| Category | Weight | What's Measured |
-|----------|--------|-----------------|
-| Worktree Usage | 25% | Creation per task, successful merges, isolation |
-| Parallelism | 15% | Parallel tasks run, 50%+ parallelization ratio |
-| Cycle Management | 20% | Cycles completed, spec completion %, task throughput |
-| Review Process | 15% | Reviews run, review coverage, approval rate |
-| Error Handling | 10% | Tool errors, loops, stuck detections, compactions |
-| Cost Efficiency | 15% | Total cost, per-item cost, duration |
+The PRD workflow excerpt is embedded in the scoring prompt so Claude has a reference standard.
 
 ## Scoring Script
 
 `scripts/score-benchmark.js` provides standalone scoring outside the benchmark runner:
 
 ```bash
-# Deterministic NERV ops scoring only
-node scripts/score-benchmark.js benchmark-output/
+# Score with Claude (3 calls: planning, code, NERV ops)
+node scripts/score-benchmark.js benchmark-output/ --spec specs/todo-app.md
 
-# Full scoring with Claude code quality grading
-node scripts/score-benchmark.js benchmark-output/ --grade-claude
+# Mock mode (fixed scores, no Claude calls)
+NERV_MOCK_CLAUDE=1 node scripts/score-benchmark.js benchmark-output/
 ```
 
 **Output:**
@@ -201,10 +203,9 @@ playwright:v1.50.0-noble (base)
 2. Initialize test fixture repos (git init + commit)
 3. Build app (or use pre-built artifacts)
 4. Start Xvfb on `:99` at 1920x1080
-5. Optionally start ffmpeg recording
-6. Warm up Electron
-7. Run tests
-8. Copy results back to host mount
+5. Warm up Electron
+6. Run tests (Playwright records video automatically when configured)
+7. Copy results back to host mount
 
 ### Compose Services
 
@@ -212,7 +213,7 @@ playwright:v1.50.0-noble (base)
 |---------|-------------|
 | `nerv-e2e-mock` | Headless, mock Claude, no credentials needed |
 | `nerv-e2e-headed` | X11 forwarding for visible UI debugging |
-| `nerv-e2e-real` | Real Claude CLI (requires API key or mounted credentials) |
+| `nerv-e2e-real` | Real Claude CLI (uses host login credentials) |
 | `nerv-e2e-simple` | Single test filter for debugging |
 
 ## Test Entry Points
@@ -231,9 +232,7 @@ playwright:v1.50.0-noble (base)
 | `NERV_MOCK_CLAUDE` | `true` | Use mock Claude responses |
 | `NERV_TEST_MODE` | — | Enable test-specific behavior |
 | `NERV_SLOW_MODE` | `false` | Add delays for observation |
-| `NERV_RECORD_VIDEO` | `false` | Record X11 to MP4 |
 | `NERV_BENCHMARK_MODE` | — | Enable benchmark instrumentation |
-| `ANTHROPIC_API_KEY` | — | API key for real Claude |
 | `NERV_CLAUDE_TIMEOUT` | `3600000` | Per-task timeout (ms) |
 | `NERV_MAX_TURNS` | `10` (mock) | Max conversation turns |
 | `DISPLAY` | `:99` | Xvfb virtual display |
@@ -255,24 +254,26 @@ docker run --rm --shm-size=2gb \
 
 ### Real Claude
 
+Real Claude benchmarks use the host system's Claude Code login credentials (mounted into the container). No API key is needed — Claude Code uses your existing subscription.
+
 ```bash
-# Via Docker Compose (mount credentials)
+# Via Docker Compose (mounts ~/.claude credentials automatically)
 docker compose -f test/e2e/docker-compose.yml run nerv-e2e-real
 
-# Or with API key
+# Or manually mount credentials
 docker run --rm --shm-size=2gb \
   -v $(pwd):/app/host \
+  -v ~/.claude:/root/.claude:ro \
   -e NERV_MOCK_CLAUDE=false \
-  -e ANTHROPIC_API_KEY=$ANTHROPIC_API_KEY \
   nerv-e2e "npx playwright test test/e2e/golden/real-claude-benchmark.spec.ts"
 ```
 
 ### Scoring an existing output
 
 ```bash
-# Deterministic scoring
-node scripts/score-benchmark.js path/to/benchmark-output/
+# All-Claude scoring (3 separate Claude calls)
+node scripts/score-benchmark.js path/to/benchmark-output/ --spec specs/todo-app.md
 
-# With Claude code quality grading
-node scripts/score-benchmark.js path/to/benchmark-output/ --grade-claude
+# Mock mode (fixed scores, no Claude calls)
+NERV_MOCK_CLAUDE=1 node scripts/score-benchmark.js path/to/benchmark-output/
 ```

@@ -23,14 +23,12 @@ import { colors } from '../colors.js'
 import { parseSpec } from '../../core/spec-parser.js'
 import { createTaskWorktree, mergeWorktree, getWorktreeDiff } from '../../core/benchmark-worktree.js'
 import { runReviewAgent } from '../../core/benchmark-review.js'
-import { scoreNervOps, nervOpsScoreTo10 } from '../../core/benchmark-scoring.js'
 import type {
   ParsedCycle,
   ParsedSubtask,
   BenchmarkTaskResult,
   BenchmarkCycleResult,
   BenchmarkPipelineResult,
-  BenchmarkSummary,
   BenchmarkSubagentEntry,
 } from '../../shared/types/benchmark.js'
 
@@ -1331,17 +1329,6 @@ function writePipelineOutput(
   }
 
   fs.writeFileSync(path.join(outputDir, 'summary.json'), JSON.stringify(summary, null, 2))
-
-  // Also compute and write NERV ops score
-  try {
-    const nervOpsScore = scoreNervOps(summary as unknown as BenchmarkSummary)
-    fs.writeFileSync(path.join(outputDir, 'nerv-ops-score.json'), JSON.stringify({
-      nervOps: nervOpsScore,
-      nervOpsScore10: nervOpsScoreTo10(nervOpsScore.score),
-    }, null, 2))
-  } catch {
-    // Non-critical
-  }
 
   // Write per-cycle output files (PRD Section 4940-4948)
   for (const cycle of result.cycles) {

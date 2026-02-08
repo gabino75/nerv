@@ -1332,20 +1332,23 @@ Write your review comments (plain text, no JSON):`
     const isMockMode = process.env.NERV_MOCK_CLAUDE !== 'false'
 
     try {
-      // Planning quality: count cycles, decisions, learnings
-      const planningScore = this.scorePlanning(build)
-
-      // Code quality: use Claude grading for real mode, deterministic for mock
+      let planningScore: number
       let codeScore: number
-      if (isMockMode) {
-        codeScore = this.scoreCodeMock(build)
-      } else {
-        this.eventLog.emit('grading_code', { label: 'Grading code quality with Claude...' })
-        codeScore = await this.gradeCodeWithClaude(setup.projectId)
-      }
+      let nervOpsScore: number
 
-      // NERV ops: deterministic from build metrics
-      const nervOpsScore = this.scoreNervOps(build)
+      if (isMockMode) {
+        // Mock mode: fixed passing scores, no Claude calls
+        planningScore = 8
+        codeScore = 8
+        nervOpsScore = 8
+      } else {
+        // Real mode: all 3 categories graded by Claude
+        this.eventLog.emit('grading_code', { label: 'Grading with Claude (3 calls)...' })
+        const grades = await this.gradeAllWithClaude(setup.projectId, build)
+        planningScore = grades.planning
+        codeScore = grades.code
+        nervOpsScore = grades.nervOps
+      }
 
       // Weighted overall: Planning 15%, Code 50%, NERV Ops 35%
       const overallScore = Math.round(
@@ -1360,7 +1363,6 @@ Write your review comments (plain text, no JSON):`
       const events = this.eventLog.getEvents()
       const mergesSucceeded = events.filter(e => e.event === 'worktree_merged').length
       const mergesFailed = events.filter(e => e.event === 'worktree_merge_failed').length
-      const totalMergeAttempts = mergesSucceeded + mergesFailed
 
       const mergeCompliance = {
         totalTasks: build.tasksCompleted + build.tasksFailed,
@@ -1407,120 +1409,117 @@ Write your review comments (plain text, no JSON):`
   }
 
   /**
-   * Grade code quality using claude --print.
-   * Gets a unified diff from the merged base repo and asks Claude to score 1-10.
+   * Grade all 3 categories using claude --print.
+   * Each category gets its own Claude call with focused context.
+   * Returns {planning, code, nervOps} scores (1-10 each).
    */
-  private async gradeCodeWithClaude(projectId: string): Promise<number> {
-    try {
-      // Get the base repo path (contains all merged work)
-      const repoPath = await this.window.evaluate(async (pid: string) => {
-        const api = (window as unknown as {
-          api: {
-            db: {
-              repos: { getForProject: (pid: string) => Promise<Array<{ path: string }>> }
-              tasks: { getForProject: (pid: string) => Promise<Array<{ status: string; worktree_path: string | null }>> }
-            }
+  private async gradeAllWithClaude(
+    projectId: string,
+    build: UIBenchmarkBuildResult,
+  ): Promise<{ planning: number; code: number; nervOps: number }> {
+    const repoPath = await this.window.evaluate(async (pid: string) => {
+      const api = (window as unknown as {
+        api: {
+          db: {
+            repos: { getForProject: (pid: string) => Promise<Array<{ path: string }>> }
           }
-        }).api
-        const repos = await api.db.repos.getForProject(pid)
-        return repos[0]?.path || null
-      }, projectId)
+        }
+      }).api
+      const repos = await api.db.repos.getForProject(pid)
+      return repos[0]?.path || null
+    }, projectId)
 
-      if (!repoPath) {
-        log('info', 'No repo path found for code grading')
-        return 5
-      }
-
-      // Get unified diff of ALL changes from the base repo
-      const { execSync } = await import('child_process')
-      let diff = ''
+    // Get diff for code quality grading
+    let diff = ''
+    if (repoPath) {
       try {
-        // Get the initial commit to diff against (all changes since repo creation)
+        const { execSync } = await import('child_process')
         const firstCommit = execSync('git rev-list --max-parents=0 HEAD 2>/dev/null | head -1', {
-          cwd: repoPath,
-          maxBuffer: 1024,
-          encoding: 'utf-8',
+          cwd: repoPath, maxBuffer: 1024, encoding: 'utf-8',
         }).trim()
-
         if (firstCommit) {
           diff = execSync(`git diff ${firstCommit}..HEAD`, {
-            cwd: repoPath,
-            maxBuffer: 10 * 1024 * 1024,
-            encoding: 'utf-8',
+            cwd: repoPath, maxBuffer: 10 * 1024 * 1024, encoding: 'utf-8',
           })
         }
       } catch {
-        // Fallback: diff against HEAD~10
         try {
-          diff = execSync('git diff HEAD~10...HEAD 2>/dev/null || git diff HEAD 2>/dev/null || echo "No changes"', {
-            cwd: repoPath,
-            maxBuffer: 5 * 1024 * 1024,
-            encoding: 'utf-8',
+          const { execSync } = await import('child_process')
+          diff = execSync('git diff HEAD~10...HEAD 2>/dev/null || git diff HEAD 2>/dev/null || echo ""', {
+            cwd: repoPath, maxBuffer: 5 * 1024 * 1024, encoding: 'utf-8',
           })
-        } catch {
-          // skip
-        }
+        } catch { /* skip */ }
       }
+    }
 
-      if (!diff || diff.trim() === 'No changes') {
-        log('info', 'No diff available for code grading')
-        return 5
-      }
+    // Build context shared by all 3 prompts
+    const events = this.eventLog.getEvents()
+    const context = [
+      `Cycles completed: ${build.cyclesCompleted}`,
+      `Tasks completed: ${build.tasksCompleted}, failed: ${build.tasksFailed}`,
+      `Build success: ${build.success}`,
+      `Merges succeeded: ${events.filter(e => e.event === 'worktree_merged').length}`,
+      `Merges failed: ${events.filter(e => e.event === 'worktree_merge_failed').length}`,
+      `Loop dismissals: ${events.filter(e => e.event === 'loop_dialog_dismissed').length}`,
+      `Review decisions: ${events.filter(e => e.event.startsWith('review_')).length}`,
+    ].join('\n')
 
-      // Truncate diff for Claude prompt
-      const truncatedDiff = diff.length > 30000 ? diff.slice(0, 30000) + '\n\n[... diff truncated ...]' : diff
+    const truncatedDiff = diff.length > 20000 ? diff.slice(0, 20000) + '\n[...truncated...]' : diff
 
-      const prompt = `Score the following unified code diff from a benchmark project on a scale of 1-10.
+    const gradeOne = async (prompt: string, label: string): Promise<number> => {
+      try {
+        const { spawn } = await import('child_process')
+        return new Promise<number>((resolve) => {
+          const proc = spawn('claude', [
+            '--print', '--output-format', 'text', '--model', 'sonnet', '--max-turns', '1',
+          ], { stdio: ['pipe', 'pipe', 'pipe'] })
 
-This is a complete project built across multiple tasks, merged into a single codebase.
+          let stdout = ''
+          proc.stdout.on('data', (chunk: Buffer) => { stdout += chunk.toString() })
+          proc.stdin.write(prompt)
+          proc.stdin.end()
 
-Consider: functionality, code quality, error handling, TypeScript best practices, tests, UX.
+          const timer = setTimeout(() => { proc.kill(); resolve(5) }, 120000)
 
-\`\`\`diff
-${truncatedDiff}
-\`\`\`
-
-Respond with ONLY a JSON object: {"score": N, "rationale": "brief explanation"}`
-
-      const { spawn } = await import('child_process')
-
-      const score = await new Promise<number>((resolve) => {
-        const proc = spawn('claude', [
-          '--print', '--output-format', 'text', '--model', 'haiku', '--max-turns', '1',
-        ], { stdio: ['pipe', 'pipe', 'pipe'] })
-
-        let stdout = ''
-        proc.stdout.on('data', (chunk: Buffer) => { stdout += chunk.toString() })
-        proc.stdin.write(prompt)
-        proc.stdin.end()
-
-        const timer = setTimeout(() => { proc.kill(); resolve(5) }, 120000)
-
-        proc.on('close', () => {
-          clearTimeout(timer)
-          try {
-            const match = stdout.match(/\{[\s\S]*"score"[\s\S]*\}/)
-            if (match) {
-              const parsed = JSON.parse(match[0])
-              const s = typeof parsed.score === 'number' ? parsed.score : 5
-              log('step', 'Code quality graded', { score: s, rationale: parsed.rationale })
-              resolve(Math.max(1, Math.min(10, s)))
-            } else {
+          proc.on('close', () => {
+            clearTimeout(timer)
+            try {
+              const match = stdout.match(/\{[\s\S]*"score"[\s\S]*\}/)
+              if (match) {
+                const parsed = JSON.parse(match[0])
+                const s = typeof parsed.score === 'number' ? parsed.score : 5
+                log('step', `${label} graded`, { score: s })
+                resolve(Math.max(1, Math.min(10, s)))
+              } else {
+                resolve(5)
+              }
+            } catch {
               resolve(5)
             }
-          } catch {
-            resolve(5)
-          }
+          })
+          proc.on('error', () => { clearTimeout(timer); resolve(5) })
         })
-
-        proc.on('error', () => { clearTimeout(timer); resolve(5) })
-      })
-
-      return score
-    } catch (error) {
-      log('info', 'Code grading failed, using default', { error: String(error) })
-      return 5
+      } catch {
+        return 5
+      }
     }
+
+    const planning = await gradeOne(
+      `You are evaluating PLANNING quality of a NERV benchmark run.\n\nScore 1-10 how well the project was planned:\n- Were cycles well-scoped and progressive?\n- Were tasks appropriately decomposed?\n- Did spec coverage increase?\n\n## Metrics\n${context}\n\nRespond with ONLY JSON: {"score": N, "strengths": [...], "weaknesses": [...], "evidence": "..."}`,
+      'Planning',
+    )
+
+    const code = await gradeOne(
+      `You are evaluating CODE QUALITY of a NERV benchmark run.\n\nScore 1-10 the produced code:\n- Code organization, naming, structure\n- Test coverage and quality\n- Functionality vs spec\n\n## Code Diff\n\`\`\`diff\n${truncatedDiff || '(no diff available)'}\n\`\`\`\n\n## Metrics\n${context}\n\nRespond with ONLY JSON: {"score": N, "strengths": [...], "weaknesses": [...], "evidence": "..."}`,
+      'Code Quality',
+    )
+
+    const nervOps = await gradeOne(
+      `You are evaluating NERV OPS quality — how well the benchmark followed NERV's workflow patterns.\n\nScore 1-10:\n- Worktree isolation per task\n- Cycle-based iteration\n- Review gates before merge\n- Error recovery and loop handling\n- Cost efficiency\n\n## Metrics\n${context}\n\nRespond with ONLY JSON: {"score": N, "strengths": [...], "weaknesses": [...], "evidence": "..."}`,
+      'NERV Ops',
+    )
+
+    return { planning, code, nervOps }
   }
 
   /**
@@ -1587,68 +1586,4 @@ Respond with ONLY a JSON object: {"score": N, "rationale": "brief explanation"}`
     }
   }
 
-  private scoreCodeMock(build: UIBenchmarkBuildResult): number {
-    if (!build.success) return 3
-    let score = 0
-    // Build succeeded - baseline quality
-    score += 4
-    // Multiple tasks completed shows breadth of implementation
-    if (build.tasksCompleted >= 4) score += 3
-    else if (build.tasksCompleted >= 3) score += 2
-    else if (build.tasksCompleted >= 1) score += 1
-    // Zero failures indicates clean code
-    if (build.tasksFailed === 0 && build.tasksCompleted > 0) score += 3
-    return Math.min(score, 10)
-  }
-
-  /**
-   * Strict deduction-based planning score: start at 10, deduct for issues.
-   */
-  private scorePlanning(build: UIBenchmarkBuildResult): number {
-    let score = 10
-    const events = this.eventLog.getEvents()
-
-    // Cycles: need at least 3 for full marks
-    if (build.cyclesCompleted < 3) score -= 2
-    // Task failures: -1 per failure (max -2)
-    const taskFailPenalty = Math.min(2, build.tasksFailed)
-    score -= taskFailPenalty
-    // Loop thrashing
-    const loopDismissals = events.filter(e => e.event === 'loop_dialog_dismissed').length
-    if (loopDismissals > 5) score -= 2
-    else if (loopDismissals > 0) score -= 1
-    // Phase errors
-    const phaseErrors = events.filter(e => e.event === 'phase_error').length
-    score -= Math.min(2, phaseErrors)
-
-    return Math.max(1, Math.min(score, 10))
-  }
-
-  /**
-   * Strict deduction-based NERV Ops score: start at 10, deduct for issues.
-   * Tracks merge compliance as a core workflow requirement.
-   */
-  private scoreNervOps(build: UIBenchmarkBuildResult): number {
-    let score = 10
-    const events = this.eventLog.getEvents()
-
-    // Merge compliance — core PRD requirement
-    const mergesSucceeded = events.filter(e => e.event === 'worktree_merged').length
-    const mergesFailed = events.filter(e => e.event === 'worktree_merge_failed').length
-    if (mergesSucceeded === 0) score -= 4
-    else if (mergesFailed > 0) score -= 2
-    // Loop detector triggers
-    const loopDismissals = events.filter(e => e.event === 'loop_dialog_dismissed').length
-    if (loopDismissals > 10) score -= 3
-    else if (loopDismissals > 5) score -= 2
-    else if (loopDismissals > 0) score -= 1
-    // Task failures: -1 per failure (max -3)
-    score -= Math.min(3, build.tasksFailed)
-    // Insufficient cycles
-    if (build.cyclesCompleted < 2) score -= 1
-    // Build failed
-    if (!build.success) score -= 2
-
-    return Math.max(1, Math.min(score, 10))
-  }
 }
