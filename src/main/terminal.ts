@@ -5,6 +5,7 @@ import * as fs from 'fs'
 import { PTY_DEFAULTS, getBuiltInProfilesForPlatform, BUILT_IN_TERMINAL_PROFILES } from '../shared/constants'
 import type { TerminalProfile, TerminalCreateResult } from '../shared/types/terminal'
 import { broadcastToRenderers } from './utils'
+import { saveCustomTerminalProfiles } from './settings-loader'
 
 // Map of terminal ID to PTY instance
 const terminals: Map<string, IPty> = new Map()
@@ -79,6 +80,60 @@ export function setOrgProfiles(profiles: TerminalProfile[]): void {
  */
 export function getOrgProfiles(): TerminalProfile[] {
   return [...orgProfiles]
+}
+
+/**
+ * Add a custom terminal profile and persist to config
+ */
+export function addCustomProfile(profile: TerminalProfile): void {
+  const existing = customProfiles.findIndex(p => p.id === profile.id)
+  if (existing >= 0) {
+    throw new Error(`Profile with id '${profile.id}' already exists`)
+  }
+  customProfiles.push({ ...profile, source: 'custom' as const })
+  saveCustomTerminalProfiles(customProfiles)
+}
+
+/**
+ * Update an existing custom terminal profile and persist
+ */
+export function updateCustomProfile(profile: TerminalProfile): void {
+  const idx = customProfiles.findIndex(p => p.id === profile.id)
+  if (idx < 0) {
+    throw new Error(`Profile '${profile.id}' not found in custom profiles`)
+  }
+  customProfiles[idx] = { ...profile, source: 'custom' as const }
+  saveCustomTerminalProfiles(customProfiles)
+}
+
+/**
+ * Remove a custom terminal profile and persist
+ */
+export function removeCustomProfile(profileId: string): void {
+  const idx = customProfiles.findIndex(p => p.id === profileId)
+  if (idx < 0) {
+    throw new Error(`Profile '${profileId}' not found in custom profiles`)
+  }
+  customProfiles.splice(idx, 1)
+  saveCustomTerminalProfiles(customProfiles)
+}
+
+/**
+ * Set a profile as the default terminal profile
+ * Clears isDefault from all profiles, then sets it on the specified one
+ */
+export function setDefaultProfile(profileId: string): void {
+  // Verify the profile exists somewhere
+  const profile = getProfileById(profileId)
+  if (!profile) {
+    throw new Error(`Profile '${profileId}' not found`)
+  }
+
+  // Clear default from all custom profiles
+  for (const p of customProfiles) {
+    p.isDefault = p.id === profileId
+  }
+  saveCustomTerminalProfiles(customProfiles)
 }
 
 /**
@@ -299,6 +354,22 @@ export function registerTerminalIpcHandlers(): void {
 
   ipcMain.handle('terminal:profiles:getOrg', () => {
     return getOrgProfiles()
+  })
+
+  ipcMain.handle('terminal:profiles:add', (_event, profile: TerminalProfile) => {
+    addCustomProfile(profile)
+  })
+
+  ipcMain.handle('terminal:profiles:update', (_event, profile: TerminalProfile) => {
+    updateCustomProfile(profile)
+  })
+
+  ipcMain.handle('terminal:profiles:remove', (_event, profileId: string) => {
+    removeCustomProfile(profileId)
+  })
+
+  ipcMain.handle('terminal:profiles:setDefault', (_event, profileId: string) => {
+    setDefaultProfile(profileId)
   })
 }
 

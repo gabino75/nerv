@@ -5,8 +5,8 @@
  * Includes custom terminal profiles (PRD Section 10)
  */
 
-import { existsSync, readFileSync } from 'fs'
-import { join } from 'path'
+import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'fs'
+import { join, dirname } from 'path'
 import { homedir } from 'os'
 import type { TerminalProfile } from '../shared/types/terminal'
 import type { GlobalConfig } from '../shared/types/settings'
@@ -68,4 +68,29 @@ export function loadCustomTerminalProfiles(): TerminalProfile[] {
     isBuiltIn: false,
     source: 'custom' as const,
   }))
+}
+
+/**
+ * Save custom terminal profiles to ~/.nerv/config.json
+ * Preserves other config keys while updating terminalProfiles
+ */
+export function saveCustomTerminalProfiles(profiles: TerminalProfile[]): void {
+  const configPath = getGlobalConfigPath()
+  const config = readGlobalConfig() ?? {}
+
+  config.terminalProfiles = profiles.map(p => ({
+    id: p.id,
+    name: p.name,
+    shell: p.shell,
+    args: p.args,
+    env: p.env,
+    cwd: p.cwd,
+    icon: p.icon,
+  }))
+
+  const dir = dirname(configPath)
+  if (!existsSync(dir)) {
+    mkdirSync(dir, { recursive: true })
+  }
+  writeFileSync(configPath, JSON.stringify(config, null, 2), 'utf-8')
 }

@@ -33,5 +33,13 @@ export const terminal = {
       ipcRenderer.invoke('terminal:profiles:setOrg', profiles),
     getOrg: (): Promise<TerminalProfile[]> =>
       ipcRenderer.invoke('terminal:profiles:getOrg'),
+    add: (profile: TerminalProfile): Promise<void> =>
+      ipcRenderer.invoke('terminal:profiles:add', profile),
+    update: (profile: TerminalProfile): Promise<void> =>
+      ipcRenderer.invoke('terminal:profiles:update', profile),
+    remove: (profileId: string): Promise<void> =>
+      ipcRenderer.invoke('terminal:profiles:remove', profileId),
+    setDefault: (profileId: string): Promise<void> =>
+      ipcRenderer.invoke('terminal:profiles:setDefault', profileId),
   },
 }
