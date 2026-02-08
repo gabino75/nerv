@@ -671,8 +671,8 @@ test.describe('NERV Golden Benchmark Tests - REAL Functionality', () => {
       // await screenshot(window, 'claude-process-test')
       log('info', '=== CLAUDE PROCESS TEST COMPLETE ===')
 
-      // At minimum, task should be in_progress (even if mock-claude already exited)
-      expect(sessionExists.taskStatus).toBe('in_progress')
+      // Task should have been started — mock-claude exits fast so it may already be 'review'
+      expect(['in_progress', 'review']).toContain(sessionExists.taskStatus)
 
     } finally {
       // Logs handled by structured log() calls
@@ -1106,19 +1106,20 @@ test.describe('NERV Golden Benchmark Tests - REAL Functionality', () => {
         return await api.db.tasks.getForProject(id)
       }, projectId)
 
-      const inProgressTasks = tasksAfterStart.filter(t => t.status === 'in_progress')
+      // Mock-claude exits fast, so tasks may already be in 'review' status
+      const startedTasks = tasksAfterStart.filter(t => t.status === 'in_progress' || t.status === 'review')
       const tasksWithWorktree = tasksAfterStart.filter(t => t.worktree_path)
 
-      log('info', `Tasks in progress: ${inProgressTasks.length}`)
+      log('info', `Tasks started (in_progress or review): ${startedTasks.length}`)
       log('info', `Tasks with worktree: ${tasksWithWorktree.length}`)
 
       // Screenshot removed - using video recording instead
       // await screenshot(window, 'parallel-execution-test')
       log('info', '=== PARALLEL EXECUTION TEST COMPLETE ===')
 
-      // Test passes if we have multiple tasks and at least one is in progress
+      // Test passes if we have multiple tasks and at least one was started
       expect(tasks.length).toBeGreaterThanOrEqual(3)
-      expect(inProgressTasks.length).toBeGreaterThanOrEqual(1)
+      expect(startedTasks.length).toBeGreaterThanOrEqual(1)
 
     } finally {
       // Logs handled by structured log() calls
@@ -1183,7 +1184,8 @@ test.describe('NERV Golden Benchmark Tests - REAL Functionality', () => {
         return await api.db.tasks.get(id)
       }, taskId!)
 
-      results.taskInProgress = taskState?.status === 'in_progress'
+      // Mock-claude exits fast, so task may already be in 'review' — both are valid
+      results.taskInProgress = taskState?.status === 'in_progress' || taskState?.status === 'review'
       results.hasSessionId = !!taskState?.session_id
       log('info', `Task state: ${JSON.stringify(taskState)}`)
 
@@ -1923,11 +1925,21 @@ test.describe('NERV Golden Benchmark Tests - REAL Functionality', () => {
         await window.waitForTimeout(2000)
       }
 
-      // STEP 1: Click Branch button in ActionBar
-      log('step', 'Clicking Branch button')
+      // STEP 1: Open "More Actions" dropdown then click Branch button
+      log('step', 'Opening More Actions dropdown')
+      const moreBtn = window.locator('button.more-actions').first()
+      let branchBtnVisible = false
+      let branchBtnEnabled = false
+      if (await moreBtn.isVisible({ timeout: 5000 }).catch(() => false)) {
+        if (await moreBtn.isEnabled().catch(() => false)) {
+          await moreBtn.click()
+          await window.waitForTimeout(300)
+        }
+      }
+
       const branchBtn = window.locator('[data-testid="branch-btn"]')
-      const branchBtnVisible = await branchBtn.isVisible({ timeout: 5000 }).catch(() => false)
-      const branchBtnEnabled = await branchBtn.isEnabled().catch(() => false)
+      branchBtnVisible = await branchBtn.isVisible({ timeout: 3000 }).catch(() => false)
+      branchBtnEnabled = branchBtnVisible ? await branchBtn.isEnabled().catch(() => false) : false
 
       log('check', 'Branch button state', { visible: branchBtnVisible, enabled: branchBtnEnabled })
 
