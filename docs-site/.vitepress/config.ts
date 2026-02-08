@@ -19,7 +19,7 @@ export default defineConfig({
       { text: 'Architecture', link: '/architecture/' },
       { text: 'Benchmarking', link: '/benchmarking/overview' },
       { text: 'Demos', link: '/demos' },
-      { text: 'Contributing', link: '/contributing' },
+      { text: 'Contributing', link: '/contributing/' },
       {
         text: 'v1.0.0',
         items: [
@@ -85,6 +85,17 @@ export default defineConfig({
             { text: 'Database', link: '/architecture/database' },
             { text: 'Claude Integration', link: '/architecture/claude-integration' },
             { text: 'Permission Hooks', link: '/architecture/hooks' }
+          ]
+        }
+      ],
+      '/contributing/': [
+        {
+          text: 'Contributing',
+          items: [
+            { text: 'Overview', link: '/contributing/' },
+            { text: 'Development Setup', link: '/contributing/development' },
+            { text: 'Testing', link: '/contributing/testing' },
+            { text: 'Releasing', link: '/contributing/releasing' }
           ]
         }
       ]

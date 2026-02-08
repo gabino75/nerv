@@ -1,6 +1,6 @@
-# Contributing
+# Development Setup
 
-Thank you for your interest in contributing to NERV! This guide covers everything you need to get started.
+This guide covers setting up your development environment for contributing to NERV.
 
 ## Prerequisites
 
@@ -13,7 +13,7 @@ Before contributing, ensure you have:
 - **Docker** - Required for running E2E tests
 - **Claude Code CLI** - Required for running with real Claude sessions
 
-## Development Setup
+## Getting Started
 
 ### 1. Clone the Repository
 
@@ -57,79 +57,6 @@ This starts the app with hot reload enabled.
 | `npm run typecheck` | Run TypeScript type checking |
 | `npm run lint` | Run ESLint |
 | `npm run lint:fix` | Run ESLint with auto-fix |
-
-## Testing
-
-### Test Suites
-
-NERV has three test layers:
-
-1. **Unit Tests** - Fast, isolated tests for utilities and business logic
-2. **E2E Tests** - Playwright tests against the running Electron app
-3. **Quality Checks** - Code duplication, type coverage, circular dependencies
-
-### Running Tests
-
-```bash
-# Unit tests (Vitest)
-npm run test:unit
-
-# E2E tests in Docker (recommended)
-powershell -File test/scripts/run-e2e.ps1 -Suite all
-
-# Quality checks only
-powershell -File test/scripts/run-e2e.ps1 -Suite quality
-
-# Workflow tests (full UI flow)
-powershell -File test/scripts/run-e2e.ps1 -Suite workflow
-
-# Benchmark tests
-powershell -File test/scripts/run-e2e.ps1 -Suite benchmark
-```
-
-### Test Infrastructure
-
-- Tests run in Docker by default for consistency
-- The Docker container has Xvfb for headless Electron testing
-- Mock Claude is used by default (`NERV_MOCK_CLAUDE=true`)
-- For real Claude tests: `powershell -File test/scripts/run-e2e.ps1 -Suite claude -RealClaude`
-
-### Writing Unit Tests
-
-Unit tests go in `test/unit/`:
-
-```typescript
-import { describe, it, expect } from 'vitest'
-import { generateId } from '../../src/shared/constants'
-
-describe('generateId', () => {
-  it('generates unique IDs with prefix', () => {
-    const id = generateId('task')
-    expect(id).toMatch(/^task_\d+-[a-z0-9]+$/)
-  })
-})
-```
-
-### Writing E2E Tests
-
-E2E tests go in `test/e2e/`:
-
-```typescript
-import { test, expect } from '@playwright/test'
-import { launchApp, cleanup } from './helpers/launch'
-
-test.describe('Feature', () => {
-  test('does something', async () => {
-    const { app, page } = await launchApp()
-    try {
-      await expect(page.locator('.dashboard')).toBeVisible()
-      // ... test logic
-    } finally {
-      await cleanup(app)
-    }
-  })
-})
-```
 
 ## Code Style
 
@@ -220,6 +147,24 @@ const { icon, color } = TASK_STATUS_CONFIG[task.status]
 3. Register in `src/cli/index.ts`
 4. Build with `npm run build:cli`
 
+## Debugging
+
+### Development Tools
+
+- **DevTools**: Press F12 in the running app
+- **Main Process Logs**: Check terminal where `npm run dev` runs
+- **Database**: SQLite file at `~/.nerv/state.db`
+
+### Common Issues
+
+**Native module errors**: Run `npm run rebuild` after npm install
+
+**Database locked**: Close other NERV instances; SQLite uses WAL mode
+
+**Tests fail locally**: Use Docker (`-Suite all` without `-Local`)
+
+**Type errors**: Run `npm run typecheck` to see all issues
+
 ## Submitting Changes
 
 ### Before Committing
@@ -264,32 +209,6 @@ Types: `feat`, `fix`, `docs`, `test`, `refactor`, `chore`
 6. Address review feedback
 7. Squash and merge
 
-## Debugging
-
-### Development Tools
-
-- **DevTools**: Press F12 in the running app
-- **Main Process Logs**: Check terminal where `npm run dev` runs
-- **Database**: SQLite file at `~/.nerv/state.db`
-
-### Common Issues
-
-**Native module errors**: Run `npm run rebuild` after npm install
-
-**Database locked**: Close other NERV instances; SQLite uses WAL mode
-
-**Tests fail locally**: Use Docker (`-Suite all` without `-Local`)
-
-**Type errors**: Run `npm run typecheck` to see all issues
-
-## Release Process
-
-1. Update version in `package.json`
-2. Update `CHANGELOG.md` with changes
-3. Run all tests: `npm run test:unit && powershell -File test/scripts/run-e2e.ps1 -Suite all`
-4. Build: `npm run build`
-5. Create GitHub release with binaries
-
 ## Resources
 
 - [Electron Documentation](https://www.electronjs.org/docs)
@@ -297,11 +216,3 @@ Types: `feat`, `fix`, `docs`, `test`, `refactor`, `chore`
 - [Playwright Documentation](https://playwright.dev/docs/intro)
 - [better-sqlite3 API](https://github.com/WiseLibs/better-sqlite3/blob/master/docs/api.md)
 - [xterm.js Documentation](https://xtermjs.org/docs/)
-
-## Questions?
-
-If you have questions about contributing:
-
-1. Check existing [GitHub Issues](https://github.com/gabino75/nerv/issues)
-2. Open a new issue for discussion
-3. Join the community chat
