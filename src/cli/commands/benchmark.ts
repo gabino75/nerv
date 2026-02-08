@@ -31,6 +31,7 @@ import type {
   BenchmarkCycleResult,
   BenchmarkPipelineResult,
   BenchmarkSummary,
+  BenchmarkSubagentEntry,
 } from '../../shared/types/benchmark.js'
 
 // ============================================================================
@@ -267,6 +268,7 @@ function postProcessStreamData(outputDir: string): {
   toolCalls: ToolCallEntry[]
   errors: unknown[]
   timeline: TimelineEntry[]
+  subagentEvents: BenchmarkSubagentEntry[]
   toolErrors: number
   toolRetries: number
   loopsDetected: number
@@ -276,14 +278,18 @@ function postProcessStreamData(outputDir: string): {
   const toolCalls: ToolCallEntry[] = []
   const errors: unknown[] = []
   const timeline: TimelineEntry[] = []
+  const subagentEvents: BenchmarkSubagentEntry[] = []
   let toolErrors = 0
   const toolRetries = 0
   const loopsDetected = 0
   let compactions = 0
   let previousInputTokens = 0
 
+  // Track pending subagent spawns by tool_use ID so we can match them to results
+  const pendingSubagents = new Map<string, BenchmarkSubagentEntry>()
+
   if (!fs.existsSync(streamPath)) {
-    return { toolCalls, errors, timeline, toolErrors, toolRetries, loopsDetected, compactions }
+    return { toolCalls, errors, timeline, subagentEvents, toolErrors, toolRetries, loopsDetected, compactions }
   }
 
   const lines = fs.readFileSync(streamPath, 'utf-8').split('\n').filter(Boolean)
@@ -304,6 +310,22 @@ function postProcessStreamData(outputDir: string): {
           }
           toolCalls.push(entry)
           timeline.push({ timestamp: now, event: 'tool_call', tool: block.name })
+
+          // Track Task tool calls as subagent spawn events
+          if (block.name === 'Task' && block.id) {
+            const input = block.input as Record<string, unknown> | undefined
+            const spawnEntry: BenchmarkSubagentEntry = {
+              event: 'spawn',
+              timestamp: now,
+              subagentId: block.id,
+              type: (input?.subagent_type as string) || 'unknown',
+              prompt: (input?.description as string) || '',
+              model: (input?.model as string) || 'default',
+            }
+            subagentEvents.push(spawnEntry)
+            pendingSubagents.set(block.id, spawnEntry)
+            timeline.push({ timestamp: now, event: 'subagent_spawn', subagentId: block.id, type: spawnEntry.type })
+          }
         }
       }
     }
@@ -316,6 +338,21 @@ function postProcessStreamData(outputDir: string): {
             toolErrors++
             errors.push({ timestamp: now, message: text.slice(0, 200) })
             timeline.push({ timestamp: now, event: 'tool_error', error: text.slice(0, 100) })
+          }
+
+          // Match tool_result back to pending subagent spawns
+          const toolUseId = (block as Record<string, unknown>).tool_use_id as string | undefined
+          if (toolUseId && pendingSubagents.has(toolUseId)) {
+            const completeEntry: BenchmarkSubagentEntry = {
+              event: 'complete',
+              timestamp: now,
+              subagentId: toolUseId,
+              success: !(block as Record<string, unknown>).is_error,
+              result: text ? text.slice(0, 500) : undefined,
+            }
+            subagentEvents.push(completeEntry)
+            pendingSubagents.delete(toolUseId)
+            timeline.push({ timestamp: now, event: 'subagent_complete', subagentId: toolUseId, success: completeEntry.success })
           }
         }
       }
@@ -340,7 +377,7 @@ function postProcessStreamData(outputDir: string): {
     }
   }
 
-  return { toolCalls, errors, timeline, toolErrors, toolRetries, loopsDetected, compactions }
+  return { toolCalls, errors, timeline, subagentEvents, toolErrors, toolRetries, loopsDetected, compactions }
 }
 
 // ============================================================================
@@ -970,13 +1007,19 @@ async function runSubtaskInWorktree(
       merged: taskResult.merged,
     }, null, 2))
 
-    // Post-process stream to write tools.jsonl, errors.json, git-diff.patch
+    // Post-process stream to write tools.jsonl, subagents.jsonl, errors.json, git-diff.patch
     // (PRD requires these per-task files for the scoring script)
     const streamData = postProcessStreamData(taskOutputDir)
     if (streamData.toolCalls.length > 0) {
       fs.writeFileSync(
         path.join(taskOutputDir, 'tools.jsonl'),
         streamData.toolCalls.map(t => JSON.stringify(t)).join('\n') + '\n',
+      )
+    }
+    if (streamData.subagentEvents.length > 0) {
+      fs.writeFileSync(
+        path.join(taskOutputDir, 'subagents.jsonl'),
+        streamData.subagentEvents.map(e => JSON.stringify(e)).join('\n') + '\n',
       )
     }
     fs.writeFileSync(path.join(taskOutputDir, 'errors.json'), JSON.stringify(streamData.errors, null, 2))
@@ -1453,6 +1496,13 @@ function writeRichBenchmarkOutput(
     fs.writeFileSync(
       path.join(taskDir, 'tools.jsonl'),
       options.streamData.toolCalls.map(t => JSON.stringify(t)).join('\n') + '\n'
+    )
+  }
+
+  if (options.streamData.subagentEvents.length > 0) {
+    fs.writeFileSync(
+      path.join(taskDir, 'subagents.jsonl'),
+      options.streamData.subagentEvents.map(e => JSON.stringify(e)).join('\n') + '\n'
     )
   }
 
