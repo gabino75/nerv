@@ -125,13 +125,25 @@ function findTaskByIdOrPrefix(id: string, tasks: Task[]): Task {
 }
 
 function handleTaskList(args: string[], tasks: Task[], projectName: string): void {
+  // Filter by --status if provided (PRD Section 12: nerv task list --status in_progress)
+  const statusFilter = parseFlag(args, '--status') as TaskStatus | undefined
+  if (statusFilter) {
+    const validStatuses: TaskStatus[] = ['todo', 'in_progress', 'interrupted', 'review', 'done']
+    if (!validStatuses.includes(statusFilter)) {
+      console.error(`${colors.red}Invalid status filter. Must be one of: ${validStatuses.join(', ')}${colors.reset}`)
+      process.exit(CLI_EXIT_CODES.INVALID_ARGS)
+    }
+    tasks = tasks.filter(t => t.status === statusFilter)
+  }
+
   if (args.includes('--json')) {
     console.log(JSON.stringify(tasks, null, 2))
     return
   }
 
   if (tasks.length === 0) {
-    console.log(`${colors.gray}No tasks found. Create one with: nerv task create <title>${colors.reset}`)
+    const filterMsg = statusFilter ? ` with status "${statusFilter}"` : ''
+    console.log(`${colors.gray}No tasks found${filterMsg}. Create one with: nerv task create <title>${colors.reset}`)
     return
   }
 
@@ -269,7 +281,11 @@ async function handleTaskVerify(args: string[], db: DatabaseService, tasks: Task
 
 export async function taskCommand(args: string[], db: DatabaseService): Promise<void> {
   if (args.length === 0) {
-    console.log(`${colors.yellow}Usage: nerv task <list|create|update> [options]${colors.reset}`)
+    console.log(`${colors.yellow}Usage: nerv task <list|create|update|verify> [options]${colors.reset}`)
+    console.log(`\n  list   [--status <status>] [--format kanban|list] [--json]`)
+    console.log(`  create <title> [--description "desc"] [--type implementation|research]`)
+    console.log(`  update <id> --status <status>`)
+    console.log(`  verify <id> [--cwd <path>]`)
     return
   }
 
@@ -298,7 +314,7 @@ export async function taskCommand(args: string[], db: DatabaseService): Promise<
       break
     default:
       console.error(`${colors.red}Unknown subcommand: ${subcommand}${colors.reset}`)
-      console.log('Usage: nerv task <list|create|update|verify> [options]')
+      console.log('Available: list, create, update, verify')
       process.exit(CLI_EXIT_CODES.INVALID_ARGS)
   }
 }
