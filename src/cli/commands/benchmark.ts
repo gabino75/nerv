@@ -949,6 +949,21 @@ async function runSubtaskInWorktree(
       merged: taskResult.merged,
     }, null, 2))
 
+    // Post-process stream to write tools.jsonl, errors.json, git-diff.patch
+    // (PRD requires these per-task files for the scoring script)
+    const streamData = postProcessStreamData(taskOutputDir)
+    if (streamData.toolCalls.length > 0) {
+      fs.writeFileSync(
+        path.join(taskOutputDir, 'tools.jsonl'),
+        streamData.toolCalls.map(t => JSON.stringify(t)).join('\n') + '\n',
+      )
+    }
+    fs.writeFileSync(path.join(taskOutputDir, 'errors.json'), JSON.stringify(streamData.errors, null, 2))
+
+    if (diff.length > 0) {
+      fs.writeFileSync(path.join(taskOutputDir, 'git-diff.patch'), diff)
+    }
+
   } catch (error) {
     console.error(`${colors.red}Task ${subtask.id} failed: ${(error as Error).message}${colors.reset}`)
   }
@@ -1072,6 +1087,32 @@ async function promiseAllSettledWithConcurrency<T>(
   const workers = Array.from({ length: Math.min(concurrency, factories.length) }, () => worker())
   await Promise.all(workers)
   return results
+}
+
+/**
+ * Aggregate tool errors, retries, loops, and compactions from per-task stream data.
+ */
+function aggregateIssuesFromTasks(
+  outputDir: string,
+  result: BenchmarkPipelineResult,
+): { loopsDetected: number; compactions: number; toolErrors: number; toolRetries: number; permissionTimeouts: number; stuckDetections: number } {
+  let toolErrors = 0
+  let toolRetries = 0
+  let loopsDetected = 0
+  let compactions = 0
+
+  for (const cycle of result.cycles) {
+    for (const task of cycle.tasks) {
+      const taskDir = path.join(outputDir, 'tasks', task.taskId)
+      const streamData = postProcessStreamData(taskDir)
+      toolErrors += streamData.toolErrors
+      toolRetries += streamData.toolRetries
+      loopsDetected += streamData.loopsDetected
+      compactions += streamData.compactions
+    }
+  }
+
+  return { loopsDetected, compactions, toolErrors, toolRetries, permissionTimeouts: 0, stuckDetections: 0 }
 }
 
 /**
@@ -1209,14 +1250,7 @@ function writePipelineOutput(
       commitsCreated: commitCount,
       gitLog,
     },
-    issues: {
-      loopsDetected: 0,
-      compactions: 0,
-      toolErrors: 0,
-      toolRetries: 0,
-      permissionTimeouts: 0,
-      stuckDetections: 0,
-    },
+    issues: aggregateIssuesFromTasks(outputDir, result),
     spec: {
       totalItems: specTotalItems,
       itemsPassed: specPassedItems,
