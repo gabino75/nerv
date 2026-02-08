@@ -141,6 +141,15 @@ function checkDatabaseHealth(): DatabaseHealth | null {
 export function runStartupIntegrityChecks(): IntegrityReport {
   const issues: IntegrityIssue[] = []
 
+  // In test mode, skip recovery dialog — interrupted tasks from previous tests are expected
+  if (process.env.NERV_TEST_MODE === 'true' || process.env.NERV_TEST_MODE === '1') {
+    return {
+      issues: [],
+      hasInterruptedTasks: false,
+      timestamp: Date.now()
+    }
+  }
+
   // 1. Check database health (returns null if db unavailable)
   const databaseHealth = checkDatabaseHealth()
 
