@@ -15,10 +15,9 @@ A 2-minute introduction to getting started with NERV.
 - Starting a Claude session for the task
 - Terminal showing Claude working on your code
 
-<video controls width="100%">
-  <source src="/nerv/demos/quick-start.webm" type="video/webm">
-  Your browser does not support the video tag.
-</video>
+::: info Coming Soon
+Demo video will be added here once recorded.
+:::
 
 ---
 
@@ -33,10 +32,9 @@ Watch NERV autonomously complete a benchmark task with AI review.
 - Tasks progressing automatically through the Kanban board
 - AI-powered code review and auto-merge
 
-<video controls width="100%">
-  <source src="/nerv/demos/yolo-mode.webm" type="video/webm">
-  Your browser does not support the video tag.
-</video>
+::: info Coming Soon
+Demo video will be added here once recorded.
+:::
 
 ---
 
@@ -51,10 +49,9 @@ Managing tasks across multiple connected repositories.
 - Cross-repo task coordination on the Kanban board
 - Split view for working on repos side by side
 
-<video controls width="100%">
-  <source src="/nerv/demos/multi-repo.webm" type="video/webm">
-  Your browser does not support the video tag.
-</video>
+::: info Coming Soon
+Demo video will be added here once recorded.
+:::
 
 ---
 
