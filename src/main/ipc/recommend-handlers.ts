@@ -66,6 +66,28 @@ function gatherContext(projectId: string, direction?: string): RecommendContext 
 }
 
 function callClaude(prompt: string): string {
+  // In mock/test mode, return realistic sample recommendations
+  if (process.env.NERV_MOCK_CLAUDE === '1' || process.env.NERV_TEST_MODE === '1') {
+    const hasCycle = prompt.includes('Cycle: #')
+    const hasTasks = prompt.includes('todo:') || prompt.includes('in_progress:')
+    if (!hasCycle) {
+      return JSON.stringify([
+        { phase: 'mvp', action: 'create_cycle', title: 'Start your first development cycle', description: 'Create a cycle to organize your work into focused iterations.', details: 'A cycle groups related tasks. Start with a small MVP scope.', params: { cycleGoal: 'MVP: Core functionality with tests' } },
+        { phase: 'discovery', action: 'explore_codebase', title: 'Explore the project structure', description: 'Understand existing code patterns before making changes.', details: 'Look at entry points, dependencies, and test coverage.' },
+      ])
+    }
+    if (!hasTasks) {
+      return JSON.stringify([
+        { phase: 'mvp', action: 'create_task', title: 'Implement core feature', description: 'Create a task for the main functionality.', details: 'Focus on the critical path first.', params: { taskTitle: 'Implement core feature', taskType: 'implementation' } },
+        { phase: 'mvp', action: 'create_task', title: 'Add integration tests', description: 'Ensure the core feature works end-to-end.', details: 'Write tests that cover the happy path.', params: { taskTitle: 'Add integration tests', taskType: 'implementation' } },
+      ])
+    }
+    return JSON.stringify([
+      { phase: 'building', action: 'start_task', title: 'Start working on the next task', description: 'Pick up the highest priority todo task.', details: 'Claude will work in an isolated worktree.' },
+      { phase: 'building', action: 'run_audit', title: 'Audit code health', description: 'Check code quality and test coverage.', details: 'Review recent changes for issues.' },
+    ])
+  }
+
   return execSync(
     'claude --print --model sonnet --max-turns 1',
     {
