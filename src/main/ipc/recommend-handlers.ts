@@ -35,10 +35,14 @@ function gatherContext(projectId: string, direction?: string): RecommendContext 
     taskType: t.task_type || 'implementation',
   }))
 
-  const learnings = databaseService.getLearningsForProject(projectId).map(l => ({
-    content: l.content,
-    category: l.category || 'general',
-  }))
+  // Learnings are stored as text on completed cycles (no separate table in main DB)
+  const allCycles = databaseService.getCyclesForProject(projectId)
+  const learnings = allCycles
+    .filter(c => c.learnings)
+    .map(c => ({
+      content: c.learnings!,
+      category: 'cycle' as const,
+    }))
 
   const decisions = databaseService.getDecisionsForProject(projectId).map(d => ({
     title: d.title,
@@ -46,7 +50,6 @@ function gatherContext(projectId: string, direction?: string): RecommendContext 
   }))
 
   const activeCycle = databaseService.getActiveCycle(projectId)
-  const allCycles = databaseService.getCyclesForProject(projectId)
 
   return {
     projectName: project.name,
@@ -157,8 +160,14 @@ export function registerRecommendHandlers(): void {
           if (!params?.learningContent) {
             return { success: false, action, error: 'No learning content provided' }
           }
-          const learning = databaseService.createLearning(projectId, params.learningContent, 'general', 'recommended')
-          return { success: true, action, data: { learningId: learning.id } }
+          // Store learning on the active cycle (learnings are cycle-level in main DB)
+          const cycle = databaseService.getActiveCycle(projectId)
+          if (cycle) {
+            const existing = cycle.learnings ? cycle.learnings + '\n' : ''
+            databaseService.updateCycle(cycle.id, { learnings: existing + params.learningContent })
+            return { success: true, action, data: { cycleId: cycle.id } }
+          }
+          return { success: false, action, error: 'No active cycle to record learning on' }
         }
 
         case 'run_audit': {
