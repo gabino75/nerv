@@ -26,12 +26,18 @@ export const CLI_EXIT_CODES = {
 // ============================================================================
 
 export const MODEL_CONTEXT_SIZES: Record<string, number> = {
-  'claude-sonnet-4-20250514': 200_000,
-  'claude-opus-4-20250514': 200_000,
-  'claude-haiku-3-5-20241022': 200_000,
+  // Current model IDs (PRD Section 29: Model Configuration & Opus 4.6)
+  'claude-opus-4-6': 1_000_000,
+  'claude-sonnet-4-5-20250929': 200_000,
+  'claude-haiku-4-5-20251001': 200_000,
+  // Short aliases
+  'opus': 1_000_000,
   'sonnet': 200_000,
-  'opus': 200_000,
   'haiku': 200_000,
+  // Legacy model IDs (backward compat for existing sessions)
+  'claude-opus-4-20250514': 200_000,
+  'claude-sonnet-4-20250514': 200_000,
+  'claude-haiku-3-5-20241022': 200_000,
 } as const
 
 export const DEFAULT_MODEL = 'sonnet'

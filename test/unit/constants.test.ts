@@ -25,18 +25,30 @@ import {
 describe('constants', () => {
   describe('MODEL_CONTEXT_SIZES', () => {
     it('contains all expected model keys', () => {
-      expect(MODEL_CONTEXT_SIZES).toHaveProperty('claude-sonnet-4-20250514')
-      expect(MODEL_CONTEXT_SIZES).toHaveProperty('claude-opus-4-20250514')
-      expect(MODEL_CONTEXT_SIZES).toHaveProperty('claude-haiku-3-5-20241022')
+      // Current model IDs (PRD Section 29)
+      expect(MODEL_CONTEXT_SIZES).toHaveProperty('claude-opus-4-6')
+      expect(MODEL_CONTEXT_SIZES).toHaveProperty('claude-sonnet-4-5-20250929')
+      expect(MODEL_CONTEXT_SIZES).toHaveProperty('claude-haiku-4-5-20251001')
+      // Short aliases
       expect(MODEL_CONTEXT_SIZES).toHaveProperty('sonnet')
       expect(MODEL_CONTEXT_SIZES).toHaveProperty('opus')
       expect(MODEL_CONTEXT_SIZES).toHaveProperty('haiku')
+      // Legacy model IDs
+      expect(MODEL_CONTEXT_SIZES).toHaveProperty('claude-sonnet-4-20250514')
+      expect(MODEL_CONTEXT_SIZES).toHaveProperty('claude-opus-4-20250514')
+      expect(MODEL_CONTEXT_SIZES).toHaveProperty('claude-haiku-3-5-20241022')
     })
 
-    it('all context sizes are 200,000', () => {
-      for (const [model, size] of Object.entries(MODEL_CONTEXT_SIZES)) {
-        expect(size).toBe(200_000)
-      }
+    it('opus models have 1M context per PRD Section 29', () => {
+      expect(MODEL_CONTEXT_SIZES['claude-opus-4-6']).toBe(1_000_000)
+      expect(MODEL_CONTEXT_SIZES['opus']).toBe(1_000_000)
+    })
+
+    it('sonnet and haiku models have 200K context', () => {
+      expect(MODEL_CONTEXT_SIZES['claude-sonnet-4-5-20250929']).toBe(200_000)
+      expect(MODEL_CONTEXT_SIZES['claude-haiku-4-5-20251001']).toBe(200_000)
+      expect(MODEL_CONTEXT_SIZES['sonnet']).toBe(200_000)
+      expect(MODEL_CONTEXT_SIZES['haiku']).toBe(200_000)
     })
   })
 
