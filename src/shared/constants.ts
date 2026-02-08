@@ -411,6 +411,7 @@ export const DEFAULT_SETTINGS: NervSettings = {
   // UI Preferences (PRD Section 13: GlobalSettings)
   theme: 'system',
   show_token_usage: true,
+  preferred_layout_mode: 'tabs', // PRD Section 10: persisted split layout preference
 
   // Session Management (PRD Section 13: GlobalSettings)
   max_concurrent_sessions: 4, // PRD Section 10: max 4 concurrent sessions

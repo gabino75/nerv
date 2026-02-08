@@ -115,6 +115,7 @@
     terminal_font_size: 'Font Size',
     theme: 'Theme',
     show_token_usage: 'Show Token Usage',
+    preferred_layout_mode: 'Preferred Layout Mode',
     max_concurrent_sessions: 'Max Concurrent Sessions',
     auto_save_interval: 'Auto-save Interval (ms)',
     log_level: 'Log Level',
@@ -275,7 +276,7 @@
   function getSettingType(key: keyof NervSettings): 'boolean' | 'number' | 'select' | 'string' {
     if (typeof settings?.[key] === 'boolean') return 'boolean'
     if (typeof settings?.[key] === 'number') return 'number'
-    if (key === 'default_model' || key === 'theme' || key === 'log_level' || key === 'output_format' || key === 'updates_channel') return 'select'
+    if (key === 'default_model' || key === 'theme' || key === 'log_level' || key === 'output_format' || key === 'updates_channel' || key === 'preferred_layout_mode') return 'select'
     return 'string'
   }
 
@@ -286,6 +287,7 @@
       case 'log_level': return ['debug', 'info', 'warn', 'error']
       case 'output_format': return ['text', 'json']
       case 'updates_channel': return ['stable', 'beta', 'alpha']
+      case 'preferred_layout_mode': return ['tabs', 'split-horizontal', 'split-vertical', 'grid']
       default: return []
     }
   }

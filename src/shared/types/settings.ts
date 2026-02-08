@@ -44,6 +44,7 @@ export interface NervSettings {
   // UI Preferences (PRD Section 13: GlobalSettings)
   theme: 'light' | 'dark' | 'system'
   show_token_usage: boolean
+  preferred_layout_mode: 'tabs' | 'split-horizontal' | 'split-vertical' | 'grid'
 
   // Session Management (PRD Section 13: GlobalSettings)
   max_concurrent_sessions: number

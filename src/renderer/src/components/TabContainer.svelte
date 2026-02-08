@@ -244,7 +244,7 @@
     // Clear terminal
     terminal.clear()
     terminal.write('\x1b[2J\x1b[H')
-    terminal.writeln('\x1b[36m[Starting Claude Code session...]\x1b[0m\r\n')
+    terminal.writeln('\x1b[36m[Starting Claude Code session...]\x1b[0m')
 
     // Get project info for working directory
     const project = await window.api.db.projects.get(projectId)
@@ -252,7 +252,7 @@
     const primaryRepo = repos.length > 0 ? repos[0] : null
     const cwd = primaryRepo?.path || '.'
 
-    terminal.writeln(`\x1b[90m[Working directory: ${cwd}]\x1b[0m\r\n`)
+    terminal.writeln(`\x1b[90m[Working directory: ${cwd}]\x1b[0m`)
 
     // Generate MCP config from documentation sources (PRD Section 5: Claude ↔ NERV Integration)
     // This ensures nerv-context, nerv-progress, and nerv-docs MCP servers are available
@@ -384,7 +384,7 @@
     // Clear terminal
     terminal.clear()
     terminal.write('\x1b[2J\x1b[H')
-    terminal.writeln('\x1b[36m[Starting Claude Code session...]\x1b[0m\r\n')
+    terminal.writeln('\x1b[36m[Starting Claude Code session...]\x1b[0m')
 
     const cwd = task.worktree_path || '.'
 
@@ -394,7 +394,6 @@
     if (additionalDirs && additionalDirs.length > 0) {
       terminal.writeln(`\x1b[90m[Additional repos: ${additionalDirs.length}]\x1b[0m`)
     }
-    terminal.writeln('')
 
     const prompt = task.description || task.title
 
@@ -496,12 +495,12 @@
     terminal.clear()
     terminal.write('\x1b[2J\x1b[H')
     terminal.writeln('\x1b[36m[Resuming Claude Code session...]\x1b[0m')
-    terminal.writeln(`\x1b[90m[Resuming from session: ${task.session_id}]\x1b[0m\r\n`)
+    terminal.writeln(`\x1b[90m[Resuming from session: ${task.session_id}]\x1b[0m`)
 
     const cwd = task.worktree_path || '.'
 
     if (task.worktree_path) {
-      terminal.writeln(`\x1b[90m[Working directory: ${task.worktree_path}]\x1b[0m\r\n`)
+      terminal.writeln(`\x1b[90m[Working directory: ${task.worktree_path}]\x1b[0m`)
     }
 
     const resumeResult = await window.api.claude.resume(JSON.parse(JSON.stringify({
@@ -591,11 +590,19 @@
     showSplitMenu = false
   }
 
+  // Persist layout preference (PRD Section 10: layout state survives restart)
+  function saveLayoutPreference(mode: LayoutMode) {
+    window.api.settingsHierarchy.setGlobal('preferred_layout_mode', mode).catch(() => {
+      // Non-critical: layout will default to tabs on next launch
+    })
+  }
+
   // Split view functions
   function splitHorizontal() {
     closeSplitMenu()
     if (tabs.length < 2) return
     layoutMode = 'split-horizontal'
+    saveLayoutPreference(layoutMode)
     splitRatio = 0.5
     // Assign first tab to pane 0, second to pane 1
     tabs = tabs.map((t, i) => ({ ...t, paneId: i === 0 ? 'pane-0' : 'pane-1' }))
@@ -607,6 +614,7 @@
     closeSplitMenu()
     if (tabs.length < 2) return
     layoutMode = 'split-vertical'
+    saveLayoutPreference(layoutMode)
     splitRatio = 0.5
     // Assign first tab to pane 0, second to pane 1
     tabs = tabs.map((t, i) => ({ ...t, paneId: i === 0 ? 'pane-0' : 'pane-1' }))
@@ -619,6 +627,7 @@
     closeSplitMenu()
     if (tabs.length < 4) return
     layoutMode = 'grid'
+    saveLayoutPreference(layoutMode)
     gridRatios = { horizontal: 0.5, vertical: 0.5 }
     // Assign tabs to 4 panes: pane-0 (top-left), pane-1 (top-right), pane-2 (bottom-left), pane-3 (bottom-right)
     tabs = tabs.map((t, i) => ({ ...t, paneId: `pane-${Math.min(i, 3)}` }))
@@ -629,6 +638,7 @@
   function unsplit() {
     closeSplitMenu()
     layoutMode = 'tabs'
+    saveLayoutPreference(layoutMode)
     // Remove pane assignments
     tabs = tabs.map(t => ({ ...t, paneId: undefined }))
     // Refit all terminals after layout change
@@ -736,6 +746,7 @@
     } else if (layoutMode === 'split-horizontal') {
       // Switch to vertical
       layoutMode = 'split-vertical'
+      saveLayoutPreference(layoutMode)
       setTimeout(() => refitAllTerminals(), 50)
     } else if (layoutMode === 'split-vertical') {
       // Switch to grid if we have 4+ tabs, otherwise back to horizontal
@@ -743,11 +754,13 @@
         splitGrid()
       } else {
         layoutMode = 'split-horizontal'
+        saveLayoutPreference(layoutMode)
         setTimeout(() => refitAllTerminals(), 50)
       }
     } else if (layoutMode === 'grid') {
       // Switch back to horizontal
       layoutMode = 'split-horizontal'
+      saveLayoutPreference(layoutMode)
       // Reassign tabs for 2-pane split
       tabs = tabs.map((t, i) => ({ ...t, paneId: i === 0 ? 'pane-0' : 'pane-1' }))
       setTimeout(() => refitAllTerminals(), 50)
@@ -857,6 +870,16 @@
     } catch {
       // Fallback if profiles API not available
       availableProfiles = []
+    }
+
+    // Restore persisted layout preference (PRD Section 10)
+    try {
+      const savedLayout = await window.api.settingsHierarchy.get('preferred_layout_mode')
+      if (savedLayout && savedLayout !== 'tabs') {
+        layoutMode = savedLayout
+      }
+    } catch {
+      // Non-critical: defaults to 'tabs'
     }
 
     // Listen for Claude output
