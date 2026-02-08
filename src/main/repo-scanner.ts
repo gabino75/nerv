@@ -49,6 +49,35 @@ const PACKAGE_CONFIGS = [
   'Gemfile'
 ]
 
+// CI/CD config files
+const CI_CD_PATHS = [
+  '.github/workflows',
+  '.gitlab-ci.yml',
+  '.circleci/config.yml',
+  'Jenkinsfile',
+  '.travis.yml',
+  'azure-pipelines.yml',
+  '.drone.yml'
+]
+
+// Testing config files
+const TESTING_CONFIG_PATHS = [
+  'jest.config.js',
+  'jest.config.ts',
+  'jest.config.mjs',
+  'vitest.config.ts',
+  'vitest.config.js',
+  'vitest.config.mts',
+  'pytest.ini',
+  'setup.cfg',
+  'tox.ini',
+  'karma.conf.js',
+  '.mocharc.json',
+  '.mocharc.yml',
+  'phpunit.xml',
+  'phpunit.xml.dist'
+]
+
 /**
  * Compute SHA256 hash of content
  */
@@ -274,15 +303,67 @@ function parseMcpConfig(content: string | null): object | null {
 }
 
 /**
+ * Scan for CI/CD config files.
+ * GitHub Actions is a directory of .yml files; others are single files.
+ */
+function scanCiCd(repoPath: string): Array<{ path: string; content: string }> {
+  const results: Array<{ path: string; content: string }> = []
+
+  // GitHub Actions: scan directory for workflow files
+  const ghWorkflowDir = join(repoPath, '.github/workflows')
+  if (dirExists(ghWorkflowDir)) {
+    try {
+      for (const file of readdirSync(ghWorkflowDir).filter(f => f.endsWith('.yml') || f.endsWith('.yaml'))) {
+        const content = readFileSafe(join(ghWorkflowDir, file))
+        if (content) {
+          results.push({ path: `.github/workflows/${file}`, content })
+        }
+      }
+    } catch {
+      // Continue if we can't read directory
+    }
+  }
+
+  // Single-file CI/CD configs (skip the directory entry)
+  for (const p of CI_CD_PATHS) {
+    if (p === '.github/workflows') continue
+    const content = readFileSafe(join(repoPath, p))
+    if (content) {
+      results.push({ path: p, content })
+    }
+  }
+
+  return results
+}
+
+/**
+ * Scan for testing configuration files.
+ */
+function scanTestingConfigs(repoPath: string): Array<{ path: string; content: string }> {
+  const results: Array<{ path: string; content: string }> = []
+
+  for (const p of TESTING_CONFIG_PATHS) {
+    const content = readFileSafe(join(repoPath, p))
+    if (content) {
+      results.push({ path: p, content })
+    }
+  }
+
+  return results
+}
+
+/**
  * Scan a repository for LLM-relevant context
  */
 export async function scanRepository(repoPath: string): Promise<RepoScanResult> {
   if (!dirExists(repoPath)) {
-    return { claudeMd: null, skills: [], mcpConfig: null, readme: null, contributing: null, architecture: null, packageInfo: null }
+    return { claudeMd: null, skills: [], mcpConfig: null, readme: null, contributing: null, architecture: null, packageInfo: null, ciCd: null, testingConfigs: null }
   }
 
   const claudeMdContent = findFileContent(repoPath, CLAUDE_MD_PATHS)
   const pkgContent = findFileContent(repoPath, PACKAGE_CONFIGS)
+  const ciCdResults = scanCiCd(repoPath)
+  const testingResults = scanTestingConfigs(repoPath)
 
   return {
     claudeMd: claudeMdContent ? parseClaudeMdContent(claudeMdContent) : null,
@@ -291,7 +372,9 @@ export async function scanRepository(repoPath: string): Promise<RepoScanResult> 
     readme: findFileContent(repoPath, README_PATHS),
     contributing: findFileContent(repoPath, CONTRIBUTING_PATHS),
     architecture: findFileContent(repoPath, ARCHITECTURE_PATHS),
-    packageInfo: pkgContent ? (pkgContent.startsWith('{') ? parsePackageJson(pkgContent) : { name: 'package' }) : null
+    packageInfo: pkgContent ? (pkgContent.startsWith('{') ? parsePackageJson(pkgContent) : { name: 'package' }) : null,
+    ciCd: ciCdResults.length > 0 ? ciCdResults : null,
+    testingConfigs: testingResults.length > 0 ? testingResults : null
   }
 }
 
@@ -358,6 +441,32 @@ export function scanResultToContextEntries(
         content: found.content,
         now,
         parsedSections: parsedData ? JSON.stringify(parsedData) : null
+      }))
+    }
+  }
+
+  // CI/CD configs (multiple files possible)
+  if (scanResult.ciCd) {
+    for (const ciFile of scanResult.ciCd) {
+      entries.push(createContextEntry({
+        repoId,
+        contextType: 'ci_cd',
+        filePath: ciFile.path,
+        content: ciFile.content,
+        now
+      }))
+    }
+  }
+
+  // Testing configs (multiple files possible)
+  if (scanResult.testingConfigs) {
+    for (const testFile of scanResult.testingConfigs) {
+      entries.push(createContextEntry({
+        repoId,
+        contextType: 'testing_config',
+        filePath: testFile.path,
+        content: testFile.content,
+        now
       }))
     }
   }

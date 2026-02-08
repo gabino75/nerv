@@ -138,6 +138,8 @@
       case 'contributing': return 'Contributing'
       case 'architecture': return 'Architecture'
       case 'package_config': return 'Package Config'
+      case 'ci_cd': return 'CI/CD Config'
+      case 'testing_config': return 'Testing Config'
       default: return type
     }
   }

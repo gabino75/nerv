@@ -11,6 +11,8 @@ export type RepoContextType =
   | 'architecture'
   | 'api_docs'
   | 'package_config'
+  | 'ci_cd'
+  | 'testing_config'
 
 export interface RepoContext {
   id: string
@@ -63,4 +65,6 @@ export interface RepoScanResult {
     dependencies?: Record<string, string>
     devDependencies?: Record<string, string>
   } | null
+  ciCd: Array<{ path: string; content: string }> | null
+  testingConfigs: Array<{ path: string; content: string }> | null
 }
