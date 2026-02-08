@@ -1,9 +1,22 @@
-# NERV
+<p align="center">
+  <img src="docs-site/public/nerv-banner.png" alt="NERV" width="600">
+</p>
 
-**Neural Evolution & Repository Vectoring** — an Electron dashboard that orchestrates [Claude Code](https://github.com/anthropics/claude-code) for multi-repository development.
+<h3 align="center">
+  <strong>Neural Evolution & Repository Vectoring</strong>
+</h3>
+<p align="center">
+  An Electron dashboard that orchestrates <a href="https://github.com/anthropics/claude-code">Claude Code</a> for multi-repository development.
+</p>
 
-<!-- TODO: Replace with actual screenshot -->
-<!-- ![NERV Dashboard](https://gabino75.github.io/nerv/demos/dashboard.png) -->
+<!-- Demo: quick-start walkthrough -->
+<p align="center">
+  <a href="https://gabino75.github.io/nerv/demos">
+    <img src="https://gabino75.github.io/nerv/demos/quick-start.gif" alt="NERV Quick Start Demo" width="720">
+  </a>
+  <br>
+  <em>Create a project, add tasks, and launch Claude Code — all from one dashboard</em>
+</p>
 
 ## Overview
 
@@ -17,15 +30,15 @@ NERV is a single desktop app that manages everything you need when building acro
 - YOLO mode for fully autonomous operation with cost limits
 - Full CLI alongside the GUI — every feature works headless
 
-## Demo
+## Demos
 
-<!-- TODO: Record and embed demo clips showing:
-     1. Creating a project and starting a Claude session
-     2. Permission approval flow
-     3. YOLO mode running autonomously
-     See: https://gabino75.github.io/nerv/demos -->
+| Demo | Description |
+|------|-------------|
+| [Quick Start](https://gabino75.github.io/nerv/demos#quick-start) | Create a project, add tasks, start a Claude session |
+| [YOLO Mode](https://gabino75.github.io/nerv/demos#yolo-mode) | Autonomous development with AI-powered review |
+| [Multi-Repo](https://gabino75.github.io/nerv/demos#multi-repository-workflow) | Coordinate work across multiple repositories |
 
-> Demo clips coming soon. See the [documentation site](https://gabino75.github.io/nerv/) for guides and feature walkthroughs.
+> See all demos at [gabino75.github.io/nerv/demos](https://gabino75.github.io/nerv/demos)
 
 ## Quick Start
 

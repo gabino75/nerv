@@ -6,11 +6,11 @@ export default defineConfig({
   base: '/nerv/',
 
   head: [
-    ['link', { rel: 'icon', type: 'image/svg+xml', href: '/nerv/logo.svg' }]
+    ['link', { rel: 'icon', type: 'image/png', href: '/nerv/nerv-logo.png' }]
   ],
 
   themeConfig: {
-    logo: '/logo.svg',
+    logo: '/nerv-logo.png',
 
     nav: [
       { text: 'Guide', link: '/guide/getting-started' },

@@ -6,7 +6,7 @@ hero:
   text: AI-Orchestrated Multi-Repository Development
   tagline: An Electron dashboard that orchestrates Claude Code for multi-repository feature development
   image:
-    src: /logo.svg
+    src: /nerv-logo.png
     alt: NERV
   actions:
     - theme: brand

@@ -2,9 +2,7 @@
 
 Video walkthroughs demonstrating NERV features in action.
 
-## Available Demos
-
-### Quick Start
+## Quick Start
 
 A 2-minute introduction to getting started with NERV.
 
@@ -15,13 +13,19 @@ A 2-minute introduction to getting started with NERV.
 - Starting a Claude session for the task
 - Terminal showing Claude working on your code
 
-::: info Coming Soon
-Demo video will be added here once recorded.
+<video controls width="100%" poster="/nerv/demos/quick-start-poster.png">
+  <source src="/nerv/demos/quick-start.webm" type="video/webm">
+  <source src="/nerv/demos/quick-start.mp4" type="video/mp4">
+  Your browser does not support the video tag.
+</video>
+
+::: tip Not loading?
+If the video doesn't appear, [record the demos locally](#recording-demos) and rebuild the docs.
 :::
 
 ---
 
-### YOLO Mode
+## YOLO Mode
 
 Watch NERV autonomously complete a benchmark task with AI review.
 
@@ -32,13 +36,15 @@ Watch NERV autonomously complete a benchmark task with AI review.
 - Tasks progressing automatically through the Kanban board
 - AI-powered code review and auto-merge
 
-::: info Coming Soon
-Demo video will be added here once recorded.
-:::
+<video controls width="100%">
+  <source src="/nerv/demos/yolo-mode.webm" type="video/webm">
+  <source src="/nerv/demos/yolo-mode.mp4" type="video/mp4">
+  Your browser does not support the video tag.
+</video>
 
 ---
 
-### Multi-Repository Workflow
+## Multi-Repository Workflow
 
 Managing tasks across multiple connected repositories.
 
@@ -49,100 +55,83 @@ Managing tasks across multiple connected repositories.
 - Cross-repo task coordination on the Kanban board
 - Split view for working on repos side by side
 
-::: info Coming Soon
-Demo video will be added here once recorded.
-:::
+<video controls width="100%">
+  <source src="/nerv/demos/multi-repo.webm" type="video/webm">
+  <source src="/nerv/demos/multi-repo.mp4" type="video/mp4">
+  Your browser does not support the video tag.
+</video>
 
 ---
 
 ## Recording Demos
 
-NERV uses Playwright's built-in video recording to capture demos. To record a demo:
+NERV uses Playwright to record demos inside Docker with a virtual display.
 
-### 1. Configure Playwright
+### Quick Record
 
-Add a video-enabled project to `playwright.config.ts`:
+```bash
+# Record all demos
+./test/scripts/record-demos.sh
 
-```typescript
-{
-  name: 'demo-custom',
-  use: {
-    video: {
-      mode: 'on',
-      size: { width: 1280, height: 720 }
-    }
-  },
-  testMatch: 'test/e2e/demos/custom.spec.ts'
-}
+# Record a specific demo
+./test/scripts/record-demos.sh --demo quick-start
+
+# Record + generate GIFs for README
+./test/scripts/record-demos.sh --gif
 ```
 
-### 2. Write the Demo Script
+### How It Works
 
-Create a test file that performs the actions you want to record. Use the `slowType()` and `demoWait()` helper functions for natural pacing:
+1. **Docker + Xvfb** — Electron runs in a headless virtual display
+2. **Playwright recording** — Built-in video capture at 1280x720
+3. **Cursor overlay** — A CSS-injected cursor dot follows mouse movements with click animations
+4. **Zoom effects** — Key UI elements zoom in for emphasis during the recording
+5. **Slow typing** — Text is entered character-by-character for natural pacing
+6. **Post-processing** — Optional ffmpeg conversion to MP4 + GIF
+
+### Custom Demos
+
+Create a test file that uses the demo helpers:
 
 ```typescript
 // test/e2e/docs-demos.spec.ts
 import { test } from '@playwright/test'
 
-// Slowly type text character-by-character (for demo visibility)
+// Slowly type text character-by-character
 async function slowType(page, selector, text) {
   const element = page.locator(selector)
   await element.click()
   for (const char of text) {
     await element.press(char === ' ' ? 'Space' : char)
-    await page.waitForTimeout(50) // Typing speed
+    await page.waitForTimeout(50)
   }
 }
 
-// Wait with a labeled pause (for demo pacing)
+// Labeled pause for demo pacing
 async function demoWait(page, label, ms = 800) {
   console.log(`[Demo] ${label}`)
   await page.waitForTimeout(ms)
 }
 
-test('custom demo', async () => {
+test('demo_my_feature', async () => {
   // Launch Electron with recordVideo option
-  // ...
-
-  // Use slowType for realistic text entry
-  await slowType(window, '[data-testid="project-name-input"]', 'My Project')
-  await demoWait(window, 'Project name entered', 800)
-
-  // Use demoWait between steps for viewer comprehension
-  await demoWait(window, 'About to create project', 600)
-  await page.click('[data-testid="create-project-btn"]')
-  await demoWait(window, 'Project created successfully', 1500)
+  // Use slowType() for text input
+  // Use demoWait() between steps
+  // Use glideToElement() for smooth cursor movement
+  // Use zoomInto() for emphasis on UI elements
 })
 ```
 
-### 3. Run the Recording
-
+Run with:
 ```bash
-npm run test:e2e -- --project=demo-custom
-```
-
-Videos are saved to `test-results/` with the test name.
-
-### 4. Add to Documentation
-
-Move the recorded video to `docs-site/public/demos/`:
-
-```bash
-cp test-results/custom-demo/video.mp4 docs-site/public/demos/custom.mp4
-```
-
-Then embed in this page using HTML:
-
-```html
-<video controls width="100%">
-  <source src="/nerv/demos/custom.mp4" type="video/mp4">
-</video>
+./test/scripts/record-demos.sh --demo my_feature
 ```
 
 ::: tip Recording Tips
 - Use `slowType()` for text input to show characters appearing naturally
-- Use `demoWait()` between actions for labeled pauses with console logging
-- Use 1280x720 resolution for good quality at reasonable file sizes
+- Use `glideToElement()` before clicks for smooth cursor movement
+- Use `zoomInto()` to highlight important UI elements
+- Use `demoWait()` between actions with descriptive labels
 - Keep demos under 3 minutes for optimal engagement
-- Use descriptive test names that become video filenames
+- 1280x720 resolution balances quality and file size
 :::

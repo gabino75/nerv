@@ -129,6 +129,9 @@ case $SUITE in
     workflow)
         TEST_FILE="test/e2e/workflow.spec.ts"
         ;;
+    demos)
+        TEST_FILE="test/e2e/docs-demos.spec.ts"
+        ;;
     all)
         TEST_FILE=""
         ;;

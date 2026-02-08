@@ -27,7 +27,7 @@ const __dirname = path.dirname(__filename)
 
 // Paths
 const MAIN_PATH = path.join(__dirname, '../../out/main/index.js')
-const DOCS_DEMOS_PATH = path.join(__dirname, '../../docs/demos')
+const DOCS_DEMOS_PATH = path.join(__dirname, '../../docs-site/public/demos')
 const TEST_RESULTS_PATH = path.join(__dirname, '../../test-results/demos')
 
 // Demo recording settings
@@ -40,6 +40,100 @@ let window: Page
 let testRepoPath: string
 let testRepoPath2: string
 let testRepoPath3: string
+
+/**
+ * Inject a visible cursor overlay into the page.
+ * Playwright headless mode doesn't render the OS cursor, so we create
+ * a CSS dot that follows mouse movements for professional demo recordings.
+ */
+async function injectCursorOverlay(page: Page): Promise<void> {
+  await page.evaluate(() => {
+    // Create cursor element
+    const cursor = document.createElement('div')
+    cursor.id = 'demo-cursor'
+    cursor.style.cssText = `
+      position: fixed;
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      background: rgba(255, 80, 80, 0.7);
+      border: 2px solid rgba(255, 255, 255, 0.9);
+      pointer-events: none;
+      z-index: 999999;
+      transform: translate(-50%, -50%);
+      transition: width 0.15s, height 0.15s, background 0.15s;
+      box-shadow: 0 0 8px rgba(0, 0, 0, 0.3);
+    `
+    document.body.appendChild(cursor)
+
+    // Track mouse movement
+    document.addEventListener('mousemove', (e) => {
+      cursor.style.left = e.clientX + 'px'
+      cursor.style.top = e.clientY + 'px'
+    })
+
+    // Click animation — pulse on click
+    document.addEventListener('mousedown', () => {
+      cursor.style.width = '28px'
+      cursor.style.height = '28px'
+      cursor.style.background = 'rgba(255, 40, 40, 0.9)'
+    })
+    document.addEventListener('mouseup', () => {
+      cursor.style.width = '20px'
+      cursor.style.height = '20px'
+      cursor.style.background = 'rgba(255, 80, 80, 0.7)'
+    })
+  })
+}
+
+/**
+ * Smoothly move the visible cursor to a target element.
+ * Creates a human-like glide motion before clicking.
+ */
+async function glideToElement(page: Page, selector: string, steps = 15): Promise<void> {
+  const element = page.locator(selector).first()
+  const box = await element.boundingBox()
+  if (!box) return
+
+  const targetX = box.x + box.width / 2
+  const targetY = box.y + box.height / 2
+
+  // Move mouse smoothly to target
+  await page.mouse.move(targetX, targetY, { steps })
+  await page.waitForTimeout(200)
+}
+
+/**
+ * Zoom into a region of the page for emphasis.
+ * Applies CSS transform to zoom into a specific element,
+ * holds for the specified duration, then zooms back out.
+ */
+async function zoomInto(page: Page, selector: string, holdMs = 2000, scale = 1.8): Promise<void> {
+  const element = page.locator(selector).first()
+  const box = await element.boundingBox()
+  if (!box) return
+
+  // Calculate transform origin based on element position
+  const originX = box.x + box.width / 2
+  const originY = box.y + box.height / 2
+
+  // Apply zoom
+  await page.evaluate(({ originX, originY, scale }) => {
+    const app = document.querySelector('[data-testid="app"]') as HTMLElement || document.body
+    app.style.transition = 'transform 0.6s cubic-bezier(0.4, 0, 0.2, 1)'
+    app.style.transformOrigin = `${originX}px ${originY}px`
+    app.style.transform = `scale(${scale})`
+  }, { originX, originY, scale })
+
+  await page.waitForTimeout(holdMs)
+
+  // Zoom back out
+  await page.evaluate(() => {
+    const app = document.querySelector('[data-testid="app"]') as HTMLElement || document.body
+    app.style.transform = 'scale(1)'
+  })
+  await page.waitForTimeout(700) // Wait for transition to finish
+}
 
 /**
  * Create a temporary git repository for testing
@@ -257,6 +351,10 @@ test('demo_quick_start', async () => {
 
   // Wait for app to fully render - show the dashboard
   await window.waitForSelector('[data-testid="app"]', { timeout: 10000 })
+
+  // Inject cursor overlay for visible mouse tracking
+  await injectCursorOverlay(window)
+
   await demoWait(window, 'App launched - showing NERV dashboard', 2500)
 
   // ========================================
@@ -265,6 +363,7 @@ test('demo_quick_start', async () => {
   console.log('[Demo] Step 1: Creating new project with slow typing')
   const newProjectBtn = window.locator('[data-testid="new-project"], [data-testid="add-project"]').first()
   await expect(newProjectBtn).toBeVisible({ timeout: 5000 })
+  await glideToElement(window, '[data-testid="new-project"], [data-testid="add-project"]')
   await demoWait(window, 'Highlighting New Project button', 1000)
   await newProjectBtn.click()
   await demoWait(window, 'Project dialog opened', 1200)
@@ -286,6 +385,7 @@ test('demo_quick_start', async () => {
   // Create the project
   const createBtn = window.locator('[data-testid="create-project-btn"], button:has-text("Create")').first()
   if (await createBtn.isVisible({ timeout: 2000 }).catch(() => false)) {
+    await glideToElement(window, '[data-testid="create-project-btn"], button:has-text("Create")')
     await demoWait(window, 'About to create project', 600)
     await createBtn.click()
     await demoWait(window, 'Project created successfully', 1500)
@@ -299,8 +399,8 @@ test('demo_quick_start', async () => {
   // Hover over task board to show it
   const taskBoard = window.locator('[data-testid="task-board"], .task-board, .kanban').first()
   if (await taskBoard.isVisible({ timeout: 3000 }).catch(() => false)) {
-    await taskBoard.hover()
-    await demoWait(window, 'Task board - tracks your tasks in columns', 1500)
+    await glideToElement(window, '[data-testid="task-board"], .task-board, .kanban')
+    await zoomInto(window, '[data-testid="task-board"], .task-board, .kanban', 2000, 1.5)
   }
 
   // ========================================
@@ -309,6 +409,7 @@ test('demo_quick_start', async () => {
   console.log('[Demo] Step 3: Creating a task')
   const addTaskBtn = window.locator('[data-testid="add-task"], button:has-text("Add Task"), button:has-text("New Task")').first()
   if (await addTaskBtn.isVisible({ timeout: 2000 }).catch(() => false)) {
+    await glideToElement(window, '[data-testid="add-task"], button:has-text("Add Task"), button:has-text("New Task")')
     await demoWait(window, 'Clicking Add Task button', 800)
     await addTaskBtn.click()
     await demoWait(window, 'Task dialog opened', 1000)
@@ -334,6 +435,7 @@ test('demo_quick_start', async () => {
   console.log('[Demo] Step 4: Starting Claude session')
   const startTaskBtn = window.locator('[data-testid="start-task-btn"], button:has-text("Start")').first()
   if (await startTaskBtn.isVisible({ timeout: 2000 }).catch(() => false)) {
+    await glideToElement(window, '[data-testid="start-task-btn"], button:has-text("Start")')
     await demoWait(window, 'About to start Claude session', 800)
     await startTaskBtn.click()
     await demoWait(window, 'Claude session starting...', 2000)
@@ -345,15 +447,15 @@ test('demo_quick_start', async () => {
   console.log('[Demo] Step 5: Terminal interaction')
   const terminalArea = window.locator('[data-testid="terminal-panel"], .terminal-panel, .xterm').first()
   if (await terminalArea.isVisible({ timeout: 3000 }).catch(() => false)) {
-    await terminalArea.hover()
-    await demoWait(window, 'Terminal showing Claude working on your task', 2000)
+    await glideToElement(window, '[data-testid="terminal-panel"], .terminal-panel, .xterm')
+    await zoomInto(window, '[data-testid="terminal-panel"], .terminal-panel, .xterm', 2500, 1.6)
   }
 
   // Show the context monitor if visible
   const contextMonitor = window.locator('[data-testid="context-monitor"], .context-monitor').first()
   if (await contextMonitor.isVisible({ timeout: 1000 }).catch(() => false)) {
-    await contextMonitor.hover()
-    await demoWait(window, 'Context monitor tracks token usage', 1500)
+    await glideToElement(window, '[data-testid="context-monitor"], .context-monitor')
+    await zoomInto(window, '[data-testid="context-monitor"], .context-monitor', 1500, 1.8)
   }
 
   // Final panoramic view
@@ -450,6 +552,7 @@ Build a simple todo application with CRUD operations.
   }
 
   await window.waitForSelector('[data-testid="app"]', { timeout: 10000 })
+  await injectCursorOverlay(window)
   await demoWait(window, 'NERV Dashboard - Ready for YOLO mode', 2000)
 
   // ========================================
@@ -457,6 +560,7 @@ Build a simple todo application with CRUD operations.
   // ========================================
   console.log('[Demo] Step 1: Creating YOLO benchmark project')
   const newProjectBtn = window.locator('[data-testid="new-project"], [data-testid="add-project"]').first()
+  await glideToElement(window, '[data-testid="new-project"], [data-testid="add-project"]')
   await newProjectBtn.click()
   await demoWait(window, 'Opening project dialog', 1000)
 
@@ -643,6 +747,7 @@ test('demo_multi_repo', async () => {
   }
 
   await window.waitForSelector('[data-testid="app"]', { timeout: 10000 })
+  await injectCursorOverlay(window)
   await demoWait(window, 'NERV Dashboard - Multi-repo support', 2000)
 
   // ========================================
@@ -650,6 +755,7 @@ test('demo_multi_repo', async () => {
   // ========================================
   console.log('[Demo] Step 1: Creating multi-repo project')
   const newProjectBtn = window.locator('[data-testid="new-project"], [data-testid="add-project"]').first()
+  await glideToElement(window, '[data-testid="new-project"], [data-testid="add-project"]')
   await newProjectBtn.click()
   await demoWait(window, 'Creating a multi-repo project', 1000)
 
