@@ -14,8 +14,12 @@ A 2-minute introduction to getting started with NERV.
 - Terminal showing Claude working on your code
 
 <video controls width="100%">
-  <source src="/nerv/demos/quick-start.webm" type="video/webm">
+  <source :src="withBase('/demos/quick-start.webm')" type="video/webm">
 </video>
+
+<script setup>
+import { withBase } from 'vitepress'
+</script>
 
 ---
 
@@ -31,7 +35,7 @@ Watch NERV autonomously complete a benchmark task with AI review.
 - AI-powered code review and auto-merge
 
 <video controls width="100%">
-  <source src="/nerv/demos/yolo-mode.webm" type="video/webm">
+  <source :src="withBase('/demos/yolo-mode.webm')" type="video/webm">
 </video>
 
 ---
