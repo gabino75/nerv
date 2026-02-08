@@ -131,6 +131,7 @@ export type {
   BenchmarkConfig,
   BenchmarkSummary,
   BenchmarkScores,
+  BenchmarkProgression,
   BenchmarkScoreDetail,
   BenchmarkOverallScore,
   BenchmarkStreamEntry,

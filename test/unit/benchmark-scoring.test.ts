@@ -26,12 +26,28 @@ import { parseReviewDecision as coreParseReviewDecision, getDiffStats as coreGet
 import { parseSpec, extractAcceptanceCriteria } from '../../src/core/spec-parser'
 import type { BenchmarkSummary } from '../../src/shared/types/benchmark'
 
-// Constants matching scripts/score-benchmark.js
+// Constants matching src/cli/commands/benchmark.ts deterministic UI benchmark scoring
 const SCORE_CATEGORIES = {
   implementationQuality: { name: 'Implementation Quality', weight: 0.30 },
   workflowQuality: { name: 'Workflow Quality', weight: 0.20 },
   efficiency: { name: 'Efficiency', weight: 0.20 },
   userExperience: { name: 'User Experience', weight: 0.30 }
+}
+
+// PRD Section 27 two-dimension scoring (scripts/score-benchmark.js)
+const CODE_QUALITY_WEIGHTS = {
+  implementation: { name: 'Implementation Quality', weight: 0.35 },
+  functionality: { name: 'Functionality', weight: 0.35 },
+  ux: { name: 'User Experience', weight: 0.30 },
+}
+
+const NERV_OPS_WEIGHTS = {
+  worktreeUsage: 25,
+  parallelism: 15,
+  cycleManagement: 20,
+  reviewProcess: 15,
+  errorHandling: 10,
+  costEfficiency: 15,
 }
 
 // Standard benchmark result structure
@@ -319,12 +335,67 @@ describe('Score Categories Presence and Weights', () => {
     }
   })
 
-  it('should match PRD Section 27 weights', () => {
-    // PRD specifies: implementation=30%, workflow=20%, efficiency=20%, ux=30%
+  it('should match CLI benchmark weights', () => {
     expect(SCORE_CATEGORIES.implementationQuality.weight).toBe(0.30)
     expect(SCORE_CATEGORIES.workflowQuality.weight).toBe(0.20)
     expect(SCORE_CATEGORIES.efficiency.weight).toBe(0.20)
     expect(SCORE_CATEGORIES.userExperience.weight).toBe(0.30)
+  })
+})
+
+describe('PRD Section 27 Two-Dimension Scoring', () => {
+  it('should have code quality weights that sum to 1.0 per PRD', () => {
+    // PRD: Implementation Quality (35%), Functionality (35%), User Experience (30%)
+    const totalWeight = Object.values(CODE_QUALITY_WEIGHTS)
+      .reduce((sum, cat) => sum + cat.weight, 0)
+    expect(totalWeight).toBeCloseTo(1.0, 10)
+  })
+
+  it('should have NERV ops weights that sum to 100 per PRD', () => {
+    // PRD: Worktree Usage (25%), Parallelism (15%), Cycle Mgmt (20%), Review (15%), Errors (10%), Cost (15%)
+    const totalWeight = Object.values(NERV_OPS_WEIGHTS)
+      .reduce((sum, w) => sum + w, 0)
+    expect(totalWeight).toBe(100)
+  })
+
+  it('should match PRD code quality sub-category weights', () => {
+    expect(CODE_QUALITY_WEIGHTS.implementation.weight).toBe(0.35)
+    expect(CODE_QUALITY_WEIGHTS.functionality.weight).toBe(0.35)
+    expect(CODE_QUALITY_WEIGHTS.ux.weight).toBe(0.30)
+  })
+
+  it('should match PRD NERV ops dimension weights', () => {
+    expect(NERV_OPS_WEIGHTS.worktreeUsage).toBe(25)
+    expect(NERV_OPS_WEIGHTS.parallelism).toBe(15)
+    expect(NERV_OPS_WEIGHTS.cycleManagement).toBe(20)
+    expect(NERV_OPS_WEIGHTS.reviewProcess).toBe(15)
+    expect(NERV_OPS_WEIGHTS.errorHandling).toBe(10)
+    expect(NERV_OPS_WEIGHTS.costEfficiency).toBe(15)
+  })
+
+  it('should calculate combined score per PRD formula: (nervOps/10 + codeQuality) / 2', () => {
+    const nervOpsScore = 72 // 0-100 scale
+    const codeQualityScores = {
+      implementation: 8,
+      functionality: 7,
+      ux: 7,
+    }
+
+    // PRD: codeQualityScore = implementation*0.35 + functionality*0.35 + ux*0.30
+    const codeQualityScore =
+      codeQualityScores.implementation * 0.35 +
+      codeQualityScores.functionality * 0.35 +
+      codeQualityScores.ux * 0.30
+
+    // Expected: 8*0.35 + 7*0.35 + 7*0.30 = 2.8 + 2.45 + 2.1 = 7.35
+    expect(codeQualityScore).toBeCloseTo(7.35, 2)
+
+    // PRD: overall = (nervOpsScore/10 + codeQualityScore) / 2
+    const nervOpsScore10 = nervOpsScore / 10 // 7.2
+    const overallScore = (nervOpsScore10 + codeQualityScore) / 2
+
+    // Expected: (7.2 + 7.35) / 2 = 7.275
+    expect(overallScore).toBeCloseTo(7.275, 2)
   })
 })
 

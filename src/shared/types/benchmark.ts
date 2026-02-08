@@ -79,12 +79,32 @@ export interface BenchmarkSummary {
   scores: BenchmarkScores | null
 }
 
+/**
+ * Two-dimension benchmark scoring per PRD Section 27.
+ * Dimension 1: NERV Ops (deterministic from summary.json)
+ * Dimension 2: Code Quality (Claude-graded)
+ */
 export interface BenchmarkScores {
-  implementation: BenchmarkScoreDetail
-  workflow: BenchmarkScoreDetail
-  efficiency: BenchmarkScoreDetail
-  ux: BenchmarkScoreDetail
+  nervOps: NervOpsScore
+  codeQuality: {
+    implementation: BenchmarkScoreDetail
+    functionality: BenchmarkScoreDetail
+    ux: BenchmarkScoreDetail
+  }
+  progression: BenchmarkProgression | null
+  combined: {
+    nervOpsScore: number
+    codeQualityScore: number
+    overallScore: number
+  }
   overall: BenchmarkOverallScore
+}
+
+export interface BenchmarkProgression {
+  narrative: string
+  cycleHighlights: string[]
+  hiccups: string[]
+  reviewAgentFindings: string[]
 }
 
 export interface BenchmarkScoreDetail {
@@ -184,7 +204,11 @@ export interface BenchmarkHistoryEntry {
   nervVersion: string
   spec: string
   outcome: BenchmarkOutcome
-  scores: BenchmarkScores | null
+  scores: {
+    nervOps: number
+    codeQuality: number
+    overall: number
+  } | null
   duration: number
   cost: number
 }
