@@ -4,16 +4,18 @@
 
 ### Windows
 
-1. Download `NERV-Setup-x.x.x.exe` from [GitHub Releases](https://github.com/your-org/nerv/releases)
+1. Download `NERV-Setup-x.x.x.exe` from [GitHub Releases](https://github.com/gabino75/nerv/releases)
 2. Run the installer
 3. Launch NERV from the Start menu
 
 ### macOS
 
-1. Download `NERV-x.x.x.dmg` from [GitHub Releases](https://github.com/your-org/nerv/releases)
-2. Open the DMG file
-3. Drag NERV to your Applications folder
-4. Launch NERV from Applications
+No pre-built binary is available for macOS yet. To run on macOS, clone the repo and build from source:
+
+```bash
+git clone https://github.com/gabino75/nerv.git
+cd nerv && npm install && npm run dev
+```
 
 ### Linux
 

@@ -29,8 +29,8 @@ Download the latest release for your platform:
 | Platform | Download |
 |----------|----------|
 | Windows | `NERV-Setup-x.x.x.exe` |
-| macOS | `NERV-x.x.x.dmg` |
-| Linux | `NERV-x.x.x.AppImage` |
+| Linux | `NERV-x.x.x.AppImage` or `.deb` |
+| macOS | Build from source (see [Installation](/guide/installation)) |
 
 ### CLI Only
 

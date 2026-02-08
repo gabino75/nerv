@@ -14,7 +14,7 @@ hero:
       link: /guide/getting-started
     - theme: alt
       text: View on GitHub
-      link: https://github.com/your-org/nerv
+      link: https://github.com/gabino75/nerv
 
 features:
   - icon: 🚀

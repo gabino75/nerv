@@ -18,7 +18,7 @@ Before contributing, ensure you have:
 ### 1. Clone the Repository
 
 ```bash
-git clone https://github.com/your-org/nerv.git
+git clone https://github.com/gabino75/nerv.git
 cd nerv
 ```
 
@@ -302,6 +302,6 @@ Types: `feat`, `fix`, `docs`, `test`, `refactor`, `chore`
 
 If you have questions about contributing:
 
-1. Check existing [GitHub Issues](https://github.com/your-org/nerv/issues)
+1. Check existing [GitHub Issues](https://github.com/gabino75/nerv/issues)
 2. Open a new issue for discussion
 3. Join the community chat
