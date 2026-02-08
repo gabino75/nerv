@@ -800,8 +800,8 @@ test('demo_multi_repo', async () => {
     await demoWait(window, 'Terminal tabs - one per repo or task', 1500)
   }
 
-  // Click new tab button if visible
-  const newTabBtn = window.locator('[data-testid="new-tab"], button:has-text("+"), .add-tab-btn').first()
+  // Click new tab button if visible (avoid matching add-project "+" button)
+  const newTabBtn = window.locator('[data-testid="new-tab"], .add-tab-btn').first()
   if (await newTabBtn.isVisible({ timeout: 2000 }).catch(() => false)) {
     await newTabBtn.hover()
     await demoWait(window, 'Create new terminal tabs for different repos', 1000)
@@ -856,8 +856,11 @@ test('demo_multi_repo', async () => {
   if (await splitBtn.isVisible({ timeout: 2000 }).catch(() => false)) {
     await splitBtn.hover()
     await demoWait(window, 'Split view - work on multiple repos simultaneously', 1200)
-    await splitBtn.click()
-    await demoWait(window, 'Side-by-side terminals for coordinated changes', 2000)
+    const isEnabled = await splitBtn.isEnabled().catch(() => false)
+    if (isEnabled) {
+      await splitBtn.click()
+      await demoWait(window, 'Side-by-side terminals for coordinated changes', 2000)
+    }
   }
 
   // Show terminal area
