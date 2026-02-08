@@ -17,6 +17,8 @@ export function registerMetricsHandlers(): void {
     inputTokens?: number
     outputTokens?: number
     compactionCount?: number
+    cacheReadTokens?: number
+    cacheCreationTokens?: number
     model?: string
     sessionId?: string
   }): SessionMetrics => {

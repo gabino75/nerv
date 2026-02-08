@@ -71,6 +71,8 @@ export interface SessionMetrics {
   output_tokens: number
   compaction_count: number
   compactions_since_clear: number  // PRD Section 6: "Since last /clear" counter
+  cache_read_tokens: number
+  cache_creation_tokens: number
   model: string | null
   cost_usd: number
   duration_ms: number

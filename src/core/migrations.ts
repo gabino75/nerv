@@ -559,5 +559,15 @@ export const migrations: Migration[] = [
       -- Track compactions since last /clear (separate from session total)
       ALTER TABLE session_metrics ADD COLUMN compactions_since_clear INTEGER DEFAULT 0;
     `
+  },
+  {
+    version: 20,
+    name: 'add_cache_token_tracking',
+    up: `
+      -- PRD Section 14: Cost Tracking
+      -- Track cache read and creation tokens for accurate cost calculation
+      ALTER TABLE session_metrics ADD COLUMN cache_read_tokens INTEGER DEFAULT 0;
+      ALTER TABLE session_metrics ADD COLUMN cache_creation_tokens INTEGER DEFAULT 0;
+    `
   }
 ]

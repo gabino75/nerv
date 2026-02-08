@@ -61,6 +61,8 @@ export class MetricsOperations {
       outputTokens?: number
       compactionCount?: number
       compactionsSinceClear?: number  // PRD Section 6: "Since last /clear" counter
+      cacheReadTokens?: number
+      cacheCreationTokens?: number
       model?: string
       sessionId?: string
       costUsd?: number
@@ -79,7 +81,7 @@ export class MetricsOperations {
     }
 
     const result = this.getDb().prepare(
-      'INSERT INTO session_metrics (task_id, session_id, input_tokens, output_tokens, compaction_count, compactions_since_clear, model, cost_usd, duration_ms, num_turns) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+      'INSERT INTO session_metrics (task_id, session_id, input_tokens, output_tokens, compaction_count, compactions_since_clear, cache_read_tokens, cache_creation_tokens, model, cost_usd, duration_ms, num_turns) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
     ).run(
       taskId,
       metrics.sessionId || null,
@@ -87,6 +89,8 @@ export class MetricsOperations {
       metrics.outputTokens || 0,
       metrics.compactionCount || 0,
       metrics.compactionsSinceClear || 0,
+      metrics.cacheReadTokens || 0,
+      metrics.cacheCreationTokens || 0,
       metrics.model || null,
       metrics.costUsd || 0,
       metrics.durationMs || 0,
@@ -104,6 +108,8 @@ export class MetricsOperations {
       outputTokens: 'output_tokens',
       compactionCount: 'compaction_count',
       compactionsSinceClear: 'compactions_since_clear',  // PRD Section 6
+      cacheReadTokens: 'cache_read_tokens',
+      cacheCreationTokens: 'cache_creation_tokens',
       model: 'model',
       sessionId: 'session_id',
       costUsd: 'cost_usd',
@@ -251,6 +257,8 @@ export class MetricsOperations {
         sm.model,
         sm.input_tokens,
         sm.output_tokens,
+        sm.cache_read_tokens,
+        sm.cache_creation_tokens,
         sm.cost_usd,
         sm.duration_ms,
         sm.num_turns,
@@ -266,13 +274,15 @@ export class MetricsOperations {
       model: string | null
       input_tokens: number
       output_tokens: number
+      cache_read_tokens: number
+      cache_creation_tokens: number
       cost_usd: number
       duration_ms: number
       num_turns: number
       updated_at: string
     }>
 
-    const headers = ['Date', 'Project', 'Task', 'Model', 'Input Tokens', 'Output Tokens', 'Cost (USD)', 'Duration (ms)', 'Turns']
+    const headers = ['Date', 'Project', 'Task', 'Model', 'Input Tokens', 'Output Tokens', 'Cache Read Tokens', 'Cache Creation Tokens', 'Cost (USD)', 'Duration (ms)', 'Turns']
     const csvRows = [headers.join(',')]
 
     for (const row of rows) {
@@ -283,6 +293,8 @@ export class MetricsOperations {
         row.model || 'Unknown',
         row.input_tokens,
         row.output_tokens,
+        row.cache_read_tokens,
+        row.cache_creation_tokens,
         row.cost_usd.toFixed(4),
         row.duration_ms,
         row.num_turns
@@ -350,6 +362,8 @@ export class MetricsOperations {
         model,
         COALESCE(SUM(input_tokens), 0) as input_tokens,
         COALESCE(SUM(output_tokens), 0) as output_tokens,
+        COALESCE(SUM(cache_read_tokens), 0) as cache_read_tokens,
+        COALESCE(SUM(cache_creation_tokens), 0) as cache_creation_tokens,
         COALESCE(SUM(cost_usd), 0) as cost_usd
       FROM session_metrics
       WHERE session_id = ?
@@ -358,6 +372,8 @@ export class MetricsOperations {
       model: string | null
       input_tokens: number
       output_tokens: number
+      cache_read_tokens: number
+      cache_creation_tokens: number
       cost_usd: number
     }>
 
@@ -373,6 +389,8 @@ export class MetricsOperations {
         model,
         COALESCE(SUM(input_tokens), 0) as input_tokens,
         COALESCE(SUM(output_tokens), 0) as output_tokens,
+        COALESCE(SUM(cache_read_tokens), 0) as cache_read_tokens,
+        COALESCE(SUM(cache_creation_tokens), 0) as cache_creation_tokens,
         COALESCE(SUM(cost_usd), 0) as cost_usd
       FROM session_metrics
       WHERE task_id = ?
@@ -381,6 +399,8 @@ export class MetricsOperations {
       model: string | null
       input_tokens: number
       output_tokens: number
+      cache_read_tokens: number
+      cache_creation_tokens: number
       cost_usd: number
     }>
 
@@ -396,6 +416,8 @@ export class MetricsOperations {
         sm.model,
         COALESCE(SUM(sm.input_tokens), 0) as input_tokens,
         COALESCE(SUM(sm.output_tokens), 0) as output_tokens,
+        COALESCE(SUM(sm.cache_read_tokens), 0) as cache_read_tokens,
+        COALESCE(SUM(sm.cache_creation_tokens), 0) as cache_creation_tokens,
         COALESCE(SUM(sm.cost_usd), 0) as cost_usd
       FROM session_metrics sm
       INNER JOIN tasks t ON sm.task_id = t.id
@@ -407,6 +429,8 @@ export class MetricsOperations {
       model: string | null
       input_tokens: number
       output_tokens: number
+      cache_read_tokens: number
+      cache_creation_tokens: number
       cost_usd: number
     }>
 
@@ -439,6 +463,8 @@ export class MetricsOperations {
         model,
         COALESCE(SUM(input_tokens), 0) as input_tokens,
         COALESCE(SUM(output_tokens), 0) as output_tokens,
+        COALESCE(SUM(cache_read_tokens), 0) as cache_read_tokens,
+        COALESCE(SUM(cache_creation_tokens), 0) as cache_creation_tokens,
         COALESCE(SUM(cost_usd), 0) as cost_usd
       FROM session_metrics
       WHERE updated_at >= ?
@@ -448,6 +474,8 @@ export class MetricsOperations {
       model: string | null
       input_tokens: number
       output_tokens: number
+      cache_read_tokens: number
+      cache_creation_tokens: number
       cost_usd: number
     }>
 
@@ -476,23 +504,31 @@ export class MetricsOperations {
     model: string | null
     input_tokens: number
     output_tokens: number
+    cache_read_tokens: number
+    cache_creation_tokens: number
     cost_usd: number
   }>): CostSummary {
     const byModel = new Map<string, ModelCost>()
     let totalInputTokens = 0
     let totalOutputTokens = 0
+    let totalCacheReadTokens = 0
+    let totalCacheCreationTokens = 0
     let totalCost = 0
 
     for (const row of metrics) {
       const modelName = row.model || 'unknown'
       totalInputTokens += row.input_tokens
       totalOutputTokens += row.output_tokens
+      totalCacheReadTokens += row.cache_read_tokens
+      totalCacheCreationTokens += row.cache_creation_tokens
       totalCost += row.cost_usd
 
       const existing = byModel.get(modelName)
       if (existing) {
         existing.inputTokens += row.input_tokens
         existing.outputTokens += row.output_tokens
+        existing.cacheReadTokens += row.cache_read_tokens
+        existing.cacheWriteTokens += row.cache_creation_tokens
         existing.cost += row.cost_usd
         existing.taskCount += 1
       } else {
@@ -500,8 +536,8 @@ export class MetricsOperations {
           model: modelName,
           inputTokens: row.input_tokens,
           outputTokens: row.output_tokens,
-          cacheReadTokens: 0, // Not tracked separately yet
-          cacheWriteTokens: 0, // Not tracked separately yet
+          cacheReadTokens: row.cache_read_tokens,
+          cacheWriteTokens: row.cache_creation_tokens,
           cost: row.cost_usd,
           taskCount: 1
         })
@@ -511,8 +547,8 @@ export class MetricsOperations {
     return {
       inputTokens: totalInputTokens,
       outputTokens: totalOutputTokens,
-      cacheReadTokens: 0, // Not tracked separately yet
-      cacheWriteTokens: 0, // Not tracked separately yet
+      cacheReadTokens: totalCacheReadTokens,
+      cacheWriteTokens: totalCacheCreationTokens,
       totalCost,
       byModel,
       timeSeries: [] // Populated by specific methods that need it
