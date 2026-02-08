@@ -389,6 +389,27 @@ function countGitCommits(cwd: string): number {
   }
 }
 
+/**
+ * Capture structured commit log for a branch (PRD line 4951: worktrees/commit-log.json).
+ * Returns an array of commit objects with hash, message, author, and date.
+ */
+function captureCommitLog(cwd: string, branchName?: string): { hash: string; message: string; author: string; date: string }[] {
+  try {
+    const ref = branchName || 'HEAD'
+    const result = execSync(
+      `git log "${ref}" --format="%H%x00%s%x00%an%x00%aI" -50 2>/dev/null || echo ""`,
+      { cwd, encoding: 'utf-8', timeout: 10000, maxBuffer: 512 * 1024 }
+    )
+    if (!result.trim()) return []
+    return result.trim().split('\n').filter(Boolean).map(line => {
+      const [hash, message, author, date] = line.split('\0')
+      return { hash: hash || '', message: message || '', author: author || '', date: date || '' }
+    })
+  } catch {
+    return []
+  }
+}
+
 function initGitRepo(dir: string, specContent?: string): void {
   execSync('git init', { cwd: dir, encoding: 'utf-8', timeout: 10000 })
 
@@ -1349,10 +1370,27 @@ function writePipelineOutput(
     timelineEntries.map(e => JSON.stringify(e)).join('\n') + '\n',
   )
 
-  // Permissions dir (empty)
+  // Permissions dir
   const permDir = path.join(outputDir, 'permissions')
   fs.mkdirSync(permDir, { recursive: true })
   fs.writeFileSync(path.join(permDir, 'requests.jsonl'), '')
+  fs.writeFileSync(path.join(permDir, 'decisions.jsonl'), '')
+
+  // Write per-worktree commit logs (PRD line 4951)
+  for (const cycle of result.cycles) {
+    for (const task of cycle.tasks) {
+      if (!task.branchName) continue
+      const worktreeDir = path.join(outputDir, 'worktrees', task.taskId)
+      fs.mkdirSync(worktreeDir, { recursive: true })
+      const commits = captureCommitLog(workspaceDir, task.branchName)
+      fs.writeFileSync(path.join(worktreeDir, 'commit-log.json'), JSON.stringify({
+        taskId: task.taskId,
+        branchName: task.branchName,
+        merged: task.merged,
+        commits,
+      }, null, 2))
+    }
+  }
 }
 
 // ============================================================================
