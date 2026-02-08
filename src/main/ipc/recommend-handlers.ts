@@ -67,7 +67,9 @@ function gatherContext(projectId: string, direction?: string): RecommendContext 
 
 function callClaude(prompt: string, ctx?: RecommendContext): string {
   // In mock/test mode, return realistic sample recommendations based on context
-  if (process.env.NERV_MOCK_CLAUDE === 'true' || process.env.NERV_TEST_MODE === 'true') {
+  const isMock = process.env.NERV_MOCK_CLAUDE === '1' || process.env.NERV_MOCK_CLAUDE === 'true'
+    || process.env.NERV_TEST_MODE === '1' || process.env.NERV_TEST_MODE === 'true'
+  if (isMock) {
     // Use structured context when available (more reliable than prompt parsing)
     const hasCycle = ctx ? ctx.hasCycle : prompt.includes('Cycle: #')
     const hasTasks = ctx
@@ -76,7 +78,6 @@ function callClaude(prompt: string, ctx?: RecommendContext): string {
     const hasInProgress = ctx
       ? ctx.tasks.some(t => t.status === 'in_progress')
       : prompt.includes('in_progress:')
-    console.log(`[NERV Mock] hasCycle=${hasCycle}, hasTasks=${hasTasks}, hasInProgress=${hasInProgress}, tasks=${ctx?.tasks.length ?? '?'}, cycleNum=${ctx?.cycleNumber ?? 'N/A'}`)
     if (!hasCycle) {
       return JSON.stringify([
         { phase: 'mvp', action: 'create_cycle', title: 'Start your first development cycle', description: 'Create a cycle to organize your work into focused iterations.', details: 'A cycle groups related tasks. Start with a small MVP scope.', params: { cycleGoal: 'MVP: Core functionality with tests' } },

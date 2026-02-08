@@ -16,6 +16,8 @@
 
 import { test, expect, _electron as electron, ElectronApplication, Page } from '@playwright/test'
 import path from 'path'
+import os from 'os'
+import fs from 'fs'
 import { fileURLToPath } from 'url'
 import { createTestRepo, cleanupTestRepo, ensureRecordingDirs } from '../helpers/recording-utils'
 import {
@@ -39,6 +41,17 @@ let testRepoPath: string
 
 test.beforeAll(() => {
   ensureRecordingDirs(TEST_RESULTS_PATH)
+})
+
+test.beforeEach(() => {
+  // Clean stale database from previous tests to prevent state interference
+  const nervDir = path.join(os.homedir(), '.nerv')
+  const dbPath = path.join(nervDir, 'state.db')
+  for (const f of [dbPath, `${dbPath}-wal`, `${dbPath}-shm`]) {
+    if (fs.existsSync(f)) {
+      try { fs.unlinkSync(f) } catch { /* may already be deleted */ }
+    }
+  }
 })
 
 test.afterEach(async () => {
@@ -79,6 +92,7 @@ test('recommend-driven workflow completes project lifecycle', async () => {
   })
 
   window = await electronApp.firstWindow()
+
   await window.waitForTimeout(2000)
 
   // Wait for app to load

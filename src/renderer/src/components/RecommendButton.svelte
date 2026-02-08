@@ -42,12 +42,14 @@
         currentProject.id,
         direction.trim() || undefined
       )
+      console.log(`[Recommend] Got ${results.length} recommendations`)
       if (results.length > 0) {
         recommendations = results
       } else {
         error = 'Could not generate recommendations. Is Claude CLI installed?'
       }
     } catch (err) {
+      console.log(`[Recommend] Ask ERROR: ${err instanceof Error ? err.message : String(err)}`)
       error = err instanceof Error ? err.message : 'Failed to get recommendations'
     } finally {
       isLoading = false
@@ -63,8 +65,9 @@
     executingIndex = index
 
     try {
-      const result = await window.api.recommend.execute(currentProject.id, rec)
-
+      // Clone rec to plain object — Svelte 5 reactive proxies can't be cloned across IPC
+      const plainRec = JSON.parse(JSON.stringify(rec))
+      const result = await window.api.recommend.execute(currentProject.id, plainRec)
       if (result.success) {
         executeSuccess = `${rec.title}`
 
@@ -117,7 +120,7 @@
   <button
     class="recommend-btn"
     data-testid="recommend-btn"
-    onclick={() => { showPanel = !showPanel; if (!showPanel) dismiss() }}
+    onclick={() => { if (showPanel) { dismiss() } else { showPanel = true } }}
     disabled={!currentProject}
     title="Ask Claude what you should do next"
   >
@@ -206,6 +209,8 @@
   }
 
   .recommend-btn {
+    position: relative;
+    z-index: 101;
     padding: 8px 16px;
     border: 1px solid #3a6a7a;
     border-radius: var(--radius-nerv-md, 6px);

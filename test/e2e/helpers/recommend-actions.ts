@@ -29,10 +29,20 @@ export async function askAndApproveRecommendation(
   direction?: string,
   cardIndex = 0
 ): Promise<RecommendResult> {
+  // Ensure panel is fully dismissed before reopening (handles auto-dismiss race)
+  await waitForRecommendDismissed(window)
+
   // Open the panel
   const recommendBtn = window.locator('[data-testid="recommend-btn"]')
   await recommendBtn.click()
-  await window.waitForTimeout(300)
+  await window.waitForTimeout(500)
+
+  // Check if panel appeared — retry if toggle closed it
+  const panelVisible = await window.locator('[data-testid="recommend-panel"]').isVisible().catch(() => false)
+  if (!panelVisible) {
+    await recommendBtn.click()
+    await window.waitForTimeout(500)
+  }
 
   // Wait for panel to appear
   await window.locator('[data-testid="recommend-panel"]').waitFor({ timeout: TIMEOUT.ui })
