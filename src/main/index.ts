@@ -18,6 +18,7 @@ import { registerWorktreeIpcHandlers } from './worktree'
 import { registerYoloBenchmarkIpcHandlers, cleanupYoloBenchmarks } from './yolo-benchmark'
 import { registerAuditIpcHandlers, initializeAuditSystem } from './audit'
 import { refreshOrgTerminalProfiles } from './ipc/org-handlers'
+import { getOrgConfig, syncOrgConfig } from '../core/org-config'
 import { initializeAutoUpdater, cleanupAutoUpdater, registerAutoUpdateIpcHandlers } from './auto-update'
 import {
   initializeCrashReporter,
@@ -27,6 +28,9 @@ import {
 } from './crash-reporter'
 import { WINDOW_DEFAULTS } from '../shared/constants'
 import { isAppShuttingDown, setAppShuttingDown } from './app-state'
+
+// Periodic org config sync timer (PRD Section 20)
+let orgSyncInterval: ReturnType<typeof setInterval> | null = null
 
 // Initialize crash reporter early (PRD Section 24 - Phase 8)
 initializeCrashReporter()
@@ -138,6 +142,39 @@ app.whenReady().then(() => {
   // Load org-defined terminal profiles at startup (PRD Section 21)
   refreshOrgTerminalProfiles()
 
+  // Auto-sync org config at startup (PRD Section 20)
+  const orgConfig = getOrgConfig()
+  if (orgConfig?.autoSync.enabled && orgConfig.autoSync.onAppStart) {
+    syncOrgConfig()
+      .then((result) => {
+        if (result.success) {
+          console.log('[NERV] Org config synced on startup')
+          refreshOrgTerminalProfiles()
+        } else {
+          console.warn('[NERV] Org config sync failed on startup:', result.error)
+        }
+      })
+      .catch((err) => console.error('[NERV] Org config sync error on startup:', err))
+  }
+
+  // Start periodic org config sync (PRD Section 20)
+  if (orgConfig?.autoSync.enabled && orgConfig.autoSync.intervalMinutes > 0) {
+    const intervalMs = orgConfig.autoSync.intervalMinutes * 60 * 1000
+    orgSyncInterval = setInterval(() => {
+      syncOrgConfig()
+        .then((result) => {
+          if (result.success) {
+            console.log('[NERV] Periodic org config sync completed')
+            refreshOrgTerminalProfiles()
+          } else {
+            console.warn('[NERV] Periodic org config sync failed:', result.error)
+          }
+        })
+        .catch((err) => console.error('[NERV] Periodic org config sync error:', err))
+    }, intervalMs)
+    console.log(`[NERV] Periodic org config sync scheduled every ${orgConfig.autoSync.intervalMinutes} minutes`)
+  }
+
   // Initialize auto-update system (PRD Section 22)
   registerAutoUpdateIpcHandlers()
   initializeAutoUpdater()
@@ -215,6 +252,12 @@ app.on('will-quit', () => {
     cleanupYoloBenchmarks()
   } catch (err) {
     console.error('[NERV] Failed to cleanup YOLO benchmarks:', err)
+  }
+
+  // Clean up org sync interval (PRD Section 20)
+  if (orgSyncInterval) {
+    clearInterval(orgSyncInterval)
+    orgSyncInterval = null
   }
 
   // Clean up auto-update (clears interval)
