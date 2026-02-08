@@ -21,9 +21,11 @@ import type {
   ClaudeMdSection,
   ClaudeMdSuggestions,
   ClaudeSpawnConfig,
+  ClaudeSpawnResult,
   ClaudeTokenUsage,
   ClaudeSessionInfo,
   ClaudeResult,
+  ActiveClaudeSession,
   NervMdSizeCheck,
   PermissionConfig,
   HookConfig,
@@ -61,9 +63,11 @@ export type {
   ClaudeMdSection,
   ClaudeMdSuggestions,
   ClaudeSpawnConfig,
+  ClaudeSpawnResult,
   ClaudeTokenUsage,
   ClaudeSessionInfo,
   ClaudeResult,
+  ActiveClaudeSession,
   NervMdSizeCheck,
   PermissionConfig,
   HookConfig,
@@ -191,22 +195,46 @@ interface TerminalAPI {
   removeAllListeners: () => void
 }
 
-// Claude Code API types
+// Claude Code API types (PRD Sections 6, 10)
 interface ClaudeAPI {
-  spawn: (config: ClaudeSpawnConfig) => Promise<string>
-  resume: (config: ClaudeSpawnConfig, claudeSessionId: string) => Promise<string>
+  spawn: (config: ClaudeSpawnConfig) => Promise<ClaudeSpawnResult>
+  resume: (config: ClaudeSpawnConfig, claudeSessionId: string) => Promise<ClaudeSpawnResult>
   write: (sessionId: string, data: string) => Promise<void>
   resize: (sessionId: string, cols: number, rows: number) => Promise<void>
   kill: (sessionId: string) => Promise<void>
   exists: (sessionId: string) => Promise<boolean>
   getInfo: (sessionId: string) => Promise<ClaudeSessionInfo | null>
+  // PRD Section 10: Multi-session management
+  getAllSessions: () => Promise<ActiveClaudeSession[]>
+  pause: (sessionId: string) => Promise<boolean>
+  unpause: (sessionId: string) => Promise<boolean>
+  isPaused: (sessionId: string) => Promise<boolean>
+  getFileConflicts: () => Promise<Array<{
+    filePath: string
+    sessions: Array<{ sessionId: string; accessType: string }>
+  }>>
+  // Event listeners
   onData: (callback: (sessionId: string, data: string) => void) => void
   onRawData: (callback: (sessionId: string, data: string) => void) => void
   onSessionId: (callback: (sessionId: string, claudeSessionId: string) => void) => void
-  onTokenUsage: (callback: (sessionId: string, usage: ClaudeTokenUsage, compactionCount: number) => void) => void
+  // PRD Section 6: includes compactionsSinceClear
+  onTokenUsage: (callback: (sessionId: string, usage: ClaudeTokenUsage, compactionCount: number, compactionsSinceClear: number) => void) => void
   onCompaction: (callback: (sessionId: string, count: number) => void) => void
   onResult: (callback: (sessionId: string, result: ClaudeResult) => void) => void
   onExit: (callback: (sessionId: string, exitCode: number, signal?: number) => void) => void
+  // PRD Section 10: Subagent events
+  onSubagentSpawn: (callback: (sessionId: string, subagent: unknown) => void) => void
+  onSubagentComplete: (callback: (sessionId: string, subagent: unknown) => void) => void
+  // PRD Section 10: Pause/resume events
+  onPaused: (callback: (sessionId: string) => void) => void
+  onResumed: (callback: (sessionId: string) => void) => void
+  // PRD Section 10: File conflict event
+  onFileConflict: (callback: (conflict: {
+    sessionId: string
+    filePath: string
+    conflictingSessionId: string
+    accessType: string
+  }) => void) => void
   removeAllListeners: () => void
 }
 
