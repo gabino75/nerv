@@ -49,7 +49,7 @@ export const SELECTORS = {
   // Cycles
   cyclesBtn: '[data-testid="cycles-btn"]',
   cyclePanel: '[data-testid="cycle-panel"]',
-  startCycle0Btn: '[data-testid="start-cycle-0-btn"]',
+  startFirstCycleBtn: '[data-testid="start-first-cycle-btn"]',
   cycleGoalInput: '[data-testid="cycle-goal-input"]',
   createCycleBtn: '[data-testid="create-cycle-btn"]',
   completeCycleBtn: '[data-testid="complete-cycle-btn"]',
@@ -57,6 +57,11 @@ export const SELECTORS = {
   confirmCompleteCycleBtn: '[data-testid="confirm-complete-cycle-btn"]',
   cycleHistory: '.cycle-history',
   activeCycle: '.active-cycle',
+
+  // Dropdowns (header menus)
+  knowledgeDropdown: '[data-testid="knowledge-dropdown"]',
+  workflowDropdown: '[data-testid="workflow-dropdown"]',
+  settingsDropdown: '[data-testid="settings-dropdown"]',
 
   // Audit
   auditBtn: '[data-testid="audit-btn"]',
@@ -164,4 +169,21 @@ export const CONFIG = {
  */
 export function getTimeout(base: number): number {
   return CONFIG.slowMode ? base * 2 : base
+}
+
+/**
+ * Maps dropdown item testIds to their parent dropdown testId.
+ * Items inside DropdownMenu components must have their parent opened first.
+ */
+export const DROPDOWN_PARENT: Record<string, string> = {
+  'knowledge-btn': 'knowledge-dropdown',
+  'templates-btn': 'knowledge-dropdown',
+  'repos-btn': 'knowledge-dropdown',
+  'worktrees-btn': 'workflow-dropdown',
+  'sessions-btn': 'workflow-dropdown',
+  'yolo-btn': 'workflow-dropdown',
+  'audit-btn': 'workflow-dropdown',
+  'org-btn': 'workflow-dropdown',
+  'settings-btn': 'settings-dropdown',
+  'cost-btn': 'settings-dropdown',
 }

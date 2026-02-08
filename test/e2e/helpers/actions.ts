@@ -5,7 +5,7 @@
  */
 
 import { Page, expect } from '@playwright/test'
-import { SELECTORS, TIMEOUT } from './selectors'
+import { SELECTORS, TIMEOUT, DROPDOWN_PARENT } from './selectors'
 import { log, slowWait, microWait } from './launch'
 
 /**
@@ -237,6 +237,42 @@ export async function selectProject(window: Page, projectNamePattern: string): P
 }
 
 /**
+ * Click a button that lives inside a DropdownMenu.
+ * Opens the parent dropdown first, then clicks the item.
+ */
+export async function clickDropdownItem(window: Page, itemTestId: string): Promise<boolean> {
+  const parentId = DROPDOWN_PARENT[itemTestId]
+  if (!parentId) {
+    log('fail', 'No dropdown parent mapped for', { itemTestId })
+    return false
+  }
+
+  // Open the parent dropdown
+  const trigger = window.locator(`[data-testid="${parentId}"]`)
+  const triggerVisible = await trigger.isVisible({ timeout: 3000 }).catch(() => false)
+  if (!triggerVisible) {
+    log('fail', 'Dropdown trigger not visible', { parentId })
+    return false
+  }
+
+  await trigger.click()
+  await window.waitForTimeout(200)
+
+  // Click the item
+  const item = window.locator(`[data-testid="${itemTestId}"]`)
+  const itemVisible = await item.isVisible({ timeout: 2000 }).catch(() => false)
+  if (!itemVisible) {
+    log('fail', 'Dropdown item not visible after opening dropdown', { itemTestId })
+    return false
+  }
+
+  await item.click()
+  await window.waitForTimeout(200)
+  log('pass', 'Clicked dropdown item', { parentId, itemTestId })
+  return true
+}
+
+/**
  * Helper to reliably open the Audit Panel
  * Tries button click first, then event dispatch as fallback
  */
@@ -252,30 +288,20 @@ export async function openAuditPanel(window: Page): Promise<boolean> {
     return true
   }
 
-  // Try clicking the button first (more reliable than event dispatch)
-  const auditBtn = window.locator(SELECTORS.auditBtn)
-  const btnExists = await auditBtn.isVisible({ timeout: 2000 }).catch(() => false)
-  log('info', 'Audit button visible check', { exists: btnExists })
-
-  if (btnExists) {
-    const btnEnabled = await auditBtn.isEnabled().catch(() => false)
-    log('info', 'Audit button enabled check', { enabled: btnEnabled })
-
-    if (btnEnabled) {
-      log('info', 'Clicking audit button')
-      try {
-        await auditBtn.click({ timeout: 3000 })
-        await window.waitForTimeout(300)
-
-        panelVisible = await auditPanel.isVisible({ timeout: 2000 }).catch(() => false)
-        if (panelVisible) {
-          log('check', 'Audit panel visible (button click)')
-          return true
-        }
-      } catch (e) {
-        log('info', 'Button click failed', { error: String(e) })
+  // Try clicking the button via dropdown (audit-btn is inside Workflow dropdown)
+  log('info', 'Clicking audit button via dropdown')
+  try {
+    const clicked = await clickDropdownItem(window, 'audit-btn')
+    if (clicked) {
+      await window.waitForTimeout(300)
+      panelVisible = await auditPanel.isVisible({ timeout: 2000 }).catch(() => false)
+      if (panelVisible) {
+        log('check', 'Audit panel visible (dropdown click)')
+        return true
       }
     }
+  } catch (e) {
+    log('info', 'Dropdown click failed', { error: String(e) })
   }
 
   // Fallback: Use event dispatch

@@ -32,6 +32,11 @@ export {
   standardCleanup,
 } from './launch'
 
+// Selectors - dropdown mapping
+export {
+  DROPDOWN_PARENT,
+} from './selectors'
+
 // Actions
 export {
   setupBenchmarkProjectWithRepo,
@@ -39,6 +44,7 @@ export {
   createBenchmarkTaskViaAPI,
   startTask,
   selectProject,
+  clickDropdownItem,
   openAuditPanel,
   approvePermission,
   denyPermission,

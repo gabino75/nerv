@@ -26,6 +26,7 @@ import {
   launchNervBenchmark,
   standardCleanup,
   setupBenchmarkProjectWithRepo,
+  clickDropdownItem,
 } from '../helpers'
 
 // ============================================================================
@@ -54,14 +55,11 @@ test.describe('NERV YOLO Benchmark Tests', () => {
       expect(project).not.toBeNull()
       log('check', 'Project created', { projectId: project!.projectId })
 
-      // Step 2: Click the YOLO button in header
-      const yoloBtn = window.locator('[data-testid="yolo-btn"]')
-      const btnVisible = await yoloBtn.isVisible({ timeout: 5000 }).catch(() => false)
-      expect(btnVisible).toBe(true)
-      log('check', 'YOLO button visible in header')
-
+      // Step 2: Click the YOLO button via Workflow dropdown
       await microWait(window)
-      await yoloBtn.click()
+      const yoloClicked = await clickDropdownItem(window, 'yolo-btn')
+      expect(yoloClicked).toBe(true)
+      log('check', 'YOLO button clicked via dropdown')
       await slowWait(window, 'YOLO panel opening')
 
       // Step 3: Verify panel opened
@@ -118,9 +116,8 @@ test.describe('NERV YOLO Benchmark Tests', () => {
       const project = await setupBenchmarkProjectWithRepo(window, testRepoPath)
       expect(project).not.toBeNull()
 
-      // Step 2: Open YOLO panel
-      const yoloBtn = window.locator('[data-testid="yolo-btn"]')
-      await yoloBtn.click()
+      // Step 2: Open YOLO panel via Workflow dropdown
+      await clickDropdownItem(window, 'yolo-btn')
       await slowWait(window, 'YOLO panel opening')
 
       const yoloPanel = window.locator('[data-testid="yolo-panel"]')
@@ -246,9 +243,8 @@ test.describe('NERV YOLO Benchmark Tests', () => {
       }, project!.projectId)
       log('check', 'Test config created', { configId })
 
-      // Step 3: Open YOLO panel
-      const yoloBtn = window.locator('[data-testid="yolo-btn"]')
-      await yoloBtn.click()
+      // Step 3: Open YOLO panel via Workflow dropdown
+      await clickDropdownItem(window, 'yolo-btn')
       await slowWait(window, 'YOLO panel opening')
 
       // Wait for panel to be visible and fully loaded
@@ -353,9 +349,8 @@ test.describe('NERV YOLO Benchmark Tests', () => {
       }, project!.projectId)
       log('check', 'Config created', { configId })
 
-      // Step 3: Open YOLO panel
-      const yoloBtn = window.locator('[data-testid="yolo-btn"]')
-      await yoloBtn.click()
+      // Step 3: Open YOLO panel via Workflow dropdown
+      await clickDropdownItem(window, 'yolo-btn')
       await slowWait(window, 'YOLO panel opening')
 
       // Step 4: Click Start YOLO button
@@ -460,9 +455,8 @@ test.describe('NERV YOLO Benchmark Tests', () => {
       }, project!.projectId)
       log('check', 'Config created for results test', { configId })
 
-      // Step 3: Open YOLO panel
-      const yoloBtn = window.locator('[data-testid="yolo-btn"]')
-      await yoloBtn.click()
+      // Step 3: Open YOLO panel via Workflow dropdown
+      await clickDropdownItem(window, 'yolo-btn')
       await slowWait(window, 'YOLO panel opening')
 
       // Step 4: Click Results tab
@@ -525,9 +519,8 @@ test.describe('NERV YOLO Benchmark Tests', () => {
       const project = await setupBenchmarkProjectWithRepo(window, testRepoPath)
       expect(project).not.toBeNull()
 
-      // Step 2: Open YOLO panel
-      const yoloBtn = window.locator('[data-testid="yolo-btn"]')
-      await yoloBtn.click()
+      // Step 2: Open YOLO panel via Workflow dropdown
+      await clickDropdownItem(window, 'yolo-btn')
       await slowWait(window, 'YOLO panel opening')
 
       // Step 3: Test each tab navigation
@@ -605,9 +598,8 @@ test.describe('NERV YOLO Benchmark Tests', () => {
       }, testRepoPath)
       log('info', 'Spec file created in test repo', { created: specFileCreated })
 
-      // Step 3: Open YOLO panel
-      const yoloBtn = window.locator('[data-testid="yolo-btn"]')
-      await yoloBtn.click()
+      // Step 3: Open YOLO panel via Workflow dropdown
+      await clickDropdownItem(window, 'yolo-btn')
       await slowWait(window, 'YOLO panel opening')
 
       // Step 4: Fill in config with spec file

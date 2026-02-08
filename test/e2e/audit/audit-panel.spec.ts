@@ -45,6 +45,12 @@ async function createProject(name: string = 'audit-test-project') {
 async function openAuditPanel() {
   const { window } = ctx
 
+  // Audit button is inside the Workflow dropdown - open dropdown first
+  const workflowTrigger = window.locator(SELECTORS.workflowDropdown).first()
+  await workflowTrigger.waitFor({ state: 'visible', timeout: TIMEOUT.ui })
+  await workflowTrigger.click()
+  await window.waitForTimeout(200)
+
   const auditBtn = window.locator(SELECTORS.auditBtn).first()
   await auditBtn.waitFor({ state: 'visible', timeout: TIMEOUT.ui })
   await auditBtn.click()
@@ -58,6 +64,12 @@ test.describe('Audit Panel', () => {
   test('should show audit panel button in dashboard', async () => {
     const { window } = ctx
     await createProject()
+
+    // Audit button is inside the Workflow dropdown - open it first
+    const workflowTrigger = window.locator(SELECTORS.workflowDropdown).first()
+    await expect(workflowTrigger).toBeVisible({ timeout: TIMEOUT.ui })
+    await workflowTrigger.click()
+    await window.waitForTimeout(200)
 
     const auditBtn = window.locator(SELECTORS.auditBtn).first()
     await expect(auditBtn).toBeVisible({ timeout: TIMEOUT.ui })
