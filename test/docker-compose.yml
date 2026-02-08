@@ -1,0 +1,79 @@
+# NERV E2E Test Environment
+# Runs Electron app in headless mode with Playwright tests
+
+version: '3.8'
+
+services:
+  nerv-e2e:
+    build:
+      context: ..
+      dockerfile: test/Dockerfile
+
+    # Mount volumes for test environment
+    volumes:
+      # Mount NERV dist directory (built app)
+      - ../out:/app/out:ro
+      - ../resources:/app/resources:ro
+      - ../package.json:/app/package.json:ro
+      - ../node_modules:/app/node_modules:ro
+
+      # Mount test files
+      - ./e2e:/app/test/e2e:ro
+      - ./fixtures:/fixtures:ro
+      - ./scripts:/app/test/scripts:ro
+
+      # Mount Claude Code auth from host (if available)
+      # This allows tests to actually run Claude Code
+      - ~/.claude:/root/.claude:ro
+
+      # Output test results
+      - ./test-results:/test-results
+
+    # Environment variables
+    environment:
+      - CI=true
+      - DISPLAY=:99
+      - NERV_TEST_MODE=true
+      # Skip actual Claude Code calls in test mode unless explicitly requested
+      - NERV_MOCK_CLAUDE=${NERV_MOCK_CLAUDE:-true}
+      # Home directory for NERV state
+      - HOME=/root
+
+    # Allow shared memory for Chromium
+    shm_size: '2gb'
+
+    # Security options for running Electron
+    security_opt:
+      - seccomp:unconfined
+
+    # Use host network for easier debugging
+    network_mode: bridge
+
+    # Stop on first failure
+    stop_signal: SIGTERM
+
+    # Command to run tests
+    command: ["npm", "run", "test:e2e:docker"]
+
+  # Optional: Run just the app for debugging
+  nerv-debug:
+    build:
+      context: ..
+      dockerfile: test/Dockerfile
+    profiles:
+      - debug
+    volumes:
+      - ../out:/app/out:ro
+      - ../resources:/app/resources:ro
+      - ../package.json:/app/package.json:ro
+      - ../node_modules:/app/node_modules:ro
+      - ~/.claude:/root/.claude:ro
+    environment:
+      - DISPLAY=:99
+      - NERV_TEST_MODE=true
+    shm_size: '2gb'
+    security_opt:
+      - seccomp:unconfined
+    command: ["npm", "run", "preview"]
+    stdin_open: true
+    tty: true

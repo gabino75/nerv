@@ -1,0 +1,89 @@
+appId: com.nerv.app
+productName: NERV
+copyright: Copyright (c) 2026
+
+directories:
+  buildResources: resources
+  output: dist
+
+files:
+  - out/**/*
+  - resources/**/*
+  - "!resources/nerv-hook-*"
+
+extraResources:
+  - from: resources/
+    to: .
+    filter:
+      - "**/*"
+      - "!nerv-hook-*"
+  - from: src/mcp/nerv-context/dist
+    to: mcp/nerv-context
+    filter:
+      - "**/*.js"
+  - from: src/mcp/nerv-progress/dist
+    to: mcp/nerv-progress
+    filter:
+      - "**/*.js"
+  - from: src/mcp/nerv-docs/dist
+    to: mcp/nerv-docs
+    filter:
+      - "**/*.js"
+
+# Windows
+win:
+  target:
+    - target: nsis
+      arch: [x64]
+  icon: resources/icon.ico
+  extraResources:
+    - from: resources/nerv-hook-windows-amd64.exe
+      to: nerv-hook.exe
+
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+  installerIcon: resources/icon.ico
+  uninstallerIcon: resources/icon.ico
+  installerHeaderIcon: resources/icon.ico
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+
+# Linux
+linux:
+  target:
+    - target: AppImage
+      arch: [x64, arm64]
+    - target: deb
+      arch: [x64]
+  icon: resources/icons
+  category: Development
+  extraResources:
+    - from: resources/nerv-hook-linux-${arch}
+      to: nerv-hook
+
+appImage:
+  license: LICENSE
+
+deb:
+  depends:
+    - libgtk-3-0
+    - libnotify4
+    - libnss3
+    - libxss1
+    - libxtst6
+    - xdg-utils
+    - libatspi2.0-0
+    - libuuid1
+    - libsecret-1-0
+
+publish:
+  provider: github
+  owner: gabino75
+  repo: nerv
+  releaseType: release
+
+electronDownload:
+  cache: node_modules/.cache/electron-download
+
+afterPack: scripts/afterPack.js

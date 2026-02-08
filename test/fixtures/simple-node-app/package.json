@@ -1,0 +1,13 @@
+{
+  "name": "simple-node-app",
+  "version": "1.0.0",
+  "description": "Simple test fixture for NERV E2E tests",
+  "main": "index.js",
+  "type": "module",
+  "scripts": {
+    "start": "node index.js",
+    "test": "node --test test.js"
+  },
+  "keywords": ["test", "fixture"],
+  "license": "MIT"
+}

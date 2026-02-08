@@ -1,0 +1,89 @@
+# NERV Claude Integration Tests - Docker Compose
+#
+# Usage:
+#   # Build and run with mock Claude (default, no API tokens)
+#   docker-compose -f test/e2e/docker-compose.yml up --build nerv-e2e-mock
+#
+#   # Run with visible UI (requires X server on Windows - VcXsrv or X410)
+#   # 1. Start VcXsrv with "Disable access control" checked
+#   # 2. set DISPLAY=host.docker.internal:0
+#   docker-compose -f test/e2e/docker-compose.yml up --build nerv-e2e-headed
+#
+#   # Run with real Claude (requires API credentials)
+#   docker-compose -f test/e2e/docker-compose.yml run --rm nerv-e2e-real
+#
+#   # View logs
+#   docker-compose -f test/e2e/docker-compose.yml logs -f
+
+services:
+  # Mock mode - headless, no API tokens required
+  nerv-e2e-mock:
+    build:
+      context: ../..
+      dockerfile: test/e2e/Dockerfile
+    environment:
+      - NERV_MOCK_CLAUDE=true
+      - NERV_LOG_LEVEL=debug
+      - NERV_MAX_TURNS=10
+    volumes:
+      - ../../test-results:/app/test-results
+      - nerv-data:/root/.nerv
+    shm_size: '2gb'  # Required for Chromium
+
+  # Mock mode with visible UI (X11 forwarding)
+  nerv-e2e-headed:
+    build:
+      context: ../..
+      dockerfile: test/e2e/Dockerfile
+    environment:
+      - NERV_MOCK_CLAUDE=true
+      - NERV_LOG_LEVEL=debug
+      - NERV_MAX_TURNS=10
+      - DISPLAY=host.docker.internal:0
+      - NERV_HEADED=true
+    volumes:
+      - ../../test-results:/app/test-results
+      - nerv-data:/root/.nerv
+    shm_size: '2gb'
+
+  # Real mode - requires mounted credentials
+  # Supports multiple auth methods:
+  #   - ANTHROPIC_API_KEY env var
+  #   - ~/.claude/ directory (Claude CLI auth - OAuth tokens)
+  #   - ~/.anthropic/ directory (API credentials file)
+  nerv-e2e-real:
+    build:
+      context: ../..
+      dockerfile: test/e2e/Dockerfile
+    environment:
+      - NERV_MOCK_CLAUDE=false
+      - NERV_LOG_LEVEL=debug
+      - NERV_MAX_TURNS=50
+      - NERV_CLAUDE_TIMEOUT=3600000  # 1 hour per task (complex tasks)
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+    volumes:
+      - ../../test-results:/app/test-results
+      - nerv-data:/root/.nerv
+      - ${HOME}/.anthropic:/root/.anthropic:ro
+      - ${HOME}/.claude:/root/.claude:ro
+    shm_size: '2gb'
+
+  # Specific test filter
+  nerv-e2e-simple:
+    build:
+      context: ../..
+      dockerfile: test/e2e/Dockerfile
+    environment:
+      - NERV_MOCK_CLAUDE=false
+      - NERV_LOG_LEVEL=debug
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+    volumes:
+      - ../../test-results:/app/test-results
+      - nerv-data:/root/.nerv
+      - ${HOME}/.anthropic:/root/.anthropic:ro
+      - ${HOME}/.claude:/root/.claude:ro
+    command: npx playwright test --config=test/e2e/playwright.config.ts test/e2e/claude-integration.spec.ts -g "simple_task"
+    shm_size: '2gb'
+
+volumes:
+  nerv-data:

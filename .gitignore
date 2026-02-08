@@ -1,0 +1,42 @@
+# Dependencies
+node_modules/
+
+# Build output
+out/
+dist/
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+
+# Test coverage
+coverage/
+
+# Test output / artifacts
+test-results/
+test/test-results/
+test/fixtures/nerv-todo-benchmark/
+test/fixtures/*-worktrees/
+
+# Benchmark output
+ui-benchmark-summary.json
+ui-benchmark-iterate.log
+
+# Ralph / automation artifacts
+.ralph-complete
+nul

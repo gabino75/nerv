@@ -1,0 +1,9 @@
+# Demo Videos Directory
+
+Place recorded demo MP4 files here:
+- quick-start.mp4
+- yolo-mode.mp4
+- multi-repo.mp4
+
+To record demos, use Playwright with video recording enabled.
+See docs-site/demos.md for instructions.
