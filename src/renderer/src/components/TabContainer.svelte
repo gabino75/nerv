@@ -816,6 +816,26 @@
       focusTabByNumber(parseInt(e.key))
       return
     }
+
+    // Ctrl+T / Ctrl+Shift+T - New Claude / Shell tab
+    if (e.key === 't' || e.key === 'T') {
+      e.preventDefault()
+      if (e.shiftKey) {
+        addNewShellTab()
+      } else {
+        addNewClaudeTab()
+      }
+      return
+    }
+
+    // Ctrl+W - Close current tab
+    if (e.key === 'w' || e.key === 'W') {
+      e.preventDefault()
+      if (activeTabId) {
+        closeTab(activeTabId)
+      }
+      return
+    }
   }
 
   async function addNewClaudeTab() {
