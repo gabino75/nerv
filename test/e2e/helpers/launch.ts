@@ -175,6 +175,17 @@ export async function launchNervBenchmark(scenario: string = 'benchmark'): Promi
     throw new Error(`Built app not found at ${MAIN_PATH}. Run 'npm run build' first.`)
   }
 
+  // Clean stale database state from previous test runs to prevent Electron crashes.
+  // Each test needs a fresh database — stale project locks and instance entries
+  // from force-killed Electron processes cause lock contention and crashes.
+  const nervDir = path.join(os.homedir(), '.nerv')
+  const dbPath = path.join(nervDir, 'state.db')
+  for (const f of [dbPath, `${dbPath}-wal`, `${dbPath}-shm`]) {
+    if (fs.existsSync(f)) {
+      try { fs.unlinkSync(f) } catch { /* may already be deleted */ }
+    }
+  }
+
   const testRepoPath = createTestRepo()
   _currentTestRepoPath = testRepoPath  // Register for cleanup
   log('info', 'Created test repo', { path: testRepoPath })
@@ -254,6 +265,15 @@ export async function launchNervRealClaude(repos: string[]): Promise<MultiRepoTe
   // Only temp repos created with createTestRepo() should be cleaned up
   // The app itself will be cleaned up via _currentApp
 
+  // Clean stale database state from previous test runs
+  const nervDir = path.join(os.homedir(), '.nerv')
+  const dbPath = path.join(nervDir, 'state.db')
+  for (const f of [dbPath, `${dbPath}-wal`, `${dbPath}-shm`]) {
+    if (fs.existsSync(f)) {
+      try { fs.unlinkSync(f) } catch { /* may already be deleted */ }
+    }
+  }
+
   const useMock = process.env.NERV_MOCK_CLAUDE === 'true'
   log('info', 'Repos configured', { count: repos.length, paths: repos })
   log('step', `Launching NERV`, { realClaude: !useMock, slowMode: CONFIG.slowMode })
@@ -312,14 +332,18 @@ export async function standardCleanup(): Promise<void> {
         app.quit()
       }).catch(() => {})
 
-      // Add timeout to prevent hanging if app is already closed
-      const closePromise = appRef.close()
-      const timeoutPromise = new Promise<void>((resolve) =>
-        setTimeout(async () => {
+      // Add timeout to prevent hanging if app is already closed.
+      // IMPORTANT: Clear the timeout if close succeeds to prevent the SIGKILL
+      // from firing later and killing a reused PID (the next test's Electron).
+      let killTimer: ReturnType<typeof setTimeout> | null = null
+      const closePromise = appRef.close().then(() => {
+        if (killTimer) clearTimeout(killTimer)
+      })
+      const timeoutPromise = new Promise<void>((resolve) => {
+        killTimer = setTimeout(() => {
           log('info', 'App close timeout - forcing process termination')
           if (pid) {
             try {
-              // On Windows, use taskkill for forceful termination
               if (process.platform === 'win32') {
                 execSync(`taskkill /F /T /PID ${pid}`, { stdio: 'ignore' })
               } else {
@@ -331,7 +355,7 @@ export async function standardCleanup(): Promise<void> {
           }
           resolve()
         }, 5000)
-      )
+      })
       await Promise.race([closePromise, timeoutPromise])
     } catch (e) {
       log('info', 'App close error (may already be closed)', { error: String(e) })

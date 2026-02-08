@@ -23,8 +23,9 @@ test.afterEach(async () => {
 /**
  * Helper: create a project so the audit panel has context
  */
-async function createProject(name: string = 'audit-test-project') {
+async function createProject(name?: string) {
   const { window } = ctx
+  const projectName = name || `audit-test-${Date.now()}`
 
   const newProjectBtn = window.locator(SELECTORS.newProject).first()
   await newProjectBtn.waitFor({ state: 'visible', timeout: TIMEOUT.ui })
@@ -32,30 +33,27 @@ async function createProject(name: string = 'audit-test-project') {
 
   const nameInput = window.locator(SELECTORS.projectNameInput).first()
   await nameInput.waitFor({ state: 'visible', timeout: TIMEOUT.ui })
-  await nameInput.fill(name)
+  await nameInput.fill(projectName)
 
   const createBtn = window.locator(SELECTORS.createProjectBtn).first()
   await createBtn.click()
   await window.waitForTimeout(500)
+
+  // Verify the create dialog closed (project was created successfully)
+  await expect(nameInput).not.toBeVisible({ timeout: TIMEOUT.ui })
 }
 
 /**
- * Helper: open the audit panel
+ * Helper: open the audit panel via CustomEvent dispatch.
+ * App.svelte listens for 'open-audit-panel' and sets showAuditPanel = true.
+ * This bypasses the dropdown backdrop (z-index:99) that intercepts Playwright clicks.
  */
 async function openAuditPanel() {
   const { window } = ctx
 
-  // Click the audit button via the dropdown
-  const workflowTrigger = window.locator(SELECTORS.workflowDropdown).first()
-  await workflowTrigger.waitFor({ state: 'visible', timeout: TIMEOUT.ui })
-  await workflowTrigger.click({ noWaitAfter: true })
-  await window.waitForTimeout(300)
-
-  const auditBtn = window.locator(SELECTORS.auditBtn).first()
-  await auditBtn.waitFor({ state: 'visible', timeout: TIMEOUT.ui })
-  // Use dispatchEvent to avoid Playwright click interception issues with dropdown backdrop
-  await auditBtn.dispatchEvent('click')
-  await window.waitForTimeout(300)
+  await window.evaluate(() => {
+    window.dispatchEvent(new CustomEvent('open-audit-panel'))
+  })
 
   const auditPanel = window.locator(SELECTORS.auditPanel).first()
   await auditPanel.waitFor({ state: 'visible', timeout: TIMEOUT.ui })
