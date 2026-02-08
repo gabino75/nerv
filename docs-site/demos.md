@@ -1,65 +1,109 @@
+<script setup>
+import { withBase } from 'vitepress'
+</script>
+
 # Demo Videos
 
 Video walkthroughs demonstrating NERV features in action.
 
+::: tip Recording Demos
+All demos are recorded using Playwright's built-in video capture inside Docker. See [Recording Demos](#recording-demos) below.
+:::
+
 ## Quick Start
 
-A 2-minute introduction to getting started with NERV.
+A walkthrough of the core NERV workflow: project creation, cycle planning, and the "What's Next?" recommendation-driven flow.
 
 **What you'll see:**
-- Launching NERV and exploring the dashboard
+- Launching NERV and the clean empty dashboard
 - Creating a new project with name and goal
-- Creating a task on the Kanban board
-- Starting a Claude session for the task
-- Terminal showing Claude working on your code
+- **"What's Next?" round 1** — Claude recommends starting a cycle → approve → cycle created
+- Viewing the active cycle in the cycle panel
+- **"What's Next?" round 2** — Claude recommends implementing a task → approve → task created
+- Task appearing on the board, starting it with Claude
+- Claude working in the terminal, task completing automatically
 
-<video controls width="100%">
+<video controls width="100%" preload="metadata">
   <source :src="withBase('/demos/quick-start.webm')" type="video/webm">
+  Your browser does not support WebM video.
 </video>
-
-<script setup>
-import { withBase } from 'vitepress'
-</script>
 
 ---
 
 ## YOLO Mode
 
-Watch NERV autonomously complete a benchmark task with AI review.
+Run autonomous benchmarks from a spec file. NERV configures the YOLO loop, launches Claude, and tracks cycles, cost, and test results in real time.
 
 **What you'll see:**
-- Creating a project for autonomous development
-- Enabling the YOLO mode toggle
-- Starting the autonomous development loop
-- Tasks progressing automatically through the Kanban board
-- AI-powered code review and auto-merge
+- Creating a project and opening the YOLO panel from the Workflow menu
+- Configuring a benchmark: spec file, test command, max cycles, auto-approve
+- Saving the configuration and starting the benchmark
+- **Running tab** — live progress showing cycles completed, tasks, cost, and duration
+- **Results tab** — final metrics including spec completion and test pass rate
 
-<video controls width="100%">
+<video controls width="100%" preload="metadata">
   <source :src="withBase('/demos/yolo-mode.webm')" type="video/webm">
+  Your browser does not support WebM video.
 </video>
 
 ---
 
-## Multi-Repository Workflow
+## Multi-Repo + Knowledge
 
-Managing tasks across multiple connected repositories.
+Manage multiple repositories and knowledge bases within a single NERV project. Worktrees, CLAUDE.md files, and connected repos are all accessible from the dashboard.
 
 **What you'll see:**
-- Setting up a project with 3 repos (shared-types, API, frontend)
-- Repo panel for managing multiple repositories
-- Multiple terminal tabs for different repos
-- Cross-repo task coordination on the Kanban board
-- Split view for working on repos side by side
+- Creating a multi-repo project (shared-types + API backend)
+- Opening the **Worktree panel** from the Workflow menu to manage git worktrees
+- Opening the **Knowledge Base** to view CLAUDE.md and project context
+- Opening the **Repos panel** to see connected repositories
 
-::: info Coming Soon
-Multi-repo demo video will be added in a future update. Run `./test/scripts/record-demos.sh --demo multi-repo` to record locally.
-:::
+<video controls width="100%" preload="metadata">
+  <source :src="withBase('/demos/multi-repo.webm')" type="video/webm">
+  Your browser does not support WebM video.
+</video>
+
+---
+
+## Audit & Code Health
+
+Monitor code quality, detect spec drift, and review audit logs — all from the Audit panel.
+
+**What you'll see:**
+- Opening the Audit panel
+- **Code Health tab** — test coverage, DRY violations, type errors, dead code, complexity metrics
+- Running a health check and viewing metric cards (healthy/unhealthy indicators)
+- **Spec Drift tab** — detecting missing features, stale tasks, and spec mismatches
+- **Logs tab** — filtered audit events by task and event type
+
+<video controls width="100%" preload="metadata">
+  <source :src="withBase('/demos/audit-health.webm')" type="video/webm">
+  Your browser does not support WebM video.
+</video>
+
+---
+
+## Cost & Context
+
+Track token usage, session costs, and budget across all projects. The context monitor shows real-time token consumption while the Cost Dashboard provides historical analytics.
+
+**What you'll see:**
+- The **Context Monitor** bar showing model, token usage, and compaction count
+- Opening the **Cost Dashboard** from the Settings menu
+- Summary cards with total cost, session count, and average cost
+- Budget progress bar showing spend vs. limit
+- Cost breakdown by model and by project
+
+<video controls width="100%" preload="metadata">
+  <source :src="withBase('/demos/cost-context.webm')" type="video/webm">
+  Your browser does not support WebM video.
+</video>
 
 ---
 
 ## Recording Demos
 
-NERV uses Playwright to record demos inside Docker with a virtual display.
+NERV uses Playwright's built-in video recording inside Docker with a virtual display (Xvfb).
 
 ### Quick Record
 
@@ -76,19 +120,17 @@ NERV uses Playwright to record demos inside Docker with a virtual display.
 
 ### How It Works
 
-1. **Docker + Xvfb** — Electron runs in a headless virtual display
-2. **Playwright recording** — Built-in video capture at 1280x720
-3. **Cursor overlay** — A CSS-injected cursor dot follows mouse movements with click animations
-4. **Zoom effects** — Key UI elements zoom in for emphasis during the recording
-5. **Slow typing** — Text is entered character-by-character for natural pacing
-6. **Post-processing** — Optional ffmpeg conversion to MP4 + GIF
+1. **Docker + Xvfb** — Electron runs in a headless virtual display at 1920x1080
+2. **Playwright video** — Built-in `recordVideo` option captures at 1280x720
+3. **Cursor overlay** — CSS-injected cursor dot follows mouse movements with click animations
+4. **Slow typing** — Text entered character-by-character for natural pacing
+5. **Post-processing** — Optional ffmpeg conversion to GIF for README
 
 ### Custom Demos
 
-Create a test file that uses the demo helpers:
+Create a Playwright test file that uses the demo helpers:
 
 ```typescript
-// test/e2e/docs-demos.spec.ts
 import { test } from '@playwright/test'
 
 // Slowly type text character-by-character

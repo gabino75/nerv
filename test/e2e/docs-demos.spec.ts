@@ -20,6 +20,8 @@ import fs from 'fs'
 import { execSync } from 'child_process'
 import os from 'os'
 import { fileURLToPath } from 'url'
+import { SELECTORS } from './helpers/selectors'
+import { waitForRecommendDismissed } from './helpers/recommend-actions'
 
 // ES module compatible __dirname
 const __filename = fileURLToPath(import.meta.url)
@@ -250,9 +252,14 @@ test.afterEach(async () => {
         app.quit()
       }).catch(() => {})
 
-      const closePromise = electronApp.close()
-      const timeoutPromise = new Promise<void>((resolve) =>
-        setTimeout(() => {
+      // IMPORTANT: Clear the timeout if close succeeds to prevent the SIGKILL
+      // from firing later and killing a reused PID (the next test's Electron).
+      let killTimer: ReturnType<typeof setTimeout> | null = null
+      const closePromise = electronApp.close().then(() => {
+        if (killTimer) clearTimeout(killTimer)
+      })
+      const timeoutPromise = new Promise<void>((resolve) => {
+        killTimer = setTimeout(() => {
           if (pid) {
             try {
               if (process.platform === 'win32') {
@@ -266,7 +273,7 @@ test.afterEach(async () => {
           }
           resolve()
         }, 5000)
-      )
+      })
       await Promise.race([closePromise, timeoutPromise])
     } catch (e) {
       console.log('App close error:', e)
@@ -286,13 +293,16 @@ test.afterEach(async () => {
 /**
  * Demo: Quick Start (2-min getting started)
  *
- * Shows:
- * 1. App launch with professional pause
+ * Shows the recommend-first workflow that drives NERV's core UX:
+ * 1. App launch with clean dashboard
  * 2. Create new project with slow typing
- * 3. Navigate the dashboard
- * 4. Create a task
- * 5. Start a Claude session
- * 6. Basic terminal interaction
+ * 3. "What's Next?" round 1 → creates a cycle
+ * 4. Show the cycle created
+ * 5. "What's Next?" round 2 → creates a task
+ * 6. Show task on board
+ * 7. Start the task → Claude works in terminal
+ * 8. Wait for completion
+ * 9. Final panoramic view
  */
 test('demo_quick_start', async () => {
   // Create test repo with realistic project structure
@@ -314,6 +324,15 @@ test('demo_quick_start', async () => {
   // Verify the built app exists
   if (!fs.existsSync(MAIN_PATH)) {
     throw new Error(`Built app not found at ${MAIN_PATH}. Run 'npm run build' first.`)
+  }
+
+  // Clean stale database state from previous runs (pattern from launch.ts)
+  const nervDir = path.join(os.homedir(), '.nerv')
+  const dbPath = path.join(nervDir, 'state.db')
+  for (const f of [dbPath, `${dbPath}-wal`, `${dbPath}-shm`]) {
+    if (fs.existsSync(f)) {
+      try { fs.unlinkSync(f) } catch { /* may already be deleted */ }
+    }
   }
 
   // Launch Electron with video recording
@@ -340,9 +359,9 @@ test('demo_quick_start', async () => {
 
   // Dismiss recovery dialog if it appears
   await window.waitForTimeout(500)
-  const recoveryDialog = window.locator('[data-testid="recovery-dialog"], .overlay:has-text("Recovery Required")').first()
+  const recoveryDialog = window.locator(SELECTORS.recoveryDialog).first()
   if (await recoveryDialog.isVisible({ timeout: 1000 }).catch(() => false)) {
-    const dismissBtn = window.locator('button:has-text("Dismiss")').first()
+    const dismissBtn = window.locator(SELECTORS.dismissBtn).first()
     if (await dismissBtn.isVisible({ timeout: 1000 }).catch(() => false)) {
       await dismissBtn.click()
       await window.waitForTimeout(300)
@@ -350,121 +369,254 @@ test('demo_quick_start', async () => {
   }
 
   // Wait for app to fully render - show the dashboard
-  await window.waitForSelector('[data-testid="app"]', { timeout: 10000 })
+  await window.waitForSelector(SELECTORS.app, { timeout: 10000 })
 
   // Inject cursor overlay for visible mouse tracking
   await injectCursorOverlay(window)
 
-  await demoWait(window, 'App launched - showing NERV dashboard', 2500)
+  await demoWait(window, 'App launched - showing empty NERV dashboard', 2500)
 
   // ========================================
   // Step 1: Create a new project with slow typing
   // ========================================
-  console.log('[Demo] Step 1: Creating new project with slow typing')
-  const newProjectBtn = window.locator('[data-testid="new-project"], [data-testid="add-project"]').first()
+  console.log('[Demo] Step 1: Creating new project')
+  const newProjectBtn = window.locator(SELECTORS.newProject).first()
   await expect(newProjectBtn).toBeVisible({ timeout: 5000 })
-  await glideToElement(window, '[data-testid="new-project"], [data-testid="add-project"]')
+  await glideToElement(window, SELECTORS.newProject)
   await demoWait(window, 'Highlighting New Project button', 1000)
   await newProjectBtn.click()
   await demoWait(window, 'Project dialog opened', 1200)
 
   // Slow type the project name
-  const projectNameInput = window.locator('[data-testid="project-name-input"], input[placeholder*="name" i]').first()
+  const projectNameInput = window.locator(SELECTORS.projectNameInput).first()
   if (await projectNameInput.isVisible({ timeout: 3000 }).catch(() => false)) {
-    await slowType(window, '[data-testid="project-name-input"], input[placeholder*="name" i]', 'My REST API')
+    await slowType(window, SELECTORS.projectNameInput, 'My REST API')
     await demoWait(window, 'Project name entered', 800)
   }
 
   // Slow type the project goal
-  const projectGoalInput = window.locator('[data-testid="project-goal-input"], textarea').first()
+  const projectGoalInput = window.locator(SELECTORS.projectGoalInput).first()
   if (await projectGoalInput.isVisible({ timeout: 2000 }).catch(() => false)) {
-    await slowType(window, '[data-testid="project-goal-input"], textarea', 'Build a REST API with user authentication')
+    await slowType(window, SELECTORS.projectGoalInput, 'Build a REST API with user auth')
     await demoWait(window, 'Project goal entered', 800)
   }
 
   // Create the project
-  const createBtn = window.locator('[data-testid="create-project-btn"], button:has-text("Create")').first()
+  const createBtn = window.locator(SELECTORS.createProjectBtn).first()
   if (await createBtn.isVisible({ timeout: 2000 }).catch(() => false)) {
-    await glideToElement(window, '[data-testid="create-project-btn"], button:has-text("Create")')
+    await glideToElement(window, SELECTORS.createProjectBtn)
     await demoWait(window, 'About to create project', 600)
     await createBtn.click()
     await demoWait(window, 'Project created successfully', 1500)
   }
 
   // ========================================
-  // Step 2: Explore the dashboard layout
+  // Step 2: "What's Next?" round 1 — create a cycle
   // ========================================
-  console.log('[Demo] Step 2: Exploring dashboard')
+  console.log('[Demo] Step 2: What\'s Next? → Create cycle')
 
-  // Hover over task board to show it
-  const taskBoard = window.locator('[data-testid="task-board"], .task-board, .kanban').first()
-  if (await taskBoard.isVisible({ timeout: 3000 }).catch(() => false)) {
-    await glideToElement(window, '[data-testid="task-board"], .task-board, .kanban')
-    await zoomInto(window, '[data-testid="task-board"], .task-board, .kanban', 2000, 1.5)
+  // Click the "What's Next?" button
+  await glideToElement(window, SELECTORS.recommendBtn)
+  await demoWait(window, 'About to ask "What\'s Next?"', 800)
+  await window.locator(SELECTORS.recommendBtn).click()
+  await demoWait(window, 'Recommend panel opened', 500)
+
+  // Wait for panel to appear
+  await window.locator(SELECTORS.recommendPanel).waitFor({ timeout: 5000 })
+
+  // Type a direction
+  const dirInput = window.locator(SELECTORS.recommendDirectionInput)
+  await slowType(window, SELECTORS.recommendDirectionInput, 'start with a cycle')
+  await demoWait(window, 'Direction entered', 600)
+
+  // Click Ask
+  await glideToElement(window, SELECTORS.recommendAskBtn)
+  await window.locator(SELECTORS.recommendAskBtn).click()
+  await demoWait(window, 'Asking Claude for recommendations...', 500)
+
+  // Wait for recommendation cards to appear
+  const card0 = window.locator(SELECTORS.recommendCard(0))
+  await card0.waitFor({ timeout: 15000 })
+  await demoWait(window, 'Recommendations received', 800)
+
+  // Zoom into the cards for visibility
+  await zoomInto(window, SELECTORS.recommendPanel, 2000, 1.5)
+
+  // Approve the first card (create_cycle)
+  await glideToElement(window, SELECTORS.recommendApprove(0))
+  await demoWait(window, 'Approving: Start your first development cycle', 600)
+  await window.locator(SELECTORS.recommendApprove(0)).click()
+
+  // Wait for success + auto-dismiss
+  try {
+    await window.locator(SELECTORS.recommendExecuteSuccess).waitFor({ timeout: 5000 })
+    await demoWait(window, 'Cycle created! Panel auto-dismissing...', 1500)
+  } catch {
+    // Panel may have already auto-dismissed
+  }
+  await waitForRecommendDismissed(window)
+  await demoWait(window, 'Panel dismissed', 500)
+
+  // Dismiss recommend backdrop if still present (z-index:99 blocks clicks)
+  const backdrop = window.locator('.recommend-backdrop').first()
+  if (await backdrop.isVisible({ timeout: 500 }).catch(() => false)) {
+    await backdrop.click()
+    await window.waitForTimeout(300)
   }
 
   // ========================================
-  // Step 3: Create a task
+  // Step 3: Show the cycle that was created
   // ========================================
-  console.log('[Demo] Step 3: Creating a task')
-  const addTaskBtn = window.locator('[data-testid="add-task"], button:has-text("Add Task"), button:has-text("New Task")').first()
-  if (await addTaskBtn.isVisible({ timeout: 2000 }).catch(() => false)) {
-    await glideToElement(window, '[data-testid="add-task"], button:has-text("Add Task"), button:has-text("New Task")')
-    await demoWait(window, 'Clicking Add Task button', 800)
-    await addTaskBtn.click()
-    await demoWait(window, 'Task dialog opened', 1000)
+  console.log('[Demo] Step 3: Showing created cycle')
 
-    // Fill in task details with slow typing
-    const taskTitleInput = window.locator('[data-testid="task-title-input"]')
-    if (await taskTitleInput.isVisible({ timeout: 2000 }).catch(() => false)) {
-      await slowType(window, '[data-testid="task-title-input"]', 'Add user login endpoint')
-      await demoWait(window, 'Task title entered', 800)
-    }
+  const cyclesBtn = window.locator(SELECTORS.cyclesBtn).first()
+  if (await cyclesBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
+    await glideToElement(window, SELECTORS.cyclesBtn)
+    await demoWait(window, 'Opening cycle panel', 600)
+    await cyclesBtn.click()
 
-    // Create the task
-    const createTaskBtn = window.locator('[data-testid="create-task-btn"], button:has-text("Create")').first()
-    if (await createTaskBtn.isVisible({ timeout: 2000 }).catch(() => false)) {
-      await createTaskBtn.click()
-      await demoWait(window, 'Task created - appears in Todo column', 1500)
+    const cyclePanel = window.locator(SELECTORS.cyclePanel).first()
+    if (await cyclePanel.isVisible({ timeout: 3000 }).catch(() => false)) {
+      await demoWait(window, 'Cycle panel showing active cycle', 800)
+      await zoomInto(window, SELECTORS.cyclePanel, 2000, 1.5)
+
+      // Close cycle panel via close button
+      const closeBtn = window.locator(`${SELECTORS.cyclePanel} .close-btn`).first()
+      if (await closeBtn.isVisible({ timeout: 1000 }).catch(() => false)) {
+        await closeBtn.click()
+      }
+      await window.waitForTimeout(500)
     }
   }
 
   // ========================================
-  // Step 4: Start a Claude session
+  // Step 4: "What's Next?" round 2 — create a task
   // ========================================
-  console.log('[Demo] Step 4: Starting Claude session')
-  const startTaskBtn = window.locator('[data-testid="start-task-btn"], button:has-text("Start")').first()
-  if (await startTaskBtn.isVisible({ timeout: 2000 }).catch(() => false)) {
-    await glideToElement(window, '[data-testid="start-task-btn"], button:has-text("Start")')
-    await demoWait(window, 'About to start Claude session', 800)
+  console.log('[Demo] Step 4: What\'s Next? → Create task')
+
+  await waitForRecommendDismissed(window)
+  await glideToElement(window, SELECTORS.recommendBtn)
+  await demoWait(window, 'Asking "What\'s Next?" again', 800)
+  await window.locator(SELECTORS.recommendBtn).click()
+  await window.waitForTimeout(500)
+
+  // Check if panel appeared, retry if needed
+  const panelVisible = await window.locator(SELECTORS.recommendPanel).isVisible().catch(() => false)
+  if (!panelVisible) {
+    await window.locator(SELECTORS.recommendBtn).click()
+    await window.waitForTimeout(500)
+  }
+  await window.locator(SELECTORS.recommendPanel).waitFor({ timeout: 5000 })
+
+  // Click Ask (no direction this time)
+  await glideToElement(window, SELECTORS.recommendAskBtn)
+  await window.locator(SELECTORS.recommendAskBtn).click()
+  await demoWait(window, 'Asking for next recommendations...', 500)
+
+  // Wait for cards — now should suggest create_task since cycle exists but no tasks
+  const card0Round2 = window.locator(SELECTORS.recommendCard(0))
+  await card0Round2.waitFor({ timeout: 15000 })
+  await demoWait(window, 'Recommendations: Implement core feature', 800)
+
+  // Zoom into cards
+  await zoomInto(window, SELECTORS.recommendPanel, 2000, 1.5)
+
+  // Approve the first card (create_task)
+  await glideToElement(window, SELECTORS.recommendApprove(0))
+  await demoWait(window, 'Approving: Implement core feature', 600)
+  await window.locator(SELECTORS.recommendApprove(0)).click()
+
+  // Wait for success + auto-dismiss
+  try {
+    await window.locator(SELECTORS.recommendExecuteSuccess).waitFor({ timeout: 5000 })
+    await demoWait(window, 'Task created! Panel auto-dismissing...', 1500)
+  } catch {
+    // Panel may have already auto-dismissed
+  }
+  await waitForRecommendDismissed(window)
+
+  // ========================================
+  // Step 5: Show task on the board
+  // ========================================
+  console.log('[Demo] Step 5: Showing task on board')
+
+  const taskList = window.locator(SELECTORS.taskList).first()
+  if (await taskList.isVisible({ timeout: 3000 }).catch(() => false)) {
+    await glideToElement(window, SELECTORS.taskList)
+    await zoomInto(window, SELECTORS.taskList, 2000, 1.5)
+  }
+
+  // ========================================
+  // Step 6: Start the task — Claude works in terminal
+  // ========================================
+  console.log('[Demo] Step 6: Starting task')
+
+  const startTaskBtn = window.locator(SELECTORS.startTaskBtn).first()
+  if (await startTaskBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
+    await glideToElement(window, SELECTORS.startTaskBtn)
+    await demoWait(window, 'About to start Claude on this task', 800)
     await startTaskBtn.click()
     await demoWait(window, 'Claude session starting...', 2000)
   }
 
   // ========================================
-  // Step 5: Show terminal with Claude output
+  // Step 7: Show terminal with Claude working
   // ========================================
-  console.log('[Demo] Step 5: Terminal interaction')
-  const terminalArea = window.locator('[data-testid="terminal-panel"], .terminal-panel, .xterm').first()
+  console.log('[Demo] Step 7: Terminal interaction')
+
+  const terminalArea = window.locator(SELECTORS.terminalPanel).first()
   if (await terminalArea.isVisible({ timeout: 3000 }).catch(() => false)) {
-    await glideToElement(window, '[data-testid="terminal-panel"], .terminal-panel, .xterm')
-    await zoomInto(window, '[data-testid="terminal-panel"], .terminal-panel, .xterm', 2500, 1.6)
+    await glideToElement(window, SELECTORS.terminalPanel)
+    await zoomInto(window, SELECTORS.terminalPanel, 2500, 1.6)
   }
 
-  // Show the context monitor if visible
-  const contextMonitor = window.locator('[data-testid="context-monitor"], .context-monitor').first()
-  if (await contextMonitor.isVisible({ timeout: 1000 }).catch(() => false)) {
-    await glideToElement(window, '[data-testid="context-monitor"], .context-monitor')
-    await zoomInto(window, '[data-testid="context-monitor"], .context-monitor', 1500, 1.8)
+  // ========================================
+  // Step 8: Wait for task completion (~3.5s in mock mode)
+  // ========================================
+  console.log('[Demo] Step 8: Waiting for task completion')
+
+  // In mock mode, task moves to review/done quickly
+  // Wait for the task status to change (accept both review and done)
+  try {
+    await window.waitForFunction(() => {
+      const taskItems = document.querySelectorAll('.task-item')
+      for (const item of taskItems) {
+        const status = item.getAttribute('data-status')
+        if (status === 'review' || status === 'done') return true
+      }
+      return false
+    }, { timeout: 15000 })
+    await demoWait(window, 'Task completed!', 1500)
+  } catch {
+    // Mock may have already completed before we could check
+    await demoWait(window, 'Task processing complete', 1500)
   }
 
-  // Final panoramic view
-  await demoWait(window, 'NERV - Your AI-powered development dashboard', 2500)
+  // ========================================
+  // Step 9: Final panoramic view
+  // ========================================
+  console.log('[Demo] Step 9: Final panoramic')
+  await demoWait(window, 'NERV - Recommend-driven AI development workflow', 2500)
 
   // Save video
   const video = window.video()
   if (video) {
-    await electronApp.close()
+    // Use cleanup timer fix pattern from launch.ts
+    const pid = electronApp.process()?.pid
+    let killTimer: ReturnType<typeof setTimeout> | null = null
+    const closePromise = electronApp.close().then(() => {
+      if (killTimer) clearTimeout(killTimer)
+    })
+    const timeoutPromise = new Promise<void>((resolve) => {
+      killTimer = setTimeout(() => {
+        if (pid) {
+          try { process.kill(pid, 'SIGKILL') } catch { /* already dead */ }
+        }
+        resolve()
+      }, 5000)
+    })
+    await Promise.race([closePromise, timeoutPromise])
+
     const videoPath = await video.path()
     if (videoPath) {
       await moveVideoToDocsDemo(videoPath, 'quick-start')
@@ -473,14 +625,18 @@ test('demo_quick_start', async () => {
 })
 
 /**
- * Demo: YOLO Mode (Autonomous Development)
+ * Demo: YOLO Mode (Autonomous Benchmark)
  *
- * Shows:
- * 1. Create project from spec
- * 2. Configure YOLO mode settings
- * 3. Start autonomous development loop
- * 4. Watch tasks progress automatically
- * 5. See AI review and auto-merge
+ * Shows the full YOLO benchmark workflow:
+ * 1. Launch + create project
+ * 2. Open YOLO panel via Workflow dropdown
+ * 3. Configure benchmark (spec file, test command, max cycles)
+ * 4. Save config + zoom into saved config list
+ * 5. Start YOLO benchmark
+ * 6. Show Running tab with live progress
+ * 7. Wait for completion
+ * 8. Show Results tab with final metrics
+ * 9. Final panoramic
  */
 test('demo_yolo_mode', async () => {
   // Create test repo with SPEC.md for YOLO benchmark
@@ -520,6 +676,15 @@ Build a simple todo application with CRUD operations.
     throw new Error(`Built app not found at ${MAIN_PATH}. Run 'npm run build' first.`)
   }
 
+  // Clean stale database state from previous runs
+  const nervDir = path.join(os.homedir(), '.nerv')
+  const dbPath = path.join(nervDir, 'state.db')
+  for (const f of [dbPath, `${dbPath}-wal`, `${dbPath}-shm`]) {
+    if (fs.existsSync(f)) {
+      try { fs.unlinkSync(f) } catch { /* may already be deleted */ }
+    }
+  }
+
   electronApp = await electron.launch({
     args: [MAIN_PATH, '--no-sandbox', '--disable-gpu'],
     env: {
@@ -541,124 +706,223 @@ Build a simple todo application with CRUD operations.
   await window.setViewportSize(DEMO_VIEWPORT)
   await window.waitForLoadState('domcontentloaded')
 
-  // Dismiss recovery dialog
+  // Dismiss recovery dialog if it appears
   await window.waitForTimeout(500)
-  const recoveryDialog = window.locator('[data-testid="recovery-dialog"]').first()
+  const recoveryDialog = window.locator(SELECTORS.recoveryDialog).first()
   if (await recoveryDialog.isVisible({ timeout: 1000 }).catch(() => false)) {
-    const dismissBtn = window.locator('button:has-text("Dismiss")').first()
-    if (await dismissBtn.isVisible().catch(() => false)) {
+    const dismissBtn = window.locator(SELECTORS.dismissBtn).first()
+    if (await dismissBtn.isVisible({ timeout: 1000 }).catch(() => false)) {
       await dismissBtn.click()
+      await window.waitForTimeout(300)
     }
   }
 
-  await window.waitForSelector('[data-testid="app"]', { timeout: 10000 })
+  await window.waitForSelector(SELECTORS.app, { timeout: 10000 })
   await injectCursorOverlay(window)
-  await demoWait(window, 'NERV Dashboard - Ready for YOLO mode', 2000)
+  await demoWait(window, 'NERV Dashboard — ready for YOLO benchmark', 2500)
 
   // ========================================
   // Step 1: Create project with slow typing
   // ========================================
   console.log('[Demo] Step 1: Creating YOLO benchmark project')
-  const newProjectBtn = window.locator('[data-testid="new-project"], [data-testid="add-project"]').first()
-  await glideToElement(window, '[data-testid="new-project"], [data-testid="add-project"]')
+  const newProjectBtn = window.locator(SELECTORS.newProject).first()
+  await expect(newProjectBtn).toBeVisible({ timeout: 5000 })
+  await glideToElement(window, SELECTORS.newProject)
+  await demoWait(window, 'Highlighting New Project button', 1000)
   await newProjectBtn.click()
-  await demoWait(window, 'Opening project dialog', 1000)
+  await demoWait(window, 'Project dialog opened', 1200)
 
-  const nameInput = window.locator('[data-testid="project-name-input"], input[placeholder*="name" i]').first()
-  if (await nameInput.isVisible({ timeout: 2000 }).catch(() => false)) {
-    await slowType(window, '[data-testid="project-name-input"], input[placeholder*="name" i]', 'Todo App Benchmark')
-    await demoWait(window, 'Project name for benchmark', 800)
+  const nameInput = window.locator(SELECTORS.projectNameInput).first()
+  if (await nameInput.isVisible({ timeout: 3000 }).catch(() => false)) {
+    await slowType(window, SELECTORS.projectNameInput, 'Todo App Benchmark')
+    await demoWait(window, 'Project name entered', 800)
   }
 
-  const goalInput = window.locator('[data-testid="project-goal-input"], textarea').first()
+  const goalInput = window.locator(SELECTORS.projectGoalInput).first()
   if (await goalInput.isVisible({ timeout: 2000 }).catch(() => false)) {
-    await slowType(window, '[data-testid="project-goal-input"], textarea', 'Autonomous todo app development')
-    await demoWait(window, 'YOLO will build this autonomously', 800)
+    await slowType(window, SELECTORS.projectGoalInput, 'Build a todo app from spec')
+    await demoWait(window, 'Project goal entered', 800)
   }
 
-  const createBtn = window.locator('[data-testid="create-project-btn"], button:has-text("Create")').first()
+  const createBtn = window.locator(SELECTORS.createProjectBtn).first()
   if (await createBtn.isVisible({ timeout: 2000 }).catch(() => false)) {
+    await glideToElement(window, SELECTORS.createProjectBtn)
+    await demoWait(window, 'About to create project', 600)
     await createBtn.click()
-    await demoWait(window, 'Project created for YOLO benchmark', 1200)
+    await demoWait(window, 'Project created for YOLO benchmark', 1500)
   }
 
   // ========================================
-  // Step 2: Navigate to YOLO configuration
+  // Step 2: Open YOLO panel via Workflow dropdown
   // ========================================
-  console.log('[Demo] Step 2: Configuring YOLO mode')
+  console.log('[Demo] Step 2: Opening YOLO panel')
 
-  // Look for YOLO toggle or settings
-  const yoloToggle = window.locator('[data-testid="yolo-toggle"], input[type="checkbox"]:near(:text("YOLO")), label:has-text("YOLO")').first()
-  if (await yoloToggle.isVisible({ timeout: 2000 }).catch(() => false)) {
-    await yoloToggle.hover()
-    await demoWait(window, 'YOLO mode - AI reviews code automatically', 1200)
-    await yoloToggle.click()
-    await demoWait(window, 'YOLO mode enabled!', 1000)
-  }
+  // Open Workflow dropdown
+  await glideToElement(window, SELECTORS.workflowDropdown)
+  await demoWait(window, 'Opening Workflow menu', 600)
+  await window.locator(SELECTORS.workflowDropdown).click()
+  await window.waitForTimeout(400)
 
-  // Look for cycle configuration
-  const cycleConfig = window.locator('[data-testid="cycle-config"], [data-testid="yolo-cycles"], input[placeholder*="cycle" i]').first()
-  if (await cycleConfig.isVisible({ timeout: 2000 }).catch(() => false)) {
-    await cycleConfig.hover()
-    await demoWait(window, 'Configure number of autonomous cycles', 1000)
-  }
+  // Click YOLO btn (use dispatchEvent to avoid dropdown backdrop interception)
+  const yoloBtn = window.locator('[data-testid="yolo-btn"]')
+  await yoloBtn.evaluate(el => el.dispatchEvent(new MouseEvent('click', { bubbles: true })))
+  await window.waitForTimeout(500)
 
-  // ========================================
-  // Step 3: Start YOLO autonomous loop
-  // ========================================
-  console.log('[Demo] Step 3: Starting YOLO loop')
-  const startYoloBtn = window.locator('[data-testid="start-yolo"], button:has-text("Start YOLO"), button:has-text("YOLO"), [data-testid="yolo-start"]').first()
-  if (await startYoloBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
-    await demoWait(window, 'About to start autonomous development', 1000)
-    await startYoloBtn.click()
-    await demoWait(window, 'YOLO mode started - Claude working autonomously', 2000)
-  }
+  // Wait for YOLO panel to appear
+  const yoloPanel = window.locator(SELECTORS.yoloPanel)
+  await yoloPanel.waitFor({ timeout: 5000 })
+  await demoWait(window, 'YOLO Benchmark panel opened', 1500)
 
   // ========================================
-  // Step 4: Watch task progression
+  // Step 3: Configure benchmark settings
   // ========================================
-  console.log('[Demo] Step 4: Watching autonomous progress')
+  console.log('[Demo] Step 3: Configuring YOLO benchmark')
 
-  // Show the task board updating
-  const taskBoard = window.locator('[data-testid="task-board"], .task-board, .kanban').first()
-  if (await taskBoard.isVisible({ timeout: 2000 }).catch(() => false)) {
-    await taskBoard.hover()
-    await demoWait(window, 'Tasks moving automatically through columns', 2000)
+  // Fill spec file
+  const specFileInput = window.locator('[data-testid="yolo-spec-file"]')
+  if (await specFileInput.isVisible({ timeout: 2000 }).catch(() => false)) {
+    await glideToElement(window, '[data-testid="yolo-spec-file"]')
+    await specFileInput.fill('SPEC.md')
+    await demoWait(window, 'Spec file: SPEC.md', 800)
   }
 
-  // Show terminal with Claude output
-  const terminalArea = window.locator('[data-testid="terminal-panel"], .terminal-panel, .xterm').first()
-  if (await terminalArea.isVisible({ timeout: 2000 }).catch(() => false)) {
-    await terminalArea.hover()
-    await demoWait(window, 'Claude writing code and running tests', 2500)
+  // Fill test command
+  const testCmdInput = window.locator('[data-testid="yolo-test-command"]')
+  if (await testCmdInput.isVisible({ timeout: 2000 }).catch(() => false)) {
+    await glideToElement(window, '[data-testid="yolo-test-command"]')
+    await testCmdInput.fill('npm test')
+    await demoWait(window, 'Test command: npm test', 800)
+  }
+
+  // Adjust max cycles to 5
+  const maxCyclesInput = window.locator('[data-testid="yolo-max-cycles"]')
+  if (await maxCyclesInput.isVisible({ timeout: 2000 }).catch(() => false)) {
+    await glideToElement(window, '[data-testid="yolo-max-cycles"]')
+    await maxCyclesInput.fill('5')
+    await demoWait(window, 'Max cycles: 5', 800)
+  }
+
+  // Show auto-approve checkbox (already checked by default)
+  const autoApprove = window.locator('[data-testid="yolo-auto-approve-review"]')
+  if (await autoApprove.isVisible({ timeout: 1000 }).catch(() => false)) {
+    await glideToElement(window, '[data-testid="yolo-auto-approve-review"]')
+    await demoWait(window, 'Auto-approve enabled', 600)
+  }
+
+  // Zoom into configure form
+  await zoomInto(window, SELECTORS.yoloPanel, 2000, 1.5)
+
+  // ========================================
+  // Step 4: Save configuration
+  // ========================================
+  console.log('[Demo] Step 4: Saving YOLO config')
+
+  const saveConfigBtn = window.locator('[data-testid="yolo-save-config-btn"]')
+  if (await saveConfigBtn.isVisible({ timeout: 2000 }).catch(() => false)) {
+    await glideToElement(window, '[data-testid="yolo-save-config-btn"]')
+    await demoWait(window, 'Saving benchmark configuration', 600)
+    await saveConfigBtn.click()
+    await demoWait(window, 'Configuration saved!', 1200)
+  }
+
+  // Zoom into saved config list
+  const configList = window.locator('[data-testid="yolo-config-list"]')
+  if (await configList.isVisible({ timeout: 2000 }).catch(() => false)) {
+    await zoomInto(window, '[data-testid="yolo-config-list"]', 2000, 1.5)
   }
 
   // ========================================
-  // Step 5: Show AI review process
+  // Step 5: Start YOLO benchmark
   // ========================================
-  console.log('[Demo] Step 5: AI Review')
+  console.log('[Demo] Step 5: Starting YOLO benchmark')
 
-  // Look for review status or approval area
-  const reviewArea = window.locator('[data-testid="review-panel"], [data-testid="approval-queue"], .approval-queue').first()
-  if (await reviewArea.isVisible({ timeout: 2000 }).catch(() => false)) {
-    await reviewArea.hover()
-    await demoWait(window, 'AI reviews and approves completed work', 2000)
+  const startBtn = window.locator('[data-testid="yolo-start-btn"]').first()
+  if (await startBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
+    await glideToElement(window, '[data-testid="yolo-start-btn"]')
+    await demoWait(window, 'About to start autonomous benchmark', 800)
+    await startBtn.click()
+    await demoWait(window, 'YOLO benchmark started!', 1500)
   }
 
-  // Show YOLO status/progress
-  const yoloStatus = window.locator('[data-testid="yolo-status"], .yolo-status, :text("Cycle"), :text("Progress")').first()
-  if (await yoloStatus.isVisible({ timeout: 2000 }).catch(() => false)) {
-    await yoloStatus.hover()
-    await demoWait(window, 'Tracking cycle progress and cost', 1500)
+  // ========================================
+  // Step 6: Show Running tab with live progress
+  // ========================================
+  console.log('[Demo] Step 6: Showing Running tab')
+
+  const runningTab = window.locator('[data-testid="yolo-tab-running"]')
+  if (await runningTab.isVisible({ timeout: 2000 }).catch(() => false)) {
+    await glideToElement(window, '[data-testid="yolo-tab-running"]')
+    await runningTab.click()
+    await demoWait(window, 'Running tab — live benchmark progress', 1000)
+
+    // Wait for running content to appear
+    const runningContent = window.locator('[data-testid="yolo-running-content"]')
+    if (await runningContent.isVisible({ timeout: 3000 }).catch(() => false)) {
+      await zoomInto(window, '[data-testid="yolo-running-content"]', 2500, 1.5)
+    }
   }
 
-  // Final view showing autonomous operation
-  await demoWait(window, 'YOLO Mode - Fully autonomous development with AI review', 3000)
+  // ========================================
+  // Step 7: Wait for benchmark completion
+  // ========================================
+  console.log('[Demo] Step 7: Waiting for benchmark to finish')
+
+  // In mock mode, YOLO finishes quickly — wait for status to change
+  try {
+    await window.waitForFunction(() => {
+      const statusEl = document.querySelector('.running-status')
+      if (!statusEl) return false
+      const text = statusEl.textContent?.toLowerCase() || ''
+      return text.includes('success') || text.includes('complete') || text.includes('failed')
+    }, { timeout: 30000 })
+    await demoWait(window, 'Benchmark completed!', 1500)
+  } catch {
+    // Mock may finish before we check, or status may not be visible
+    await demoWait(window, 'Benchmark processing complete', 1500)
+  }
+
+  // ========================================
+  // Step 8: Show Results tab with final metrics
+  // ========================================
+  console.log('[Demo] Step 8: Showing Results tab')
+
+  const resultsTab = window.locator('[data-testid="yolo-tab-results"]')
+  if (await resultsTab.isVisible({ timeout: 2000 }).catch(() => false)) {
+    await glideToElement(window, '[data-testid="yolo-tab-results"]')
+    await resultsTab.click()
+    await demoWait(window, 'Results tab — benchmark metrics', 1000)
+
+    // Wait for results content
+    const resultsContent = window.locator('[data-testid="yolo-results-content"]')
+    if (await resultsContent.isVisible({ timeout: 3000 }).catch(() => false)) {
+      await zoomInto(window, '[data-testid="yolo-results-content"]', 2500, 1.5)
+    }
+  }
+
+  // ========================================
+  // Step 9: Final panoramic view
+  // ========================================
+  console.log('[Demo] Step 9: Final panoramic')
+  await demoWait(window, 'NERV YOLO Mode — autonomous benchmarking from spec to results', 2500)
 
   // Save video
   const video = window.video()
   if (video) {
-    await electronApp.close()
+    const pid = electronApp.process()?.pid
+    let killTimer: ReturnType<typeof setTimeout> | null = null
+    const closePromise = electronApp.close().then(() => {
+      if (killTimer) clearTimeout(killTimer)
+    })
+    const timeoutPromise = new Promise<void>((resolve) => {
+      killTimer = setTimeout(() => {
+        if (pid) {
+          try { process.kill(pid, 'SIGKILL') } catch { /* already dead */ }
+        }
+        resolve()
+      }, 5000)
+    })
+    await Promise.race([closePromise, timeoutPromise])
+
     const videoPath = await video.path()
     if (videoPath) {
       await moveVideoToDocsDemo(videoPath, 'yolo-mode')
@@ -667,20 +931,22 @@ Build a simple todo application with CRUD operations.
 })
 
 /**
- * Demo: Multi-Repo Workflow
+ * Demo: Multi-Repo + Knowledge
  *
- * Shows:
- * 1. Create project for multi-repo development
- * 2. Show repo list panel
- * 3. Multiple terminal tabs for different repos
- * 4. Cross-repo task coordination
- * 5. Split view for parallel work
+ * Shows worktree management and knowledge base features:
+ * 1. Launch + create project
+ * 2. Open Worktree panel via Workflow dropdown
+ * 3. Show worktree list
+ * 4. Open Knowledge panel via Knowledge dropdown
+ * 5. Show Repos panel
+ * 6. Final panoramic
  */
 test('demo_multi_repo', async () => {
-  // Create three related repos (backend, frontend, shared)
+  // Create two related repos
   testRepoPath = createTestRepo('shared-types', {
     'src/types.ts': 'export interface User {\n  id: string;\n  name: string;\n  email: string;\n}\n\nexport interface Todo {\n  id: string;\n  title: string;\n  completed: boolean;\n  userId: string;\n}\n',
     'src/validation.ts': 'export const isValidEmail = (email: string) => email.includes("@");\nexport const isValidId = (id: string) => /^[a-z0-9-]+$/.test(id);\n',
+    'CLAUDE.md': '# Shared Types\n\n## Stack\n- TypeScript\n- Node.js\n\n## Standards\n- Use interfaces, not types\n- Export all types from index.ts\n',
     'package.json': JSON.stringify({
       name: 'shared-types',
       version: '1.0.0',
@@ -690,9 +956,9 @@ test('demo_multi_repo', async () => {
   })
 
   testRepoPath2 = createTestRepo('api-backend', {
-    'src/server.ts': '// Express API Server\nimport express from "express";\nimport { User, Todo } from "shared-types";\n\nconst app = express();\napp.use(express.json());\n\napp.listen(3001, () => console.log("API on port 3001"));\n',
-    'src/routes/users.ts': '// User API routes\nimport { Router } from "express";\nimport { User } from "shared-types";\n\nexport const userRouter = Router();\n',
-    'src/routes/todos.ts': '// Todo API routes\nimport { Router } from "express";\nimport { Todo } from "shared-types";\n\nexport const todoRouter = Router();\n',
+    'src/server.ts': '// Express API Server\nimport express from "express";\n\nconst app = express();\napp.use(express.json());\napp.listen(3001, () => console.log("API on port 3001"));\n',
+    'src/routes/users.ts': '// User API routes\nimport { Router } from "express";\nexport const userRouter = Router();\n',
+    'CLAUDE.md': '# API Backend\n\n## Stack\n- Express\n- TypeScript\n- Jest\n\n## Standards\n- REST conventions\n- Validate inputs\n',
     'package.json': JSON.stringify({
       name: 'api-backend',
       version: '1.0.0',
@@ -700,19 +966,17 @@ test('demo_multi_repo', async () => {
     }, null, 2)
   })
 
-  testRepoPath3 = createTestRepo('web-frontend', {
-    'src/App.tsx': '// React App\nimport React from "react";\nimport { User, Todo } from "shared-types";\n\nexport default function App() {\n  return (\n    <div className="app">\n      <h1>Todo App</h1>\n    </div>\n  );\n}\n',
-    'src/components/UserList.tsx': '// User List Component\nimport React from "react";\nimport { User } from "shared-types";\n\nexport function UserList({ users }: { users: User[] }) {\n  return <ul>{users.map(u => <li key={u.id}>{u.name}</li>)}</ul>;\n}\n',
-    'src/components/TodoList.tsx': '// Todo List Component\nimport React from "react";\nimport { Todo } from "shared-types";\n\nexport function TodoList({ todos }: { todos: Todo[] }) {\n  return <ul>{todos.map(t => <li key={t.id}>{t.title}</li>)}</ul>;\n}\n',
-    'package.json': JSON.stringify({
-      name: 'web-frontend',
-      version: '1.0.0',
-      scripts: { dev: 'vite', build: 'vite build', test: 'jest' }
-    }, null, 2)
-  })
-
   if (!fs.existsSync(MAIN_PATH)) {
     throw new Error(`Built app not found at ${MAIN_PATH}. Run 'npm run build' first.`)
+  }
+
+  // Clean stale database state from previous runs
+  const nervDir = path.join(os.homedir(), '.nerv')
+  const dbPath = path.join(nervDir, 'state.db')
+  for (const f of [dbPath, `${dbPath}-wal`, `${dbPath}-shm`]) {
+    if (fs.existsSync(f)) {
+      try { fs.unlinkSync(f) } catch { /* may already be deleted */ }
+    }
   }
 
   electronApp = await electron.launch({
@@ -736,150 +1000,624 @@ test('demo_multi_repo', async () => {
   await window.setViewportSize(DEMO_VIEWPORT)
   await window.waitForLoadState('domcontentloaded')
 
-  // Dismiss recovery dialog
+  // Dismiss recovery dialog if it appears
   await window.waitForTimeout(500)
-  const recoveryDialog = window.locator('[data-testid="recovery-dialog"]').first()
+  const recoveryDialog = window.locator(SELECTORS.recoveryDialog).first()
   if (await recoveryDialog.isVisible({ timeout: 1000 }).catch(() => false)) {
-    const dismissBtn = window.locator('button:has-text("Dismiss")').first()
-    if (await dismissBtn.isVisible().catch(() => false)) {
+    const dismissBtn = window.locator(SELECTORS.dismissBtn).first()
+    if (await dismissBtn.isVisible({ timeout: 1000 }).catch(() => false)) {
       await dismissBtn.click()
+      await window.waitForTimeout(300)
     }
   }
 
-  await window.waitForSelector('[data-testid="app"]', { timeout: 10000 })
+  await window.waitForSelector(SELECTORS.app, { timeout: 10000 })
   await injectCursorOverlay(window)
-  await demoWait(window, 'NERV Dashboard - Multi-repo support', 2000)
+  await demoWait(window, 'NERV Dashboard — multi-repo + knowledge', 2500)
 
   // ========================================
   // Step 1: Create project with slow typing
   // ========================================
   console.log('[Demo] Step 1: Creating multi-repo project')
-  const newProjectBtn = window.locator('[data-testid="new-project"], [data-testid="add-project"]').first()
-  await glideToElement(window, '[data-testid="new-project"], [data-testid="add-project"]')
+  const newProjectBtn = window.locator(SELECTORS.newProject).first()
+  await expect(newProjectBtn).toBeVisible({ timeout: 5000 })
+  await glideToElement(window, SELECTORS.newProject)
+  await demoWait(window, 'Highlighting New Project button', 1000)
   await newProjectBtn.click()
-  await demoWait(window, 'Creating a multi-repo project', 1000)
+  await demoWait(window, 'Project dialog opened', 1200)
 
-  const nameInput = window.locator('[data-testid="project-name-input"], input[placeholder*="name" i]').first()
-  if (await nameInput.isVisible({ timeout: 2000 }).catch(() => false)) {
-    await slowType(window, '[data-testid="project-name-input"], input[placeholder*="name" i]', 'Full Stack Todo App')
-    await demoWait(window, 'Multi-repo project name', 800)
+  const nameInput = window.locator(SELECTORS.projectNameInput).first()
+  if (await nameInput.isVisible({ timeout: 3000 }).catch(() => false)) {
+    await slowType(window, SELECTORS.projectNameInput, 'Full Stack App')
+    await demoWait(window, 'Project name entered', 800)
   }
 
-  const goalInput = window.locator('[data-testid="project-goal-input"], textarea').first()
+  const goalInput = window.locator(SELECTORS.projectGoalInput).first()
   if (await goalInput.isVisible({ timeout: 2000 }).catch(() => false)) {
-    await slowType(window, '[data-testid="project-goal-input"], textarea', 'Full-stack with shared types, API, and frontend')
-    await demoWait(window, 'Project spans 3 repositories', 800)
+    await slowType(window, SELECTORS.projectGoalInput, 'API + frontend with shared types')
+    await demoWait(window, 'Project goal entered', 800)
   }
 
-  const createBtn = window.locator('[data-testid="create-project-btn"], button:has-text("Create")').first()
+  const createBtn = window.locator(SELECTORS.createProjectBtn).first()
   if (await createBtn.isVisible({ timeout: 2000 }).catch(() => false)) {
+    await glideToElement(window, SELECTORS.createProjectBtn)
+    await demoWait(window, 'About to create project', 600)
     await createBtn.click()
-    await demoWait(window, 'Project created for multi-repo work', 1200)
+    await demoWait(window, 'Project created', 1500)
   }
 
   // ========================================
-  // Step 2: Show repo list/panel
+  // Step 2: Open Worktree panel via Workflow dropdown
   // ========================================
-  console.log('[Demo] Step 2: Showing repo list')
+  console.log('[Demo] Step 2: Opening Worktree panel')
 
-  // Look for repo list or worktree panel
-  const repoPanel = window.locator('[data-testid="repo-list"], [data-testid="worktree-panel"], .repo-list, .worktree-panel').first()
-  if (await repoPanel.isVisible({ timeout: 2000 }).catch(() => false)) {
-    await repoPanel.hover()
-    await demoWait(window, 'Repo panel - manage multiple repositories', 1500)
-  }
+  await glideToElement(window, SELECTORS.workflowDropdown)
+  await demoWait(window, 'Opening Workflow menu', 600)
+  await window.locator(SELECTORS.workflowDropdown).click()
+  await window.waitForTimeout(400)
 
-  // ========================================
-  // Step 3: Show terminal tabs
-  // ========================================
-  console.log('[Demo] Step 3: Multiple terminal tabs')
+  // Click Worktrees btn (use dispatchEvent to avoid dropdown backdrop)
+  const worktreesBtn = window.locator('[data-testid="worktrees-btn"]')
+  await worktreesBtn.evaluate(el => el.dispatchEvent(new MouseEvent('click', { bubbles: true })))
+  await window.waitForTimeout(500)
 
-  const tabContainer = window.locator('[data-testid="tab-container"], .tab-container').first()
-  if (await tabContainer.isVisible({ timeout: 2000 }).catch(() => false)) {
-    await tabContainer.hover()
-    await demoWait(window, 'Terminal tabs - one per repo or task', 1500)
-  }
+  // Wait for worktree panel
+  const worktreePanel = window.locator('[data-testid="worktree-panel"]')
+  if (await worktreePanel.isVisible({ timeout: 3000 }).catch(() => false)) {
+    await demoWait(window, 'Worktree panel — manage git worktrees', 1500)
+    await zoomInto(window, '[data-testid="worktree-panel"]', 2000, 1.5)
 
-  // Click new tab button if visible (avoid matching add-project "+" button)
-  const newTabBtn = window.locator('[data-testid="new-tab"], .add-tab-btn').first()
-  if (await newTabBtn.isVisible({ timeout: 2000 }).catch(() => false)) {
-    await newTabBtn.hover()
-    await demoWait(window, 'Create new terminal tabs for different repos', 1000)
-    await newTabBtn.click()
-    await demoWait(window, 'Choose Claude session or shell terminal', 1200)
-
-    // Close the dropdown if it opened
-    await window.keyboard.press('Escape')
-    await window.waitForTimeout(300)
-  }
-
-  // ========================================
-  // Step 4: Show task board for cross-repo work
-  // ========================================
-  console.log('[Demo] Step 4: Cross-repo task coordination')
-
-  const taskBoard = window.locator('[data-testid="task-board"], .task-board, .kanban').first()
-  if (await taskBoard.isVisible({ timeout: 2000 }).catch(() => false)) {
-    await taskBoard.hover()
-    await demoWait(window, 'Task board coordinates work across repos', 1500)
-  }
-
-  // Try to show add task for cross-repo work
-  const addTaskBtn = window.locator('[data-testid="add-task"], button:has-text("Add Task"), button:has-text("New Task")').first()
-  if (await addTaskBtn.isVisible({ timeout: 2000 }).catch(() => false)) {
-    await addTaskBtn.click()
-    await demoWait(window, 'Create task - can span multiple repos', 1000)
-
-    const taskTitleInput = window.locator('[data-testid="task-title-input"]')
-    if (await taskTitleInput.isVisible({ timeout: 2000 }).catch(() => false)) {
-      await slowType(window, '[data-testid="task-title-input"]', 'Add User type to shared-types and use in API + frontend')
-      await demoWait(window, 'Cross-repo task description', 1000)
-    }
-
-    // Close without creating
-    const cancelBtn = window.locator('button:has-text("Cancel")').first()
-    if (await cancelBtn.isVisible({ timeout: 1000 }).catch(() => false)) {
-      await cancelBtn.click()
-      await window.waitForTimeout(300)
+    // Close worktree panel
+    const closeBtn = window.locator('[data-testid="worktree-panel"] .close-btn, [data-testid="worktree-panel"] button:has-text("Close")').first()
+    if (await closeBtn.isVisible({ timeout: 1000 }).catch(() => false)) {
+      await closeBtn.click()
     } else {
       await window.keyboard.press('Escape')
-      await window.waitForTimeout(300)
     }
+    await window.waitForTimeout(500)
   }
 
   // ========================================
-  // Step 5: Show split view capability
+  // Step 3: Show Knowledge panel
   // ========================================
-  console.log('[Demo] Step 5: Split view for parallel work')
+  console.log('[Demo] Step 3: Opening Knowledge panel')
 
-  const splitBtn = window.locator('[data-testid="split-view"], button:has-text("Split"), .split-btn, button[title*="split" i]').first()
-  if (await splitBtn.isVisible({ timeout: 2000 }).catch(() => false)) {
-    await splitBtn.hover()
-    await demoWait(window, 'Split view - work on multiple repos simultaneously', 1200)
-    const isEnabled = await splitBtn.isEnabled().catch(() => false)
-    if (isEnabled) {
-      await splitBtn.click()
-      await demoWait(window, 'Side-by-side terminals for coordinated changes', 2000)
+  await glideToElement(window, SELECTORS.knowledgeDropdown)
+  await demoWait(window, 'Opening Knowledge menu', 600)
+  await window.locator(SELECTORS.knowledgeDropdown).click()
+  await window.waitForTimeout(400)
+
+  // Click Knowledge Base btn
+  const knowledgeBtn = window.locator('[data-testid="knowledge-btn"]')
+  await knowledgeBtn.evaluate(el => el.dispatchEvent(new MouseEvent('click', { bubbles: true })))
+  await window.waitForTimeout(500)
+
+  // Wait for knowledge panel to appear
+  const knowledgePanel = window.locator('.panel, [data-testid="knowledge-panel"]').first()
+  if (await knowledgePanel.isVisible({ timeout: 3000 }).catch(() => false)) {
+    await demoWait(window, 'Knowledge Base — CLAUDE.md and project context', 1500)
+    await zoomInto(window, '.panel', 2500, 1.5)
+
+    // Close knowledge panel
+    const closeBtn = window.locator('.panel .close-btn, .overlay .close-btn').first()
+    if (await closeBtn.isVisible({ timeout: 1000 }).catch(() => false)) {
+      await closeBtn.click()
+    } else {
+      await window.keyboard.press('Escape')
     }
+    await window.waitForTimeout(500)
   }
 
-  // Show terminal area
-  const terminalArea = window.locator('[data-testid="terminal-panel"], .terminal-panel, .xterm').first()
-  if (await terminalArea.isVisible({ timeout: 2000 }).catch(() => false)) {
-    await terminalArea.hover()
-    await demoWait(window, 'Each pane can run Claude on a different repo', 2000)
+  // ========================================
+  // Step 4: Show Repos panel
+  // ========================================
+  console.log('[Demo] Step 4: Opening Repos panel')
+
+  await glideToElement(window, SELECTORS.knowledgeDropdown)
+  await demoWait(window, 'Opening Knowledge menu for Repos', 600)
+  await window.locator(SELECTORS.knowledgeDropdown).click()
+  await window.waitForTimeout(400)
+
+  // Click Repos btn
+  const reposBtn = window.locator('[data-testid="repos-btn"]')
+  await reposBtn.evaluate(el => el.dispatchEvent(new MouseEvent('click', { bubbles: true })))
+  await window.waitForTimeout(500)
+
+  // Wait for repos panel
+  const reposPanel = window.locator('.panel-container, .panel-overlay').first()
+  if (await reposPanel.isVisible({ timeout: 3000 }).catch(() => false)) {
+    await demoWait(window, 'Repos panel — connected repositories', 1500)
+    await zoomInto(window, '.panel-container, .panel-overlay', 2500, 1.5)
+
+    // Close repos panel
+    const closeBtn = window.locator('.panel-container .close-btn, .panel-overlay .close-btn').first()
+    if (await closeBtn.isVisible({ timeout: 1000 }).catch(() => false)) {
+      await closeBtn.click()
+    } else {
+      await window.keyboard.press('Escape')
+    }
+    await window.waitForTimeout(500)
   }
 
-  // Final panoramic view
-  await demoWait(window, 'Multi-Repo Development - Coordinate changes across your entire stack', 3000)
+  // ========================================
+  // Step 5: Final panoramic view
+  // ========================================
+  console.log('[Demo] Step 5: Final panoramic')
+  await demoWait(window, 'NERV — Multi-repo management with knowledge base and worktrees', 2500)
 
   // Save video
   const video = window.video()
   if (video) {
-    await electronApp.close()
+    const pid = electronApp.process()?.pid
+    let killTimer: ReturnType<typeof setTimeout> | null = null
+    const closePromise = electronApp.close().then(() => {
+      if (killTimer) clearTimeout(killTimer)
+    })
+    const timeoutPromise = new Promise<void>((resolve) => {
+      killTimer = setTimeout(() => {
+        if (pid) {
+          try { process.kill(pid, 'SIGKILL') } catch { /* already dead */ }
+        }
+        resolve()
+      }, 5000)
+    })
+    await Promise.race([closePromise, timeoutPromise])
+
     const videoPath = await video.path()
     if (videoPath) {
       await moveVideoToDocsDemo(videoPath, 'multi-repo')
+    }
+  }
+})
+
+/**
+ * Demo: Audit & Code Health
+ *
+ * Shows the audit panel with code health metrics, spec drift, and logs:
+ * 1. Launch + create project with a cycle and task (fast, no slow typing)
+ * 2. Open Audit panel via CustomEvent
+ * 3. Show Code Health tab with health metrics
+ * 4. Show Spec Drift tab
+ * 5. Show Logs tab with audit events
+ * 6. Final panoramic
+ */
+test('demo_audit_health', async () => {
+  testRepoPath = createTestRepo('audit-demo', {
+    'src/index.ts': '// Main entry\nconsole.log("hello");\n',
+    'package.json': JSON.stringify({
+      name: 'audit-demo',
+      version: '1.0.0',
+      scripts: { test: 'echo "Tests pass"', build: 'tsc' }
+    }, null, 2)
+  })
+
+  if (!fs.existsSync(MAIN_PATH)) {
+    throw new Error(`Built app not found at ${MAIN_PATH}. Run 'npm run build' first.`)
+  }
+
+  // Clean stale database state from previous runs
+  const nervDir = path.join(os.homedir(), '.nerv')
+  const dbPath = path.join(nervDir, 'state.db')
+  for (const f of [dbPath, `${dbPath}-wal`, `${dbPath}-shm`]) {
+    if (fs.existsSync(f)) {
+      try { fs.unlinkSync(f) } catch { /* may already be deleted */ }
+    }
+  }
+
+  electronApp = await electron.launch({
+    args: [MAIN_PATH, '--no-sandbox', '--disable-gpu'],
+    env: {
+      ...process.env,
+      NODE_ENV: 'test',
+      NERV_TEST_MODE: 'true',
+      NERV_MOCK_CLAUDE: 'true',
+      MOCK_CLAUDE_SCENARIO: 'benchmark',
+      NERV_LOG_LEVEL: 'info'
+    },
+    timeout: APP_LAUNCH_TIMEOUT,
+    recordVideo: {
+      dir: TEST_RESULTS_PATH,
+      size: DEMO_VIEWPORT
+    }
+  })
+
+  window = await electronApp.firstWindow({ timeout: APP_LAUNCH_TIMEOUT })
+  await window.setViewportSize(DEMO_VIEWPORT)
+  await window.waitForLoadState('domcontentloaded')
+
+  // Dismiss recovery dialog if it appears
+  await window.waitForTimeout(500)
+  const recoveryDialog = window.locator(SELECTORS.recoveryDialog).first()
+  if (await recoveryDialog.isVisible({ timeout: 1000 }).catch(() => false)) {
+    const dismissBtn = window.locator(SELECTORS.dismissBtn).first()
+    if (await dismissBtn.isVisible({ timeout: 1000 }).catch(() => false)) {
+      await dismissBtn.click()
+      await window.waitForTimeout(300)
+    }
+  }
+
+  await window.waitForSelector(SELECTORS.app, { timeout: 10000 })
+  await injectCursorOverlay(window)
+  await demoWait(window, 'NERV Dashboard — audit & code health', 2000)
+
+  // ========================================
+  // Step 1: Quick project setup (no slow typing)
+  // ========================================
+  console.log('[Demo] Step 1: Quick project setup')
+  const newProjectBtn = window.locator(SELECTORS.newProject).first()
+  await expect(newProjectBtn).toBeVisible({ timeout: 5000 })
+  await newProjectBtn.click()
+  await window.waitForTimeout(500)
+
+  const nameInput = window.locator(SELECTORS.projectNameInput).first()
+  if (await nameInput.isVisible({ timeout: 3000 }).catch(() => false)) {
+    await nameInput.fill('Code Health Demo')
+    await window.waitForTimeout(200)
+  }
+
+  const goalInput = window.locator(SELECTORS.projectGoalInput).first()
+  if (await goalInput.isVisible({ timeout: 2000 }).catch(() => false)) {
+    await goalInput.fill('Demonstrate audit and code health features')
+    await window.waitForTimeout(200)
+  }
+
+  const createBtn = window.locator(SELECTORS.createProjectBtn).first()
+  if (await createBtn.isVisible({ timeout: 2000 }).catch(() => false)) {
+    await createBtn.click()
+    await demoWait(window, 'Project created', 1000)
+  }
+
+  // ========================================
+  // Step 2: Open Audit panel via CustomEvent
+  // ========================================
+  console.log('[Demo] Step 2: Opening Audit panel')
+
+  // Use proven CustomEvent pattern (bypasses dropdown backdrop issues)
+  await window.evaluate(() => {
+    window.dispatchEvent(new CustomEvent('open-audit-panel'))
+  })
+  await window.waitForTimeout(500)
+
+  const auditPanel = window.locator(SELECTORS.auditPanel)
+  await auditPanel.waitFor({ timeout: 5000 })
+  await demoWait(window, 'Audit panel opened', 1500)
+
+  // ========================================
+  // Step 3: Show Code Health tab
+  // ========================================
+  console.log('[Demo] Step 3: Showing Code Health tab')
+
+  // Health tab should be active by default
+  const healthTab = window.locator('[data-testid="audit-tab-health"]')
+  if (await healthTab.isVisible({ timeout: 2000 }).catch(() => false)) {
+    await glideToElement(window, '[data-testid="audit-tab-health"]')
+    await healthTab.click()
+    await window.waitForTimeout(300)
+  }
+
+  // Run health check if button is available
+  const runHealthBtn = window.locator('[data-testid="run-health-check-btn"]')
+  if (await runHealthBtn.isVisible({ timeout: 2000 }).catch(() => false)) {
+    await glideToElement(window, '[data-testid="run-health-check-btn"]')
+    await demoWait(window, 'Running code health check', 600)
+    await runHealthBtn.click()
+    await window.waitForTimeout(1000)
+  }
+
+  // Zoom into health metrics
+  const healthMetrics = window.locator('[data-testid="health-metrics"]')
+  if (await healthMetrics.isVisible({ timeout: 3000 }).catch(() => false)) {
+    await zoomInto(window, '[data-testid="health-metrics"]', 2500, 1.5)
+  } else {
+    // Zoom into health content as fallback
+    const healthContent = window.locator('[data-testid="audit-health-content"]')
+    if (await healthContent.isVisible({ timeout: 2000 }).catch(() => false)) {
+      await zoomInto(window, '[data-testid="audit-health-content"]', 2500, 1.5)
+    }
+  }
+
+  // ========================================
+  // Step 4: Show Spec Drift tab
+  // ========================================
+  console.log('[Demo] Step 4: Showing Spec Drift tab')
+
+  const driftTab = window.locator('[data-testid="audit-tab-drift"]')
+  if (await driftTab.isVisible({ timeout: 2000 }).catch(() => false)) {
+    await glideToElement(window, '[data-testid="audit-tab-drift"]')
+    await demoWait(window, 'Switching to Spec Drift tab', 600)
+    await driftTab.click()
+    await window.waitForTimeout(500)
+
+    // Run drift check if available
+    const runDriftBtn = window.locator('[data-testid="run-drift-check-btn"]')
+    if (await runDriftBtn.isVisible({ timeout: 2000 }).catch(() => false)) {
+      await glideToElement(window, '[data-testid="run-drift-check-btn"]')
+      await runDriftBtn.click()
+      await window.waitForTimeout(1000)
+    }
+
+    // Zoom into drift content
+    const driftContent = window.locator('[data-testid="audit-drift-content"]')
+    if (await driftContent.isVisible({ timeout: 2000 }).catch(() => false)) {
+      await zoomInto(window, '[data-testid="audit-drift-content"]', 2500, 1.5)
+    }
+  }
+
+  // ========================================
+  // Step 5: Show Logs tab
+  // ========================================
+  console.log('[Demo] Step 5: Showing Logs tab')
+
+  const logsTab = window.locator('[data-testid="audit-tab-logs"]')
+  if (await logsTab.isVisible({ timeout: 2000 }).catch(() => false)) {
+    await glideToElement(window, '[data-testid="audit-tab-logs"]')
+    await demoWait(window, 'Switching to Audit Logs tab', 600)
+    await logsTab.click()
+    await window.waitForTimeout(500)
+
+    // Show filter dropdowns
+    const taskFilter = window.locator('[data-testid="audit-task-filter"]')
+    if (await taskFilter.isVisible({ timeout: 2000 }).catch(() => false)) {
+      await glideToElement(window, '[data-testid="audit-task-filter"]')
+      await demoWait(window, 'Filter audit events by task', 800)
+    }
+
+    const eventFilter = window.locator('[data-testid="audit-event-filter"]')
+    if (await eventFilter.isVisible({ timeout: 2000 }).catch(() => false)) {
+      await glideToElement(window, '[data-testid="audit-event-filter"]')
+      await demoWait(window, 'Filter by event type', 800)
+    }
+
+    // Zoom into audit panel to show logs
+    await zoomInto(window, SELECTORS.auditPanel, 2500, 1.5)
+  }
+
+  // ========================================
+  // Step 6: Final panoramic view
+  // ========================================
+  console.log('[Demo] Step 6: Final panoramic')
+
+  // Close audit panel
+  const closeBtn = window.locator(`${SELECTORS.auditPanel} .close-btn`).first()
+  if (await closeBtn.isVisible({ timeout: 1000 }).catch(() => false)) {
+    await closeBtn.click()
+    await window.waitForTimeout(500)
+  }
+
+  await demoWait(window, 'NERV Audit — code health, spec drift detection, and audit logging', 2500)
+
+  // Save video
+  const video = window.video()
+  if (video) {
+    const pid = electronApp.process()?.pid
+    let killTimer: ReturnType<typeof setTimeout> | null = null
+    const closePromise = electronApp.close().then(() => {
+      if (killTimer) clearTimeout(killTimer)
+    })
+    const timeoutPromise = new Promise<void>((resolve) => {
+      killTimer = setTimeout(() => {
+        if (pid) {
+          try { process.kill(pid, 'SIGKILL') } catch { /* already dead */ }
+        }
+        resolve()
+      }, 5000)
+    })
+    await Promise.race([closePromise, timeoutPromise])
+
+    const videoPath = await video.path()
+    if (videoPath) {
+      await moveVideoToDocsDemo(videoPath, 'audit-health')
+    }
+  }
+})
+
+/**
+ * Demo: Cost & Context
+ *
+ * Shows context monitoring and cost tracking:
+ * 1. Launch + create project (fast)
+ * 2. Show Context Monitor bar
+ * 3. Open Cost Dashboard via Settings dropdown
+ * 4. Zoom into summary cards, budget bar, cost-by-model
+ * 5. Final panoramic
+ */
+test('demo_cost_context', async () => {
+  testRepoPath = createTestRepo('cost-demo', {
+    'src/index.ts': '// Main entry\nconsole.log("hello");\n',
+    'package.json': JSON.stringify({
+      name: 'cost-demo',
+      version: '1.0.0',
+      scripts: { test: 'echo "Tests pass"' }
+    }, null, 2)
+  })
+
+  if (!fs.existsSync(MAIN_PATH)) {
+    throw new Error(`Built app not found at ${MAIN_PATH}. Run 'npm run build' first.`)
+  }
+
+  // Clean stale database state from previous runs
+  const nervDir = path.join(os.homedir(), '.nerv')
+  const dbPath = path.join(nervDir, 'state.db')
+  for (const f of [dbPath, `${dbPath}-wal`, `${dbPath}-shm`]) {
+    if (fs.existsSync(f)) {
+      try { fs.unlinkSync(f) } catch { /* may already be deleted */ }
+    }
+  }
+
+  electronApp = await electron.launch({
+    args: [MAIN_PATH, '--no-sandbox', '--disable-gpu'],
+    env: {
+      ...process.env,
+      NODE_ENV: 'test',
+      NERV_TEST_MODE: 'true',
+      NERV_MOCK_CLAUDE: 'true',
+      MOCK_CLAUDE_SCENARIO: 'benchmark',
+      NERV_LOG_LEVEL: 'info'
+    },
+    timeout: APP_LAUNCH_TIMEOUT,
+    recordVideo: {
+      dir: TEST_RESULTS_PATH,
+      size: DEMO_VIEWPORT
+    }
+  })
+
+  window = await electronApp.firstWindow({ timeout: APP_LAUNCH_TIMEOUT })
+  await window.setViewportSize(DEMO_VIEWPORT)
+  await window.waitForLoadState('domcontentloaded')
+
+  // Dismiss recovery dialog if it appears
+  await window.waitForTimeout(500)
+  const recoveryDialog = window.locator(SELECTORS.recoveryDialog).first()
+  if (await recoveryDialog.isVisible({ timeout: 1000 }).catch(() => false)) {
+    const dismissBtn = window.locator(SELECTORS.dismissBtn).first()
+    if (await dismissBtn.isVisible({ timeout: 1000 }).catch(() => false)) {
+      await dismissBtn.click()
+      await window.waitForTimeout(300)
+    }
+  }
+
+  await window.waitForSelector(SELECTORS.app, { timeout: 10000 })
+  await injectCursorOverlay(window)
+  await demoWait(window, 'NERV Dashboard — cost & context monitoring', 2000)
+
+  // ========================================
+  // Step 1: Quick project setup
+  // ========================================
+  console.log('[Demo] Step 1: Quick project setup')
+  const newProjectBtn = window.locator(SELECTORS.newProject).first()
+  await expect(newProjectBtn).toBeVisible({ timeout: 5000 })
+  await newProjectBtn.click()
+  await window.waitForTimeout(500)
+
+  const nameInput = window.locator(SELECTORS.projectNameInput).first()
+  if (await nameInput.isVisible({ timeout: 3000 }).catch(() => false)) {
+    await nameInput.fill('Cost Tracking Demo')
+    await window.waitForTimeout(200)
+  }
+
+  const goalInput = window.locator(SELECTORS.projectGoalInput).first()
+  if (await goalInput.isVisible({ timeout: 2000 }).catch(() => false)) {
+    await goalInput.fill('Demonstrate cost and context monitoring')
+    await window.waitForTimeout(200)
+  }
+
+  const createBtn = window.locator(SELECTORS.createProjectBtn).first()
+  if (await createBtn.isVisible({ timeout: 2000 }).catch(() => false)) {
+    await createBtn.click()
+    await demoWait(window, 'Project created', 1000)
+  }
+
+  // ========================================
+  // Step 2: Show Context Monitor
+  // ========================================
+  console.log('[Demo] Step 2: Showing Context Monitor')
+
+  const contextMonitor = window.locator(SELECTORS.contextMonitor).first()
+  if (await contextMonitor.isVisible({ timeout: 3000 }).catch(() => false)) {
+    await glideToElement(window, SELECTORS.contextMonitor)
+    await demoWait(window, 'Context Monitor — token usage, model, compaction count', 1200)
+    await zoomInto(window, SELECTORS.contextMonitor, 2500, 1.8)
+  } else {
+    await demoWait(window, 'Context Monitor appears when a Claude session is active', 1500)
+  }
+
+  // ========================================
+  // Step 3: Open Cost Dashboard via Settings dropdown
+  // ========================================
+  console.log('[Demo] Step 3: Opening Cost Dashboard')
+
+  await glideToElement(window, SELECTORS.settingsDropdown)
+  await demoWait(window, 'Opening Settings menu', 600)
+  await window.locator(SELECTORS.settingsDropdown).click()
+  await window.waitForTimeout(400)
+
+  // Click Cost Dashboard btn (use dispatchEvent to avoid dropdown backdrop)
+  const costBtn = window.locator('[data-testid="cost-btn"]')
+  await costBtn.evaluate(el => el.dispatchEvent(new MouseEvent('click', { bubbles: true })))
+  await window.waitForTimeout(500)
+
+  // Wait for cost dashboard modal to appear
+  const costModal = window.locator('.modal-backdrop, .modal').first()
+  if (await costModal.isVisible({ timeout: 3000 }).catch(() => false)) {
+    await demoWait(window, 'Cost Dashboard opened', 1500)
+
+    // Zoom into summary cards
+    const summaryCards = window.locator('[data-testid="cost-summary"]')
+    if (await summaryCards.isVisible({ timeout: 2000 }).catch(() => false)) {
+      await zoomInto(window, '[data-testid="cost-summary"]', 2500, 1.5)
+    }
+
+    // Zoom into budget progress
+    const budgetProgress = window.locator('[data-testid="budget-progress"]')
+    if (await budgetProgress.isVisible({ timeout: 2000 }).catch(() => false)) {
+      await glideToElement(window, '[data-testid="budget-progress"]')
+      await demoWait(window, 'Budget usage and remaining', 800)
+      await zoomInto(window, '[data-testid="budget-progress"]', 2000, 1.5)
+    }
+
+    // Zoom into cost by model
+    const costByModel = window.locator('[data-testid="cost-by-model"]')
+    if (await costByModel.isVisible({ timeout: 2000 }).catch(() => false)) {
+      await glideToElement(window, '[data-testid="cost-by-model"]')
+      await demoWait(window, 'Cost breakdown by model', 800)
+      await zoomInto(window, '[data-testid="cost-by-model"]', 2500, 1.5)
+    }
+
+    // Show cost by project tab if available
+    const costByProject = window.locator('[data-testid="cost-by-project"]')
+    if (await costByProject.isVisible({ timeout: 2000 }).catch(() => false)) {
+      await glideToElement(window, '[data-testid="cost-by-project"]')
+      await demoWait(window, 'Cost per project', 800)
+      await zoomInto(window, '[data-testid="cost-by-project"]', 2000, 1.5)
+    }
+
+    // Close cost dashboard
+    const closeBtn = window.locator('.modal .close-btn').first()
+    if (await closeBtn.isVisible({ timeout: 1000 }).catch(() => false)) {
+      await closeBtn.click()
+      await window.waitForTimeout(500)
+    }
+  }
+
+  // ========================================
+  // Step 4: Show Approval Queue (if visible)
+  // ========================================
+  console.log('[Demo] Step 4: Checking Approval Queue')
+
+  const approvalQueue = window.locator(SELECTORS.approvalQueue).first()
+  if (await approvalQueue.isVisible({ timeout: 2000 }).catch(() => false)) {
+    await glideToElement(window, SELECTORS.approvalQueue)
+    await demoWait(window, 'Approval Queue — pending permission requests', 1200)
+    await zoomInto(window, SELECTORS.approvalQueue, 2000, 1.5)
+  }
+
+  // ========================================
+  // Step 5: Final panoramic view
+  // ========================================
+  console.log('[Demo] Step 5: Final panoramic')
+  await demoWait(window, 'NERV — Cost tracking, context monitoring, and budget management', 2500)
+
+  // Save video
+  const video = window.video()
+  if (video) {
+    const pid = electronApp.process()?.pid
+    let killTimer: ReturnType<typeof setTimeout> | null = null
+    const closePromise = electronApp.close().then(() => {
+      if (killTimer) clearTimeout(killTimer)
+    })
+    const timeoutPromise = new Promise<void>((resolve) => {
+      killTimer = setTimeout(() => {
+        if (pid) {
+          try { process.kill(pid, 'SIGKILL') } catch { /* already dead */ }
+        }
+        resolve()
+      }, 5000)
+    })
+    await Promise.race([closePromise, timeoutPromise])
+
+    const videoPath = await video.path()
+    if (videoPath) {
+      await moveVideoToDocsDemo(videoPath, 'cost-context')
     }
   }
 })
