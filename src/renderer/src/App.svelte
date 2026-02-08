@@ -31,8 +31,10 @@
   import UpdateNotification from './components/UpdateNotification.svelte'
   import BudgetAlertDialog from './components/BudgetAlertDialog.svelte'
   import LoopDetectedDialog from './components/LoopDetectedDialog.svelte'
+  import CompactionDialog from './components/CompactionDialog.svelte'
   import CostDashboard from './components/CostDashboard.svelte'
   import SettingsPanel from './components/SettingsPanel.svelte'
+  import DropdownMenu from './components/shared/DropdownMenu.svelte'
   import { selectedProject, currentTask } from './stores/appState'
   import { MONTHLY_BUDGET_DEFAULTS, BUDGET_SETTINGS_KEYS } from '../../shared/constants'
   import type { BudgetAlert, Task } from '../../shared/types'
@@ -248,6 +250,7 @@
     </div>
     <div class="header-actions">
       <ModelSelector />
+
       <button
         class="btn-header"
         data-testid="cycles-btn"
@@ -257,105 +260,57 @@
       >
         Cycles
       </button>
-      <button
-        class="btn-header"
-        data-testid="knowledge-btn"
-        onclick={() => showKnowledgePanel = true}
-        disabled={!projectId}
-        title="Manage project knowledge (CLAUDE.md, docs)"
-      >
-        Knowledge
-      </button>
-      <button
-        class="btn-header"
-        data-testid="worktrees-btn"
-        onclick={() => showWorktreePanel = true}
-        disabled={!projectId}
-        title="Manage git worktrees for repositories"
-      >
-        Worktrees
-      </button>
-      <button
-        class="btn-header"
-        onclick={() => showModelStats = true}
-        title="View model usage comparison statistics"
-      >
-        Stats
-      </button>
-      <button
-        class="btn-header"
-        onclick={() => showExportImport = true}
-        title="Export or import projects"
-      >
-        Export/Import
-      </button>
-      <button
-        class="btn-header"
-        data-testid="audit-btn"
-        onclick={() => showAuditPanel = true}
-        disabled={!projectId}
-        title="View audit logs and code health metrics"
-      >
-        Audit
-      </button>
-      <button
-        class="btn-header"
-        data-testid="yolo-btn"
-        onclick={() => showYoloBenchmarkPanel = true}
-        disabled={!projectId}
-        title="Run YOLO autonomous benchmarks"
-      >
-        YOLO
-      </button>
-      <button
-        class="btn-header"
-        data-testid="org-btn"
-        onclick={() => showOrgConfigPanel = true}
-        title="View organization configuration status"
-      >
-        Org
-      </button>
-      <button
-        class="btn-header"
-        data-testid="sessions-btn"
-        onclick={() => showActiveSessionsPanel = true}
-        title="View all active Claude Code sessions"
-      >
-        Sessions
-      </button>
-      <button
-        class="btn-header"
-        data-testid="templates-btn"
-        onclick={() => showWorkflowTemplatesPanel = true}
-        title="View workflow templates (Claude Code skills)"
-      >
-        Templates
-      </button>
-      <button
-        class="btn-header"
-        data-testid="repos-btn"
-        onclick={() => showReposPanel = true}
-        disabled={!projectId}
-        title="View repository context and settings (PRD Section 25)"
-      >
-        Repos
-      </button>
-      <button
-        class="btn-header"
-        data-testid="cost-btn"
-        onclick={() => showCostDashboard = true}
-        title="View cost and usage dashboard"
-      >
-        Cost
-      </button>
-      <button
-        class="btn-header"
-        data-testid="settings-btn"
-        onclick={() => showSettingsPanel = true}
-        title="View and manage settings"
-      >
-        Settings
-      </button>
+
+      <DropdownMenu label="Knowledge" testId="knowledge-dropdown" disabled={!projectId}>
+        {#snippet items()}
+          <button class="dropdown-item" data-testid="knowledge-btn" onclick={() => showKnowledgePanel = true} disabled={!projectId}>
+            <span class="item-icon">K</span> Knowledge Base
+          </button>
+          <button class="dropdown-item" data-testid="templates-btn" onclick={() => showWorkflowTemplatesPanel = true}>
+            <span class="item-icon">T</span> Templates
+          </button>
+          <button class="dropdown-item" data-testid="repos-btn" onclick={() => showReposPanel = true} disabled={!projectId}>
+            <span class="item-icon">R</span> Repos
+          </button>
+        {/snippet}
+      </DropdownMenu>
+
+      <DropdownMenu label="Workflow" testId="workflow-dropdown">
+        {#snippet items()}
+          <button class="dropdown-item" data-testid="worktrees-btn" onclick={() => showWorktreePanel = true} disabled={!projectId}>
+            <span class="item-icon">W</span> Worktrees
+          </button>
+          <button class="dropdown-item" data-testid="sessions-btn" onclick={() => showActiveSessionsPanel = true}>
+            <span class="item-icon">S</span> Sessions
+          </button>
+          <button class="dropdown-item" data-testid="yolo-btn" onclick={() => showYoloBenchmarkPanel = true} disabled={!projectId}>
+            <span class="item-icon">Y</span> YOLO Mode
+          </button>
+          <button class="dropdown-item" data-testid="audit-btn" onclick={() => showAuditPanel = true} disabled={!projectId}>
+            <span class="item-icon">A</span> Audit
+          </button>
+          <button class="dropdown-item" data-testid="org-btn" onclick={() => showOrgConfigPanel = true}>
+            <span class="item-icon">O</span> Org Config
+          </button>
+        {/snippet}
+      </DropdownMenu>
+
+      <DropdownMenu label="Settings" testId="settings-dropdown">
+        {#snippet items()}
+          <button class="dropdown-item" data-testid="settings-btn" onclick={() => showSettingsPanel = true}>
+            <span class="item-icon">G</span> General Settings
+          </button>
+          <button class="dropdown-item" onclick={() => showModelStats = true}>
+            <span class="item-icon">S</span> Model Stats
+          </button>
+          <button class="dropdown-item" data-testid="cost-btn" onclick={() => showCostDashboard = true}>
+            <span class="item-icon">C</span> Cost Dashboard
+          </button>
+          <button class="dropdown-item" onclick={() => showExportImport = true}>
+            <span class="item-icon">E</span> Export / Import
+          </button>
+        {/snippet}
+      </DropdownMenu>
     </div>
   </header>
 
@@ -386,6 +341,9 @@
 
 <!-- Loop detected dialog for repetitive action intervention (PRD Section 9) -->
 <LoopDetectedDialog />
+
+<!-- Compaction notification dialog per PRD lines 1012-1035 -->
+<CompactionDialog />
 
 <!-- Branching dialog for creating experimental branch sessions -->
 <BranchingDialog
@@ -443,7 +401,7 @@
   onClose={() => showAuditPanel = false}
 />
 
-<!-- YOLO Benchmark panel for autonomous benchmark execution -->
+<!-- YOLO Mode panel for autonomous execution -->
 <YoloBenchmarkPanel
   {projectId}
   isOpen={showYoloBenchmarkPanel}
@@ -593,31 +551,17 @@
   .header-actions {
     display: flex;
     gap: 8px;
-    flex-wrap: wrap;
-    max-width: 60%;
+    align-items: center;
   }
 
   /* Small screens - compress header buttons */
   @media (max-width: 800px) {
     .header-actions {
       gap: 4px;
-      max-width: 70%;
     }
     .btn-header {
       padding: 4px 8px;
       font-size: 11px;
-    }
-  }
-
-  /* Very narrow screens - hide less important buttons */
-  @media (max-width: 600px) {
-    .header-actions {
-      max-width: none;
-      justify-content: flex-end;
-      flex: 1;
-    }
-    .header-brand {
-      flex-shrink: 0;
     }
   }
 
