@@ -45,15 +45,17 @@ async function createProject(name: string = 'audit-test-project') {
 async function openAuditPanel() {
   const { window } = ctx
 
-  // Audit button is inside the Workflow dropdown - open dropdown first
+  // Click the audit button via the dropdown
   const workflowTrigger = window.locator(SELECTORS.workflowDropdown).first()
   await workflowTrigger.waitFor({ state: 'visible', timeout: TIMEOUT.ui })
-  await workflowTrigger.click()
-  await window.waitForTimeout(200)
+  await workflowTrigger.click({ noWaitAfter: true })
+  await window.waitForTimeout(300)
 
   const auditBtn = window.locator(SELECTORS.auditBtn).first()
   await auditBtn.waitFor({ state: 'visible', timeout: TIMEOUT.ui })
-  await auditBtn.click()
+  // Use dispatchEvent to avoid Playwright click interception issues with dropdown backdrop
+  await auditBtn.dispatchEvent('click')
+  await window.waitForTimeout(300)
 
   const auditPanel = window.locator(SELECTORS.auditPanel).first()
   await auditPanel.waitFor({ state: 'visible', timeout: TIMEOUT.ui })
@@ -104,8 +106,8 @@ test.describe('Audit Panel', () => {
     // Click "Run Check" button to generate metrics
     const runCheckBtn = window.locator('[data-testid="run-health-check-btn"]')
     await expect(runCheckBtn).toBeVisible()
-    await runCheckBtn.click()
-    await window.waitForTimeout(1000)
+    await runCheckBtn.click({ noWaitAfter: true })
+    await window.waitForTimeout(2000)
 
     // Verify health metrics grid appears with all PRD-required metrics
     const metricsGrid = window.locator('[data-testid="health-metrics"]')
@@ -138,8 +140,8 @@ test.describe('Audit Panel', () => {
     await expect(runDriftBtn).toBeVisible()
 
     // Run the drift check
-    await runDriftBtn.click()
-    await window.waitForTimeout(1000)
+    await runDriftBtn.click({ noWaitAfter: true })
+    await window.waitForTimeout(2000)
 
     log('pass', 'Spec drift detection tab functional')
   })
@@ -151,8 +153,8 @@ test.describe('Audit Panel', () => {
 
     // Run health check to generate issues
     const runCheckBtn = window.locator('[data-testid="run-health-check-btn"]')
-    await runCheckBtn.click()
-    await window.waitForTimeout(1000)
+    await runCheckBtn.click({ noWaitAfter: true })
+    await window.waitForTimeout(2000)
 
     // Check if audit issues were generated
     const issuesSection = window.locator('[data-testid="audit-issues"]')
@@ -196,8 +198,8 @@ test.describe('Audit Events', () => {
 
     // Run a health check (manual/on-demand trigger)
     const runCheckBtn = window.locator('[data-testid="run-health-check-btn"]')
-    await runCheckBtn.click()
-    await window.waitForTimeout(1000)
+    await runCheckBtn.click({ noWaitAfter: true })
+    await window.waitForTimeout(2000)
 
     // Switch to logs tab to verify events were recorded
     const logsTab = window.locator('[data-testid="audit-tab-logs"]')

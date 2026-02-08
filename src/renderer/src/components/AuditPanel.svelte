@@ -427,14 +427,11 @@
 
   async function loadAuditLogs() {
     if (!projectId) return
-    isLoading = true
     try {
       // Get all logs (no task filter to get project-wide logs)
       auditLogs = await window.api.db.audit.get(selectedTaskId ?? undefined, 200)
     } catch (error) {
       console.error('Failed to load audit logs:', error)
-    } finally {
-      isLoading = false
     }
   }
 

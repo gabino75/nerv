@@ -1,3 +1,5 @@
+# NERV
+
 <p align="center">
   <img src="docs-site/public/nerv-banner.png" alt="NERV" width="600">
 </p>
@@ -17,27 +19,30 @@
     </video>
   </a>
   <br>
-  <em>Create a project, add tasks, and launch Claude Code — all from one dashboard.
+  <em>Write a spec, get recommendations, create tasks, and launch Claude Code — all from one dashboard.
   <a href="https://gabino75.github.io/nerv/demos">Watch all demos</a></em>
 </p>
 
 ## Overview
 
-NERV is a single desktop app that manages everything you need when building across multiple repos with Claude Code: terminal sessions, task boards, permission hooks, and development cycles — all in one window.
+NERV is spec-driven AI development. Write a spec defining what you want to build, and NERV orchestrates Claude Code to build it — MVP first, E2E tests always, iterating cycle by cycle until it's done.
+
+You define *what* to build. NERV handles *how*: breaking work into cycles, prioritizing test coverage, managing git worktrees, and keeping Claude on track with AI-guided recommendations at every step.
 
 **Key features:**
-- Launch and manage multiple Claude Code sessions simultaneously
-- Approve or deny dangerous commands through a permission hook system
-- Git worktree isolation — your main branch is never touched directly
-- Cycle-based development workflow with task tracking
-- YOLO mode for fully autonomous operation with cost limits
-- Full CLI alongside the GUI — every feature works headless
+- **Spec-driven workflow** — write a markdown spec with checkboxes, NERV tracks completion as Claude builds
+- **AI-guided iteration** — "What's Next?" analyzes your project and recommends the next step
+- **Test-first by design** — MVP scope and E2E tests are prioritized in early cycles
+- **Permission control** — approve or deny commands through a hook system with pattern-based rules
+- **Git worktree isolation** — every task gets its own branch, your main is never touched
+- **YOLO mode** — fully autonomous operation with cost limits and AI-powered code review
+- **CLI + GUI** — full functionality via command line or desktop app
 
 ## Demos
 
 | Demo | Description |
 |------|-------------|
-| [Quick Start](https://gabino75.github.io/nerv/demos#quick-start) | Create a project, add tasks, start a Claude session |
+| [Quick Start](https://gabino75.github.io/nerv/demos#quick-start) | Write a spec, get recommendations, start building |
 | [YOLO Mode](https://gabino75.github.io/nerv/demos#yolo-mode) | Autonomous development with AI-powered review |
 | [Multi-Repo](https://gabino75.github.io/nerv/demos#multi-repository-workflow) | Coordinate work across multiple repositories |
 
@@ -62,18 +67,23 @@ npm run dev
 
 ### GUI
 
-Launch with `npm run dev` or run the installed app. Create a project, point it at your repos, and start a Claude session from the dashboard.
+Launch with `npm run dev` or run the installed app. Write a spec, click **"What's Next?"**, and let Claude plan your cycles and tasks. Review suggestions and accept them, or take the wheel and specify everything manually.
 
 ### CLI
 
 ```bash
-nerv                             # Interactive REPL
+# Claude-guided flow
 nerv project create my-app       # Create a project
-nerv start                       # Start a Claude session
-nerv task create "Add auth"      # Create a task
-nerv yolo --cycles 5             # Autonomous mode (5 cycles)
-nerv permissions list             # View permission rules
-nerv config list                  # View settings
+nerv recommend                   # Ask Claude what to do next
+nerv cycle create                # Let Claude plan the cycle + tasks
+nerv start <taskId>              # Start building
+nerv learn "Key insight"         # Record a learning
+nerv recommend                   # What's next?
+
+# Manual flow (when you know what you want)
+nerv cycle create "Add auth"     # Specific cycle goal
+nerv task create "Login endpoint" # Specific task
+nerv yolo --cycles 5             # Autonomous mode
 ```
 
 Run `nerv help` for the full command list, or see the [CLI Reference](https://gabino75.github.io/nerv/cli/).
@@ -88,7 +98,7 @@ Full docs at **[gabino75.github.io/nerv](https://gabino75.github.io/nerv/)** —
 npm run dev          # Dev mode with hot reload
 npm run build        # Production build
 npm run typecheck    # TypeScript checks
-npm run test:unit    # Unit tests (235+)
+npm run test:unit    # Unit tests (480+)
 ```
 
 **Tech stack:** Electron + electron-vite, Svelte 5 + Tailwind CSS, SQLite (better-sqlite3), xterm.js + node-pty, Go permission hook binary.
