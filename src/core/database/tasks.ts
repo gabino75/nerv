@@ -2,7 +2,8 @@
  * NERV Core Database - Task operations
  */
 
-import type { Task } from '../../shared/types.js'
+import type { Task, IterationSettings } from '../../shared/types.js'
+import { DEFAULT_ITERATION_SETTINGS } from '../../shared/types.js'
 import type Database from 'better-sqlite3'
 
 export class TaskOperations {
@@ -78,5 +79,30 @@ export class TaskOperations {
     return this.getDb().prepare(
       "SELECT * FROM tasks WHERE status IN ('in_progress', 'interrupted') ORDER BY created_at DESC"
     ).all() as Task[]
+  }
+
+  /**
+   * Get iteration settings for a task (PRD Section 16)
+   */
+  getIterationSettings(id: string): IterationSettings {
+    const task = this.getTask(id)
+    if (!task?.iteration_settings) {
+      return { ...DEFAULT_ITERATION_SETTINGS }
+    }
+    try {
+      return JSON.parse(task.iteration_settings) as IterationSettings
+    } catch {
+      return { ...DEFAULT_ITERATION_SETTINGS }
+    }
+  }
+
+  /**
+   * Update iteration settings for a task (PRD Section 16)
+   */
+  updateIterationSettings(id: string, settings: IterationSettings): Task | undefined {
+    const json = JSON.stringify(settings)
+    this.getDb().prepare('UPDATE tasks SET iteration_settings = ? WHERE id = ?').run(json, id)
+    this.logAuditEvent(id, 'task_iteration_settings_updated', json)
+    return this.getTask(id)
   }
 }

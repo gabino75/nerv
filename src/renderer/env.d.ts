@@ -41,6 +41,7 @@ import type {
   ProjectWorktrees,
   ProjectExport,
   ProjectImport,
+  IterationSettings,
 } from '../shared/types'
 
 // Re-export for global usage in components
@@ -103,6 +104,8 @@ interface DatabaseAPI {
     updateWorktree: (id: string, worktreePath: string) => Promise<Task | undefined>
     delete: (id: string) => Promise<void>
     getInterrupted: () => Promise<Task[]>
+    getIterationSettings: (id: string) => Promise<IterationSettings>
+    updateIterationSettings: (id: string, settings: IterationSettings) => Promise<Task | undefined>
   }
   approvals: {
     getPending: (taskId?: string) => Promise<Approval[]>

@@ -175,6 +175,8 @@ class DatabaseService extends DatabaseCore {
   deleteTask = (id: string) => this._tasks.deleteTask(id)
   getInterruptedTasks = () => this._tasks.getInterruptedTasks()
   hasAnyTaskStarted = (projectId: string) => this._tasks.hasAnyTaskStarted(projectId)
+  getIterationSettings = (id: string) => this._tasks.getIterationSettings(id)
+  updateIterationSettings = (...args: Parameters<TaskOperations['updateIterationSettings']>) => this._tasks.updateIterationSettings(...args)
 
   // =====================
   // Cycle Operations

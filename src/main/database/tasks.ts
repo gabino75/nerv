@@ -1,4 +1,5 @@
-import type { Task } from '../../shared/types'
+import type { Task, IterationSettings } from '../../shared/types'
+import { DEFAULT_ITERATION_SETTINGS } from '../../shared/types'
 import type Database from 'better-sqlite3'
 
 /**
@@ -90,5 +91,31 @@ export class TaskOperations {
        AND status IN ('in_progress', 'interrupted', 'review', 'done')`
     ).get(projectId) as { count: number }
     return result.count > 0
+  }
+
+  /**
+   * Get iteration settings for a task (PRD Section 16)
+   * Returns stored settings or defaults if none set
+   */
+  getIterationSettings(id: string): IterationSettings {
+    const task = this.getTask(id)
+    if (!task?.iteration_settings) {
+      return { ...DEFAULT_ITERATION_SETTINGS }
+    }
+    try {
+      return JSON.parse(task.iteration_settings) as IterationSettings
+    } catch {
+      return { ...DEFAULT_ITERATION_SETTINGS }
+    }
+  }
+
+  /**
+   * Update iteration settings for a task (PRD Section 16)
+   */
+  updateIterationSettings(id: string, settings: IterationSettings): Task | undefined {
+    const json = JSON.stringify(settings)
+    this.getDb().prepare('UPDATE tasks SET iteration_settings = ? WHERE id = ?').run(json, id)
+    this.logAuditEvent(id, 'task_iteration_settings_updated', json)
+    return this.getTask(id)
   }
 }

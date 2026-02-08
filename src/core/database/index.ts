@@ -125,6 +125,8 @@ export class DatabaseService extends DatabaseCore {
   updateTaskDescription = (id: string, description: string) => this._tasks.updateTaskDescription(id, description)
   deleteTask = (id: string) => this._tasks.deleteTask(id)
   getInterruptedTasks = () => this._tasks.getInterruptedTasks()
+  getIterationSettings = (id: string) => this._tasks.getIterationSettings(id)
+  updateIterationSettings = (...args: Parameters<TaskOperations['updateIterationSettings']>) => this._tasks.updateIterationSettings(...args)
 
   // =====================
   // Approval Operations

@@ -25,6 +25,7 @@ import type {
   TaskIteration,
   TaskVerificationResult,
   VerificationTemplate,
+  IterationSettings,
   SuccessMetrics,
   SuccessMetricType,
   UserStatement,
@@ -66,7 +67,11 @@ export const db = {
     updateWorktree: (id: string, worktreePath: string): Promise<Task | undefined> =>
       ipcRenderer.invoke('db:tasks:updateWorktree', id, worktreePath),
     delete: (id: string): Promise<void> => ipcRenderer.invoke('db:tasks:delete', id),
-    getInterrupted: (): Promise<Task[]> => ipcRenderer.invoke('db:tasks:getInterrupted')
+    getInterrupted: (): Promise<Task[]> => ipcRenderer.invoke('db:tasks:getInterrupted'),
+    getIterationSettings: (id: string): Promise<IterationSettings> =>
+      ipcRenderer.invoke('db:tasks:getIterationSettings', id),
+    updateIterationSettings: (id: string, settings: IterationSettings): Promise<Task | undefined> =>
+      ipcRenderer.invoke('db:tasks:updateIterationSettings', id, settings)
   },
 
   // Approvals

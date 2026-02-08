@@ -573,5 +573,14 @@ export const migrations: Migration[] = [
       -- PRD Section 25: Configurable auto-cleanup of worktrees after task completion
       ALTER TABLE repos ADD COLUMN auto_cleanup_worktrees INTEGER NOT NULL DEFAULT 0;
     `
+  },
+  {
+    version: 22,
+    name: 'add_task_iteration_settings',
+    up: `
+      -- PRD Section 16: Per-task iteration settings for auto-iteration behavior
+      -- Stored as JSON string matching IterationSettings interface
+      ALTER TABLE tasks ADD COLUMN iteration_settings TEXT;
+    `
   }
 ]

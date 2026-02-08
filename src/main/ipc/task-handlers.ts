@@ -7,7 +7,7 @@
 import { databaseService } from '../database'
 import { safeHandle } from './safe-handle'
 import { broadcastToRenderers } from '../utils'
-import type { Task } from '../../shared/types'
+import type { Task, IterationSettings } from '../../shared/types'
 
 export function registerTaskHandlers(): void {
   safeHandle('db:tasks:getForProject', (_event, projectId: string): Task[] => {
@@ -101,5 +101,14 @@ export function registerTaskHandlers(): void {
 
   safeHandle('db:tasks:updateDescription', (_event, id: string, description: string): Task | undefined => {
     return databaseService.updateTaskDescription(id, description)
+  })
+
+  // PRD Section 16: Per-task iteration settings
+  safeHandle('db:tasks:getIterationSettings', (_event, id: string): IterationSettings => {
+    return databaseService.getIterationSettings(id)
+  })
+
+  safeHandle('db:tasks:updateIterationSettings', (_event, id: string, settings: IterationSettings): Task | undefined => {
+    return databaseService.updateIterationSettings(id, settings)
   })
 }

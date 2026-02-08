@@ -30,6 +30,7 @@ export interface Task {
   repos: string | null
   worktree_path: string | null
   session_id: string | null
+  iteration_settings: string | null  // JSON: IterationSettings (PRD Section 16)
   created_at: string
   completed_at: string | null
 }
