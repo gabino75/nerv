@@ -134,6 +134,9 @@ function mapOrgSettingsToNervSettings(orgSettings: OrganizationSettings): Partia
     if (orgSettings.costLimits.perMonthMax !== undefined) {
       result.monthly_budget_usd = orgSettings.costLimits.perMonthMax
     }
+    if (orgSettings.costLimits.perDayMax !== undefined) {
+      result.daily_budget_usd = orgSettings.costLimits.perDayMax
+    }
     if (orgSettings.costLimits.alertThreshold !== undefined) {
       result.budget_warning_threshold = orgSettings.costLimits.alertThreshold
     }

@@ -221,6 +221,22 @@ describe('settings', () => {
       expect(service.get('budget_warning_threshold')).toBe(0.75)
     })
 
+    it('maps org costLimits.perDayMax to daily_budget_usd', () => {
+      const service = createSettingsService()
+
+      const orgSettings: OrganizationSettings = {
+        name: 'TestOrg',
+        costLimits: {
+          perDayMax: 25,
+          perMonthMax: 500
+        }
+      }
+      service.setOrgSettings(orgSettings)
+
+      expect(service.get('daily_budget_usd')).toBe(25)
+      expect(service.get('monthly_budget_usd')).toBe(500)
+    })
+
     it('returns null org settings when not configured', () => {
       const service = createSettingsService()
 

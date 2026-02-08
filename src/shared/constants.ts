@@ -383,6 +383,7 @@ export const DEFAULT_SETTINGS: NervSettings = {
 
   // Budget & Costs
   monthly_budget_usd: MONTHLY_BUDGET_DEFAULTS.budgetUsd,
+  daily_budget_usd: 0, // PRD Section 20: disabled by default, set via org costLimits.perDayMax
   budget_warning_threshold: MONTHLY_BUDGET_DEFAULTS.warningThreshold,
   budget_critical_threshold: MONTHLY_BUDGET_DEFAULTS.criticalThreshold,
 
@@ -463,6 +464,7 @@ export const SETTINGS_ENV_MAPPINGS: SettingsEnvMapping[] = [
 
   // Budget & Costs
   { key: 'monthly_budget_usd', envVar: 'NERV_MONTHLY_BUDGET_USD', type: 'number' },
+  { key: 'daily_budget_usd', envVar: 'NERV_DAILY_BUDGET_USD', type: 'number' },
   { key: 'budget_warning_threshold', envVar: 'NERV_BUDGET_WARNING_THRESHOLD', type: 'number' },
   { key: 'budget_critical_threshold', envVar: 'NERV_BUDGET_CRITICAL_THRESHOLD', type: 'number' },
 

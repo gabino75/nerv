@@ -180,12 +180,18 @@
     try {
       const savedBudget = await window.api.db.settings.get(BUDGET_SETTINGS_KEYS.monthlyBudget)
       const monthlyBudget = savedBudget ? parseFloat(savedBudget) : MONTHLY_BUDGET_DEFAULTS.budgetUsd
-      if (monthlyBudget <= 0) return
+
+      // PRD Section 20: daily budget from org costLimits.perDayMax
+      const savedDailyBudget = await window.api.db.settings.get('daily_budget_usd')
+      const dailyBudget = savedDailyBudget ? parseFloat(savedDailyBudget) : 0
+
+      if (monthlyBudget <= 0 && dailyBudget <= 0) return
 
       const alerts = await window.api.db.metrics.checkBudgetAlerts(
         monthlyBudget,
         MONTHLY_BUDGET_DEFAULTS.warningThreshold,
-        MONTHLY_BUDGET_DEFAULTS.criticalThreshold
+        MONTHLY_BUDGET_DEFAULTS.criticalThreshold,
+        dailyBudget
       )
 
       if (alerts.length > 0) {

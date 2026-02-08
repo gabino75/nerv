@@ -556,46 +556,94 @@ export class MetricsOperations {
   }
 
   /**
-   * Check for budget alerts (PRD Section 14)
-   * Returns array of alerts when spending thresholds are crossed
+   * Get total cost for today (PRD Section 14: daily budget tracking)
    */
-  checkBudgetAlerts(monthlyBudget: number, warningThreshold = 0.8, criticalThreshold = 0.95): BudgetAlert[] {
+  getDailyTotalCost(): { totalCost: number; taskCount: number; date: string } {
+    const today = new Date().toISOString().slice(0, 10) // YYYY-MM-DD
+
+    const result = this.getDb().prepare(`
+      SELECT
+        COALESCE(SUM(cost_usd), 0) as total_cost,
+        COUNT(*) as task_count
+      FROM session_metrics
+      WHERE date(updated_at) = ?
+    `).get(today) as { total_cost: number; task_count: number }
+
+    return {
+      totalCost: result.total_cost,
+      taskCount: result.task_count,
+      date: today
+    }
+  }
+
+  /**
+   * Check for budget alerts (PRD Section 14)
+   * Returns array of alerts when spending thresholds are crossed.
+   * Checks monthly budget and optionally daily budget (from org costLimits.perDayMax).
+   */
+  checkBudgetAlerts(monthlyBudget: number, warningThreshold = 0.8, criticalThreshold = 0.95, dailyBudget = 0): BudgetAlert[] {
     const alerts: BudgetAlert[] = []
-    const { totalCost, monthStart } = this.getMonthlyTotalCost()
 
-    // Skip if no budget set
-    if (monthlyBudget <= 0) return alerts
+    // Monthly budget alerts
+    if (monthlyBudget > 0) {
+      const { totalCost, monthStart } = this.getMonthlyTotalCost()
+      const percentUsed = totalCost / monthlyBudget
 
-    const percentUsed = totalCost / monthlyBudget
+      // Calculate days remaining in month and daily spend rate
+      const now = new Date()
+      const monthStartDate = new Date(monthStart)
+      const daysElapsed = Math.max(1, Math.ceil((now.getTime() - monthStartDate.getTime()) / (1000 * 60 * 60 * 24)))
+      const dailyRate = totalCost / daysElapsed
 
-    // Calculate days remaining in month and daily spend rate
-    const now = new Date()
-    const monthStartDate = new Date(monthStart)
-    const daysElapsed = Math.max(1, Math.ceil((now.getTime() - monthStartDate.getTime()) / (1000 * 60 * 60 * 24)))
-    const dailyRate = totalCost / daysElapsed
+      // Calculate days until budget exceeded
+      const remainingBudget = monthlyBudget - totalCost
+      const daysUntilExceeded = dailyRate > 0 ? Math.ceil(remainingBudget / dailyRate) : null
 
-    // Calculate days until budget exceeded
-    const remainingBudget = monthlyBudget - totalCost
-    const daysUntilExceeded = dailyRate > 0 ? Math.ceil(remainingBudget / dailyRate) : null
+      if (percentUsed >= criticalThreshold) {
+        alerts.push({
+          type: 'critical',
+          scope: 'monthly',
+          message: `You've used ${Math.round(percentUsed * 100)}% of your monthly budget ($${totalCost.toFixed(2)} / $${monthlyBudget.toFixed(2)}).`,
+          currentSpend: totalCost,
+          budgetLimit: monthlyBudget,
+          daysUntilExceeded: daysUntilExceeded !== null && daysUntilExceeded > 0 ? daysUntilExceeded : null
+        })
+      } else if (percentUsed >= warningThreshold) {
+        alerts.push({
+          type: 'warning',
+          scope: 'monthly',
+          message: `You've used ${Math.round(percentUsed * 100)}% of your monthly budget ($${totalCost.toFixed(2)} / $${monthlyBudget.toFixed(2)}).`,
+          currentSpend: totalCost,
+          budgetLimit: monthlyBudget,
+          daysUntilExceeded: daysUntilExceeded !== null && daysUntilExceeded > 0 ? daysUntilExceeded : null
+        })
+      }
+    }
 
-    if (percentUsed >= criticalThreshold) {
-      alerts.push({
-        type: 'critical',
-        scope: 'monthly',
-        message: `You've used ${Math.round(percentUsed * 100)}% of your monthly budget ($${totalCost.toFixed(2)} / $${monthlyBudget.toFixed(2)}).`,
-        currentSpend: totalCost,
-        budgetLimit: monthlyBudget,
-        daysUntilExceeded: daysUntilExceeded !== null && daysUntilExceeded > 0 ? daysUntilExceeded : null
-      })
-    } else if (percentUsed >= warningThreshold) {
-      alerts.push({
-        type: 'warning',
-        scope: 'monthly',
-        message: `You've used ${Math.round(percentUsed * 100)}% of your monthly budget ($${totalCost.toFixed(2)} / $${monthlyBudget.toFixed(2)}).`,
-        currentSpend: totalCost,
-        budgetLimit: monthlyBudget,
-        daysUntilExceeded: daysUntilExceeded !== null && daysUntilExceeded > 0 ? daysUntilExceeded : null
-      })
+    // Daily budget alerts (PRD Section 20: org costLimits.perDayMax)
+    if (dailyBudget > 0) {
+      const { totalCost: dailyCost } = this.getDailyTotalCost()
+      const dailyPercentUsed = dailyCost / dailyBudget
+
+      if (dailyPercentUsed >= criticalThreshold) {
+        alerts.push({
+          type: 'critical',
+          scope: 'daily',
+          message: `You've used ${Math.round(dailyPercentUsed * 100)}% of your daily budget ($${dailyCost.toFixed(2)} / $${dailyBudget.toFixed(2)}).`,
+          currentSpend: dailyCost,
+          budgetLimit: dailyBudget,
+          daysUntilExceeded: null
+        })
+      } else if (dailyPercentUsed >= warningThreshold) {
+        alerts.push({
+          type: 'warning',
+          scope: 'daily',
+          message: `You've used ${Math.round(dailyPercentUsed * 100)}% of your daily budget ($${dailyCost.toFixed(2)} / $${dailyBudget.toFixed(2)}).`,
+          currentSpend: dailyCost,
+          budgetLimit: dailyBudget,
+          daysUntilExceeded: null
+        })
+      }
     }
 
     return alerts

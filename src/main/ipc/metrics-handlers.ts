@@ -64,8 +64,8 @@ export function registerMetricsHandlers(): void {
     return databaseService.exportCostsCsv()
   })
 
-  safeHandle('db:metrics:checkBudgetAlerts', (_event, monthlyBudget: number, warningThreshold?: number, criticalThreshold?: number): BudgetAlert[] => {
-    return databaseService.checkBudgetAlerts(monthlyBudget, warningThreshold, criticalThreshold)
+  safeHandle('db:metrics:checkBudgetAlerts', (_event, monthlyBudget: number, warningThreshold?: number, criticalThreshold?: number, dailyBudget?: number): BudgetAlert[] => {
+    return databaseService.checkBudgetAlerts(monthlyBudget, warningThreshold, criticalThreshold, dailyBudget)
   })
 
   // PRD Section 14: Get recent tasks with metrics for cost dashboard

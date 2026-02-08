@@ -16,6 +16,7 @@ export interface NervSettings {
 
   // Budget & Costs
   monthly_budget_usd: number
+  daily_budget_usd: number // PRD Section 20: org costLimits.perDayMax
   budget_warning_threshold: number
   budget_critical_threshold: number
 

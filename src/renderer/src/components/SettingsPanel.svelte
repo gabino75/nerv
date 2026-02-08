@@ -45,7 +45,7 @@
     {
       id: 'budget',
       label: 'Budget',
-      keys: ['monthly_budget_usd', 'budget_warning_threshold', 'budget_critical_threshold', 'per_task_budget_default'],
+      keys: ['monthly_budget_usd', 'daily_budget_usd', 'budget_warning_threshold', 'budget_critical_threshold', 'per_task_budget_default'],
       scopes: ['global', 'organization', 'project']
     },
     {
@@ -94,6 +94,7 @@
     default_max_tokens: 'Max Tokens (Context Window)',
     max_turns: 'Max Turns per Session',
     monthly_budget_usd: 'Monthly Budget (USD)',
+    daily_budget_usd: 'Daily Budget (USD)',
     budget_warning_threshold: 'Warning Threshold (%)',
     budget_critical_threshold: 'Critical Threshold (%)',
     per_task_budget_default: 'Per-Task Budget Default (USD)',

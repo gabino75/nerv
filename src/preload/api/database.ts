@@ -135,8 +135,8 @@ export const db = {
     }>> => ipcRenderer.invoke('db:metrics:getCostByProject'),
     exportCostsCsv: (): Promise<string> =>
       ipcRenderer.invoke('db:metrics:exportCostsCsv'),
-    checkBudgetAlerts: (monthlyBudget: number, warningThreshold?: number, criticalThreshold?: number): Promise<BudgetAlert[]> =>
-      ipcRenderer.invoke('db:metrics:checkBudgetAlerts', monthlyBudget, warningThreshold, criticalThreshold),
+    checkBudgetAlerts: (monthlyBudget: number, warningThreshold?: number, criticalThreshold?: number, dailyBudget?: number): Promise<BudgetAlert[]> =>
+      ipcRenderer.invoke('db:metrics:checkBudgetAlerts', monthlyBudget, warningThreshold, criticalThreshold, dailyBudget),
     // PRD Section 6: Reset compactions since last /clear
     resetCompactionsSinceClear: (taskId: string): Promise<void> =>
       ipcRenderer.invoke('db:metrics:resetCompactionsSinceClear', taskId),

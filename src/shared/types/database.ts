@@ -419,7 +419,7 @@ export interface CostDataPoint {
  */
 export interface BudgetAlert {
   type: 'warning' | 'critical'
-  scope: 'task' | 'project' | 'monthly'
+  scope: 'task' | 'project' | 'monthly' | 'daily'
   message: string
   currentSpend: number
   budgetLimit: number

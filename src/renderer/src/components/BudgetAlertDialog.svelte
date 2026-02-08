@@ -64,7 +64,7 @@
         <p class="options-title">Options:</p>
         <ul class="options-list">
           <li>Switch to a cheaper model (Sonnet instead of Opus)</li>
-          <li>Increase monthly budget</li>
+          <li>Increase {alert.scope === 'daily' ? 'daily' : 'monthly'} budget</li>
           <li>Enable cost-saving mode (smaller context windows)</li>
         </ul>
       </div>
