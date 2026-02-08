@@ -31,6 +31,7 @@ import {
   askAndApproveRecommendation,
   waitForRecommendDismissed,
 } from './helpers/recommend-actions'
+import { SELECTORS } from './helpers/selectors'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -113,26 +114,44 @@ test('full NERV development workflow', async () => {
   // Step 1: Verify the dashboard loaded
   await expect(window.locator('h1')).toContainText('NERV')
 
-  // Step 2: Check "What's Next?" button is visible and enabled
+  // Step 2: Create a project so recommend button becomes enabled
+  const newProjectBtn = window.locator(SELECTORS.newProject).first()
+  await newProjectBtn.click()
+  await window.waitForTimeout(500)
+
+  const nameInput = window.locator(SELECTORS.projectNameInput).first()
+  await nameInput.fill('Workflow Test App')
+
+  const goalInput = window.locator(SELECTORS.projectGoalInput).first()
+  if (await goalInput.isVisible({ timeout: 2000 }).catch(() => false)) {
+    await goalInput.fill('Simple Node.js app for workflow testing')
+  }
+
+  const createBtn = window.locator(SELECTORS.createProjectBtn).first()
+  await createBtn.click()
+  await window.waitForTimeout(1000)
+
+  // Step 3: Check "What's Next?" button is visible and enabled
   const recommendBtn = window.locator('[data-testid="recommend-btn"]')
   await expect(recommendBtn).toBeVisible()
+  await expect(recommendBtn).toBeEnabled()
 
-  // Step 3: Verify Send input is prominent
+  // Step 4: Verify Send input is prominent
   const sendInput = window.locator('[data-testid="send-input"]')
   await expect(sendInput).toBeVisible()
   await expect(sendInput).toHaveAttribute('placeholder', 'Start a task to chat with Claude')
 
-  // Step 4: Verify header dropdowns exist
+  // Step 5: Verify header dropdowns exist
   await expect(window.locator('[data-testid="cycles-btn"]')).toBeVisible()
   await expect(window.locator('[data-testid="knowledge-dropdown"]')).toBeVisible()
   await expect(window.locator('[data-testid="workflow-dropdown"]')).toBeVisible()
   await expect(window.locator('[data-testid="settings-dropdown"]')).toBeVisible()
 
-  // Step 5: Verify the "More" actions button exists
+  // Step 6: Verify the "More" actions button exists
   const moreBtn = window.locator('.action-btn.more-actions')
   await expect(moreBtn).toBeVisible()
 
-  // Step 6: Open the recommend panel
+  // Step 7: Open the recommend panel
   await recommendBtn.click()
   await window.waitForTimeout(500)
 
@@ -146,7 +165,7 @@ test('full NERV development workflow', async () => {
   const askBtn = window.locator('[data-testid="recommend-ask-btn"]')
   await expect(askBtn).toBeVisible()
 
-  // Step 7: Type direction and ask for recommendations
+  // Step 8: Type direction and ask for recommendations
   await dirInput.fill('start with a simple cycle')
   await askBtn.click()
 
@@ -159,7 +178,7 @@ test('full NERV development workflow', async () => {
     const approveBtn = window.locator('[data-testid="recommend-approve-0"]')
     await expect(approveBtn).toBeVisible()
 
-    // Step 8: Approve the first recommendation
+    // Step 9: Approve the first recommendation
     await approveBtn.click()
 
     // Verify execution success
