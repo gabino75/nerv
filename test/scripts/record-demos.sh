@@ -98,7 +98,7 @@ docker run --rm \
     -e NERV_TEST_MODE=true \
     -e NERV_MOCK_CLAUDE=true \
     nerv-e2e \
-    "cd /app/host && npm run build" 2>&1 | tail -5
+    "npm run build" 2>&1 | tail -5
 echo ""
 
 # Run demo recordings in Docker
@@ -113,7 +113,7 @@ docker run --rm \
     -e MOCK_CLAUDE_SCENARIO=benchmark \
     -e NERV_RECORD_ALL=true \
     nerv-e2e \
-    "cd /app/host && npx playwright test --config=test/e2e/playwright.config.ts test/e2e/docs-demos.spec.ts $GREP_FILTER --timeout=120000" 2>&1
+    "npx playwright test --config=test/e2e/playwright.config.ts test/e2e/docs-demos.spec.ts $GREP_FILTER --timeout=120000" 2>&1
 
 RECORD_EXIT=$?
 
@@ -127,7 +127,7 @@ fi
 echo ""
 echo "[COPY] Moving videos to docs-site/public/demos/..."
 
-for video in "$PROJECT_ROOT/test-results/demos/"*.webm; do
+for video in "$PROJECT_ROOT/test-results/docker/demos/"*.webm "$PROJECT_ROOT/test-results/demos/"*.webm; do
     if [[ -f "$video" ]]; then
         basename=$(basename "$video")
         cp "$video" "$DEMOS_DIR/$basename"

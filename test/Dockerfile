@@ -60,11 +60,15 @@ RUN mkdir -p /app /fixtures /test-results
 
 WORKDIR /app
 
+# Copy package files and install Linux dependencies (including Electron)
+COPY package.json package-lock.json ./
+RUN npm ci --ignore-scripts && npx electron --version || true
+
 # Set display for headless Electron testing
 ENV DISPLAY=:99
 
-# Entry point script to start Xvfb and run tests
-COPY test/scripts/docker-entrypoint.sh /docker-entrypoint.sh
+# Entry point script to start Xvfb, sync source, and run tests
+COPY test/e2e/docker-entrypoint.sh /docker-entrypoint.sh
 RUN chmod +x /docker-entrypoint.sh
 
 ENTRYPOINT ["/docker-entrypoint.sh"]

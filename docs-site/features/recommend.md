@@ -13,9 +13,9 @@ flowchart TD
     C --> D["Send to Claude via --print"]
     D --> E[2-3 Ranked Recommendations]
     E --> F{User choice}
+    F -->|Manual| I[User does it themselves]
     F -->|Approve| G[NERV executes action]
     F -->|Give direction| H[Re-prompt with direction]
-    F -->|Manual| I[User does it themselves]
     G --> J[Refresh UI state]
     H --> D
 ```

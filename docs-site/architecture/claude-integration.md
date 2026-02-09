@@ -136,9 +136,14 @@ interface ClaudeSession {
 
 ### State Transitions
 
-```
-created → active → completed
-                 → interrupted (on error/timeout)
+```mermaid
+stateDiagram-v2
+    [*] --> created
+    created --> active : Session starts
+    active --> completed : Claude finishes
+    active --> interrupted : Error / Timeout
+    interrupted --> active : Resume session
+    completed --> [*]
 ```
 
 ### Session Resume

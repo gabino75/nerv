@@ -6,30 +6,34 @@ NERV is built as an Electron application with a CLI-first design.
 
 NERV is an Electron app with three process types:
 
-```
-┌─────────────────────────────────────────────────────────┐
-│                  Electron Main Process                  │
-│  - Window management                                    │
-│  - SQLite database (better-sqlite3)                     │
-│  - PTY management (node-pty)                            │
-│  - Claude Code process spawning                         │
-│  - IPC handlers                                         │
-└───────────────┬─────────────────────────────────────────┘
-                │ IPC (contextBridge)
-┌───────────────▼─────────────────────────────────────────┐
-│                     Preload Script                      │
-│  - Exposes safe API via window.api                      │
-│  - Database operations                                  │
-│  - Terminal input/output                                │
-│  - Claude session management                            │
-└───────────────┬─────────────────────────────────────────┘
-                │ window.api
-┌───────────────▼─────────────────────────────────────────┐
-│                Renderer Process (Svelte)                │
-│  - UI components                                        │
-│  - Svelte 5 reactive state                              │
-│  - xterm.js terminal rendering                          │
-└─────────────────────────────────────────────────────────┘
+```mermaid
+flowchart TB
+    subgraph Main["Electron Main Process"]
+        direction LR
+        M1[Window Management]
+        M2["SQLite (better-sqlite3)"]
+        M3["PTY (node-pty)"]
+        M4[Claude Code Spawning]
+        M5[IPC Handlers]
+    end
+
+    subgraph Preload["Preload Script"]
+        direction LR
+        P1["window.api"]
+        P2[Database Ops]
+        P3[Terminal I/O]
+        P4[Session Management]
+    end
+
+    subgraph Renderer["Renderer Process (Svelte 5)"]
+        direction LR
+        R1[UI Components]
+        R2[Reactive State]
+        R3["xterm.js Terminal"]
+    end
+
+    Main -->|"IPC (contextBridge)"| Preload
+    Preload -->|"window.api"| Renderer
 ```
 
 ## Tech Stack
@@ -84,61 +88,39 @@ src/
 
 ### Starting a Task
 
-```
-User clicks "Start Task"
-        │
-        ▼
-┌───────────────────┐
-│    Renderer       │  window.api.claude.startSession(taskId)
-└────────┬──────────┘
-         │ IPC
-         ▼
-┌───────────────────┐
-│      Main         │  1. Create worktree
-│                   │  2. Generate NERV.md
-│                   │  3. Spawn claude CLI
-└────────┬──────────┘
-         │ stdout/stderr
-         ▼
-┌───────────────────┐
-│    PTY Process    │  Claude Code running
-└────────┬──────────┘
-         │ IPC events
-         ▼
-┌───────────────────┐
-│    Renderer       │  Update terminal display
-└───────────────────┘
+```mermaid
+sequenceDiagram
+    participant User
+    participant Renderer as Renderer (Svelte)
+    participant Main as Main Process
+    participant PTY as PTY / Claude Code
+
+    User->>Renderer: Click "Start Task"
+    Renderer->>Main: window.api.claude.startSession(taskId)
+    Main->>Main: 1. Create worktree
+    Main->>Main: 2. Generate NERV.md
+    Main->>PTY: 3. Spawn claude CLI
+    PTY-->>Main: stdout/stderr
+    Main-->>Renderer: IPC events
+    Renderer-->>User: Update terminal display
 ```
 
 ### Permission Flow
 
-```
-Claude wants to run `rm -rf ./build`
-        │
-        ▼
-┌───────────────────┐
-│   nerv-hook       │  Hook binary intercepts
-└────────┬──────────┘
-         │ Check rules
-         ▼
-┌───────────────────┐
-│  Main Process     │  Not in allowlist
-└────────┬──────────┘
-         │ IPC
-         ▼
-┌───────────────────┐
-│    Renderer       │  Show approval dialog
-└────────┬──────────┘
-         │ User approves
-         ▼
-┌───────────────────┐
-│  Main Process     │  Send approval to hook
-└────────┬──────────┘
-         │
-         ▼
-┌───────────────────┐
-│   nerv-hook       │  Allow command to proceed
-└───────────────────┘
+```mermaid
+sequenceDiagram
+    participant Claude as Claude Code
+    participant Hook as nerv-hook (Go)
+    participant Main as Main Process
+    participant UI as Renderer
+
+    Claude->>Hook: Tool call (rm -rf ./build)
+    Hook->>Main: Check rules (named pipe)
+    Main-->>Main: Not in allowlist
+    Main->>UI: Show approval dialog (IPC)
+    UI-->>Main: User approves
+    Main->>Hook: Send approval (named pipe)
+    Hook-->>Claude: Allow command to proceed
 ```
 
 ## Key Components
@@ -178,22 +160,29 @@ The Go-based hook system:
 
 The CLI shares core logic with the Electron app:
 
-```
-┌─────────────────────────────────────────┐
-│                  CLI                    │
-│  src/cli/index.ts                       │
-│  - Argument parsing                     │
-│  - Command routing                      │
-└────────────────┬────────────────────────┘
-                 │
-                 ▼
-┌─────────────────────────────────────────┐
-│                 Core                    │
-│  src/core/                              │
-│  - DatabaseService                      │
-│  - ClaudeConfig                         │
-│  - Platform utilities                   │
-└─────────────────────────────────────────┘
+```mermaid
+flowchart TB
+    subgraph CLI["CLI (src/cli/)"]
+        direction LR
+        C1[Argument Parsing]
+        C2[Command Routing]
+    end
+
+    subgraph Core["Core (src/core/)"]
+        direction LR
+        K1[DatabaseService]
+        K2[ClaudeConfig]
+        K3[Platform Utilities]
+    end
+
+    subgraph Electron["Electron App (src/main/)"]
+        direction LR
+        E1[IPC Handlers]
+        E2[Window Management]
+    end
+
+    CLI --> Core
+    Electron --> Core
 ```
 
-This ensures feature parity between CLI and UI.
+Both CLI and Electron share the same core logic, ensuring feature parity.

@@ -100,10 +100,20 @@ Called when session ends:
 
 The hook communicates with NERV via named pipe:
 
-```
-Claude → nerv-hook → Named Pipe → NERV Main Process
-                                        ↓
-Claude ← nerv-hook ← Named Pipe ← NERV Main Process
+```mermaid
+sequenceDiagram
+    participant Claude as Claude Code
+    participant Hook as nerv-hook (Go)
+    participant Pipe as Named Pipe
+    participant Main as NERV Main Process
+
+    Claude->>Hook: Tool call (stdin JSON)
+    Hook->>Pipe: Permission request
+    Pipe->>Main: Forward request
+    Main-->>Main: Check rules / prompt user
+    Main->>Pipe: Decision (allow/deny)
+    Pipe->>Hook: Forward decision
+    Hook->>Claude: Result (stdout JSON)
 ```
 
 ### Request Format
@@ -192,21 +202,14 @@ ipcMain.on('hook:permission-request', (event, request) => {
 
 When no rule matches, NERV shows a dialog:
 
-```
-┌─────────────────────────────────────────┐
-│  Permission Request                     │
-├─────────────────────────────────────────┤
-│  Claude wants to run:                   │
-│                                         │
-│  Bash: rm -rf ./build                   │
-│                                         │
-│  ┌─────────────┐  ┌─────────────┐       │
-│  │ Always Allow│  │  Just Once  │       │
-│  └─────────────┘  └─────────────┘       │
-│  ┌─────────────┐  ┌─────────────┐       │
-│  │    Deny     │  │ Never Allow │       │
-│  └─────────────┘  └─────────────┘       │
-└─────────────────────────────────────────┘
+```mermaid
+flowchart TD
+    A["Permission Request<br/><b>Claude wants to run:</b><br/><code>Bash: rm -rf ./build</code>"]
+    A --> B{"User Decision"}
+    B -->|"Always Allow"| C["Approve + Add allow rule"]
+    B -->|"Just Once"| D["Approve this instance only"]
+    B -->|"Deny"| E["Block this instance"]
+    B -->|"Never Allow"| F["Block + Add deny rule"]
 ```
 
 ### Response Actions

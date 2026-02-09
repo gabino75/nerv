@@ -21,7 +21,7 @@ export function registerProjectHandlers(): void {
     return databaseService.createProject(name, goal)
   })
 
-  safeHandle('db:projects:update', (_event, id: string, updates: Partial<Pick<Project, 'name' | 'goal' | 'custom_agents'>>): Project | undefined => {
+  safeHandle('db:projects:update', (_event, id: string, updates: Partial<Pick<Project, 'name' | 'goal' | 'custom_agents' | 'review_mode'>>): Project | undefined => {
     return databaseService.updateProject(id, updates)
   })
 

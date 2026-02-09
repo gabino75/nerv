@@ -16,7 +16,7 @@ A walkthrough of the core NERV workflow: project creation, cycle planning, and t
 
 **What you'll see:**
 - Launching NERV and the clean empty dashboard
-- Creating a new project with name and goal
+- Creating a new project with name, goal, and repo path
 - **"What's Next?" round 1** — Claude recommends starting a cycle → approve → cycle created
 - Viewing the active cycle in the cycle panel
 - **"What's Next?" round 2** — Claude recommends implementing a task → approve → task created
@@ -25,6 +25,26 @@ A walkthrough of the core NERV workflow: project creation, cycle planning, and t
 
 <video controls width="100%" preload="metadata">
   <source :src="withBase('/demos/quick-start.webm')" type="video/webm">
+  Your browser does not support WebM video.
+</video>
+
+---
+
+## Code Review
+
+The human-in-the-loop review workflow — NERV's core quality gate. A task completed by Claude enters the Review column, the user reviews code changes, requests improvements, and ultimately approves.
+
+**What you'll see:**
+- A task in the **Review column** on the kanban board
+- Clicking the task card to open the **Review Modal**
+- **Code diff** showing actual git changes (new files, modified code)
+- **Claude's summary** of work done
+- Typing feedback and clicking **"Request Changes"** — task returns to in_progress
+- Claude applies feedback, task re-enters Review
+- Typing approval notes and clicking **"Approve & Complete"** — task moves to Done
+
+<video controls width="100%" preload="metadata">
+  <source :src="withBase('/demos/code-review.webm')" type="video/webm">
   Your browser does not support WebM video.
 </video>
 
@@ -50,13 +70,13 @@ Run autonomous benchmarks from a spec file. NERV configures the YOLO loop, launc
 
 ## Multi-Repo + Knowledge
 
-Manage multiple repositories and knowledge bases within a single NERV project. Worktrees, CLAUDE.md files, and connected repos are all accessible from the dashboard.
+Manage multiple repositories and knowledge bases within a single NERV project. Connected repos, CLAUDE.md files, and worktrees are all accessible from the dashboard.
 
 **What you'll see:**
 - Creating a multi-repo project (shared-types + API backend)
-- Opening the **Worktree panel** from the Workflow menu to manage git worktrees
+- Pre-seeded **connected repositories** visible in the Repos panel
 - Opening the **Knowledge Base** to view CLAUDE.md and project context
-- Opening the **Repos panel** to see connected repositories
+- Opening the **Worktree panel** from the Workflow menu to manage git worktrees
 
 <video controls width="100%" preload="metadata">
   <source :src="withBase('/demos/multi-repo.webm')" type="video/webm">
@@ -67,14 +87,13 @@ Manage multiple repositories and knowledge bases within a single NERV project. W
 
 ## Audit & Code Health
 
-Monitor code quality, detect spec drift, and review audit logs — all from the Audit panel.
+Monitor code quality, detect spec drift, and review audit logs — all from the Audit panel. Pre-seeded with realistic data: completed tasks, health checks, and audit events.
 
 **What you'll see:**
-- Opening the Audit panel
-- **Code Health tab** — test coverage, DRY violations, type errors, dead code, complexity metrics
-- Running a health check and viewing metric cards (healthy/unhealthy indicators)
-- **Spec Drift tab** — detecting missing features, stale tasks, and spec mismatches
-- **Logs tab** — filtered audit events by task and event type
+- Opening the Audit panel from the Workflow menu
+- **Code Health tab** — running a health check, viewing metric cards (test coverage, DRY violations, type errors, dead code, complexity)
+- **Spec Drift tab** — detecting stale tasks that have been in_progress for 14+ days
+- **Logs tab** — filtered audit events showing task lifecycle, approval requests, and cycle events
 
 <video controls width="100%" preload="metadata">
   <source :src="withBase('/demos/audit-health.webm')" type="video/webm">
@@ -85,14 +104,14 @@ Monitor code quality, detect spec drift, and review audit logs — all from the 
 
 ## Cost & Context
 
-Track token usage, session costs, and budget across all projects. The context monitor shows real-time token consumption while the Cost Dashboard provides historical analytics.
+Track token usage, session costs, and budget across all projects. Pre-seeded with realistic session metrics across multiple models and tasks.
 
 **What you'll see:**
-- The **Context Monitor** bar showing model, token usage, and compaction count
 - Opening the **Cost Dashboard** from the Settings menu
-- Summary cards with total cost, session count, and average cost
-- Budget progress bar showing spend vs. limit
-- Cost breakdown by model and by project
+- **Summary cards** showing total cost ($3.85), task count, and token usage
+- **Budget progress bar** showing spend vs. monthly limit
+- **Cost breakdown by model** — Sonnet vs. Opus usage comparison
+- **Cost by project** — per-project cost allocation
 
 <video controls width="100%" preload="metadata">
   <source :src="withBase('/demos/cost-context.webm')" type="video/webm">
@@ -124,7 +143,9 @@ NERV uses Playwright's built-in video recording inside Docker with a virtual dis
 2. **Playwright video** — Built-in `recordVideo` option captures at 1280x720
 3. **Cursor overlay** — CSS-injected cursor dot follows mouse movements with click animations
 4. **Slow typing** — Text entered character-by-character for natural pacing
-5. **Post-processing** — Optional ffmpeg conversion to GIF for README
+5. **Spotlight effect** — Dark overlay with cutout highlights target elements
+6. **Data seeding** — Pre-populated DB with realistic tasks, costs, and audit logs
+7. **Post-processing** — Optional ffmpeg conversion to GIF for README
 
 ### Custom Demos
 
@@ -154,7 +175,8 @@ test('demo_my_feature', async () => {
   // Use slowType() for text input
   // Use demoWait() between steps
   // Use glideToElement() for smooth cursor movement
-  // Use zoomInto() for emphasis on UI elements
+  // Use spotlight() to highlight UI elements
+  // Use clickDropdownItemDemo() for visible dropdown clicks
 })
 ```
 
@@ -166,8 +188,10 @@ Run with:
 ::: tip Recording Tips
 - Use `slowType()` for text input to show characters appearing naturally
 - Use `glideToElement()` before clicks for smooth cursor movement
-- Use `zoomInto()` to highlight important UI elements
+- Use `spotlight()` to highlight important UI elements with a dark overlay cutout
+- Use `clickDropdownItemDemo()` for dropdown items — visible cursor + fallback to dispatchEvent
 - Use `demoWait()` between actions with descriptive labels
+- Seed data before opening panels so they show real content
 - Keep demos under 3 minutes for optimal engagement
 - 1280x720 resolution balances quality and file size
 :::
