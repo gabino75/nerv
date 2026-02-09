@@ -121,14 +121,13 @@ test('recommend-driven workflow completes project lifecycle', async () => {
   await expect(recommendBtn).toBeEnabled()
 
   // Step 3: Drive the workflow through recommendations
-  // On a fresh project, we expect recommendations like:
-  // 1. create_cycle (first cycle for MVP)
-  // 2. create_task (tasks for the cycle)
-  // 3. start_task (start working)
+  // Expected full lifecycle in mock mode:
+  // 1. create_cycle → 2. create_task → 3. start_task → 4. review_task
+  // → 5. approve_task → 6. complete_cycle
 
   console.log('[Recommend Benchmark] Starting recommend-driven loop...')
 
-  const result = await recommendDrivenLoop(window, 5, {
+  const result = await recommendDrivenLoop(window, 8, {
     direction: 'focus on MVP with basic CLI and tests',
     delayBetweenSteps: 2000,
     onStep: (step, index) => {
@@ -149,6 +148,18 @@ test('recommend-driven workflow completes project lifecycle', async () => {
   // The first recommendation on a fresh project should typically involve
   // creating a cycle or setting up the project structure
   expect(result.steps[0].approved).toBe(true)
+
+  // Verify the lifecycle covers the full arc (create → build → complete)
+  // In mock mode, the loop should reach complete_cycle
+  if (!USE_REAL_CLAUDE) {
+    expect(actions).toContain('create_cycle')
+    expect(actions).toContain('create_task')
+    expect(actions).toContain('start_task')
+    expect(actions).toContain('review_task')
+    expect(actions).toContain('approve_task')
+    expect(actions).toContain('complete_cycle')
+    expect(result.completed).toBe(true)
+  }
 
   // Step 4: Verify the panel dismisses properly after each step
   await waitForRecommendDismissed(window)

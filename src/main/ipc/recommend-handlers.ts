@@ -72,32 +72,55 @@ function callClaude(prompt: string, ctx?: RecommendContext): string {
   if (isMock) {
     // Use structured context when available (more reliable than prompt parsing)
     const hasCycle = ctx ? ctx.hasCycle : prompt.includes('Cycle: #')
-    const hasTasks = ctx
-      ? ctx.tasks.some(t => t.status === 'todo' || t.status === 'in_progress')
-      : prompt.includes('todo:') || prompt.includes('in_progress:')
+    const hasTodoTasks = ctx
+      ? ctx.tasks.some(t => t.status === 'todo')
+      : prompt.includes('todo:')
     const hasInProgress = ctx
       ? ctx.tasks.some(t => t.status === 'in_progress')
       : prompt.includes('in_progress:')
+    const hasReview = ctx
+      ? ctx.tasks.some(t => t.status === 'review')
+      : prompt.includes('review:')
+    const allTasksDone = ctx
+      ? ctx.tasks.length > 0 && ctx.tasks.every(t => t.status === 'done')
+      : false
     if (!hasCycle) {
       return JSON.stringify([
         { phase: 'mvp', action: 'create_cycle', title: 'Start your first development cycle', description: 'Create a cycle to organize your work into focused iterations.', details: 'A cycle groups related tasks. Start with a small MVP scope.', params: { cycleGoal: 'MVP: Core functionality with tests' } },
         { phase: 'discovery', action: 'explore_codebase', title: 'Explore the project structure', description: 'Understand existing code patterns before making changes.', details: 'Look at entry points, dependencies, and test coverage.' },
       ])
     }
-    if (!hasTasks) {
+    if (!hasTodoTasks && !hasInProgress && !hasReview && !allTasksDone) {
+      // No tasks at all — create some
       return JSON.stringify([
         { phase: 'mvp', action: 'create_task', title: 'Implement core feature', description: 'Create a task for the main functionality.', details: 'Focus on the critical path first.', params: { taskTitle: 'Implement core feature', taskType: 'implementation' } },
         { phase: 'mvp', action: 'create_task', title: 'Add integration tests', description: 'Ensure the core feature works end-to-end.', details: 'Write tests that cover the happy path.', params: { taskTitle: 'Add integration tests', taskType: 'implementation' } },
       ])
     }
-    if (!hasInProgress) {
+    if (allTasksDone) {
+      // All tasks complete — wrap up the cycle
       return JSON.stringify([
-        { phase: 'building', action: 'start_task', title: 'Start working on the next task', description: 'Pick up the highest priority todo task.', details: 'Claude will work in an isolated worktree.' },
+        { phase: 'completion', action: 'complete_cycle', title: 'Complete the current cycle', description: 'All tasks are done. Record learnings and close this cycle.', details: 'Summarize what was accomplished and lessons learned.' },
+        { phase: 'completion', action: 'record_learning', title: 'Record cycle learnings', description: 'Document insights from this development cycle.', details: 'What worked well? What could be improved?', params: { learningContent: 'Completed all tasks successfully. Core feature implemented with tests.' } },
+      ])
+    }
+    if (hasReview) {
+      // Tasks in review — approve them
+      return JSON.stringify([
+        { phase: 'building', action: 'approve_task', title: 'Approve the reviewed task', description: 'The task review looks good. Approve and merge.', details: 'Mark the task as done after successful review.' },
         { phase: 'building', action: 'run_audit', title: 'Audit code health', description: 'Check code quality and test coverage.', details: 'Review recent changes for issues.' },
       ])
     }
+    if (hasInProgress) {
+      // Tasks in progress — review them
+      return JSON.stringify([
+        { phase: 'building', action: 'review_task', title: 'Review the current task', description: 'Check the in-progress task for completion.', details: 'Review output and decide whether to approve or iterate.' },
+        { phase: 'building', action: 'run_audit', title: 'Audit code health', description: 'Check code quality and test coverage.', details: 'Review recent changes for issues.' },
+      ])
+    }
+    // Has todo tasks — start them
     return JSON.stringify([
-      { phase: 'building', action: 'review_task', title: 'Review the current task', description: 'Check the in-progress task for completion.', details: 'Review output and decide whether to approve or iterate.' },
+      { phase: 'building', action: 'start_task', title: 'Start working on the next task', description: 'Pick up the highest priority todo task.', details: 'Claude will work in an isolated worktree.' },
       { phase: 'building', action: 'run_audit', title: 'Audit code health', description: 'Check code quality and test coverage.', details: 'Review recent changes for issues.' },
     ])
   }
@@ -180,6 +203,12 @@ export function registerRecommendHandlers(): void {
         case 'start_task': {
           // UI handles starting the task (terminal spawn, worktree creation)
           const taskId = params?.taskId || databaseService.getTasksForProject(projectId).find(t => t.status === 'todo')?.id
+          // In mock mode, also update task status so the recommend loop can progress
+          const isMock = process.env.NERV_MOCK_CLAUDE === '1' || process.env.NERV_MOCK_CLAUDE === 'true'
+            || process.env.NERV_TEST_MODE === '1' || process.env.NERV_TEST_MODE === 'true'
+          if (isMock && taskId) {
+            databaseService.updateTaskStatus(taskId, 'in_progress')
+          }
           return { success: true, action, data: { taskId, uiAction: 'start_task' } }
         }
 
@@ -217,15 +246,32 @@ export function registerRecommendHandlers(): void {
         }
 
         case 'review_task':
-        case 'approve_task':
+        case 'approve_task': {
+          const targetTask = params?.taskId
+            ? databaseService.getTasksForProject(projectId).find(t => t.id === params.taskId)
+            : databaseService.getTasksForProject(projectId).find(t => t.status === 'in_progress' || t.status === 'review')
+          const targetTaskId = targetTask?.id
+          // In mock mode, advance task status so the recommend loop can progress
+          const isMockMode = process.env.NERV_MOCK_CLAUDE === '1' || process.env.NERV_MOCK_CLAUDE === 'true'
+            || process.env.NERV_TEST_MODE === '1' || process.env.NERV_TEST_MODE === 'true'
+          if (isMockMode && targetTaskId) {
+            if (action === 'review_task') {
+              databaseService.updateTaskStatus(targetTaskId, 'review')
+            } else if (action === 'approve_task') {
+              databaseService.updateTaskStatus(targetTaskId, 'done')
+            }
+          }
+          return { success: true, action, data: { taskId: targetTaskId, uiAction: action } }
+        }
+
         case 'explore_codebase':
         case 'write_tests':
         case 'resume_task': {
           // These require UI interaction — return the action for the UI to handle
-          const targetTaskId = params?.taskId || databaseService.getTasksForProject(projectId).find(
+          const uiTaskId = params?.taskId || databaseService.getTasksForProject(projectId).find(
             t => action === 'resume_task' ? t.status === 'interrupted' : t.status === 'in_progress'
           )?.id
-          return { success: true, action, data: { taskId: targetTaskId, uiAction: action } }
+          return { success: true, action, data: { taskId: uiTaskId, uiAction: action } }
         }
 
         default:
