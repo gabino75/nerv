@@ -21,6 +21,7 @@ import {
 import {
   runReviewAgent,
 } from '../../../src/core/benchmark-review'
+import { PRD_WORKFLOW_EXCERPT } from '../../../src/shared/prompts/prd-excerpt'
 import type {
   UserScenario,
   MidProjectEvent,
@@ -1455,6 +1456,9 @@ Write your review comments (plain text, no JSON):`
     // Build context shared by all 3 prompts
     const events = this.eventLog.getEvents()
     const context = [
+      `## Project Goal\n${this.config.scenario.projectIdea}`,
+      `\n## Milestones\n${this.config.scenario.roughMilestones.map((m, i) => `${i + 1}. ${m}`).join('\n')}`,
+      `\n## Build Metrics`,
       `Cycles completed: ${build.cyclesCompleted}`,
       `Tasks completed: ${build.tasksCompleted}, failed: ${build.tasksFailed}`,
       `Build success: ${build.success}`,
@@ -1462,6 +1466,8 @@ Write your review comments (plain text, no JSON):`
       `Merges failed: ${events.filter(e => e.event === 'worktree_merge_failed').length}`,
       `Loop dismissals: ${events.filter(e => e.event === 'loop_dialog_dismissed').length}`,
       `Review decisions: ${events.filter(e => e.event.startsWith('review_')).length}`,
+      `\n## Event Timeline`,
+      ...events.slice(0, 50).map(e => `[${(e.t / 1000).toFixed(1)}s] ${e.event}${e.label ? ': ' + e.label : ''}`),
     ].join('\n')
 
     const truncatedDiff = diff.length > 20000 ? diff.slice(0, 20000) + '\n[...truncated...]' : diff
@@ -1505,17 +1511,17 @@ Write your review comments (plain text, no JSON):`
     }
 
     const planning = await gradeOne(
-      `You are evaluating PLANNING quality of a NERV benchmark run.\n\nScore 1-10 how well the project was planned:\n- Were cycles well-scoped and progressive?\n- Were tasks appropriately decomposed?\n- Did spec coverage increase?\n\n## Metrics\n${context}\n\nRespond with ONLY JSON: {"score": N, "strengths": [...], "weaknesses": [...], "evidence": "..."}`,
+      `You are evaluating PLANNING quality of a NERV benchmark run.\n\nScore 1-10 how well the project was planned:\n- Were cycles well-scoped and progressive (each builds on the last)?\n- Were tasks appropriately decomposed from milestones?\n- Did spec coverage increase across cycles?\n- Were mid-project events (scope creep, user feedback) handled by creating new tasks?\n- Did the workflow show iterative learning (later cycles address earlier gaps)?\n\n${context}\n\nRespond with ONLY JSON: {"score": N, "strengths": [...], "weaknesses": [...], "evidence": "..."}`,
       'Planning',
     )
 
     const code = await gradeOne(
-      `You are evaluating CODE QUALITY of a NERV benchmark run.\n\nScore 1-10 the produced code:\n- Code organization, naming, structure\n- Test coverage and quality\n- Functionality vs spec\n\n## Code Diff\n\`\`\`diff\n${truncatedDiff || '(no diff available)'}\n\`\`\`\n\n## Metrics\n${context}\n\nRespond with ONLY JSON: {"score": N, "strengths": [...], "weaknesses": [...], "evidence": "..."}`,
+      `You are evaluating CODE QUALITY of a NERV benchmark run.\n\nScore 1-10 the produced code:\n- Code organization, naming, structure\n- Test coverage and quality\n- Functionality completeness vs the project goal\n- Error handling and edge cases\n- TypeScript best practices\n\n## Code Diff\n\`\`\`diff\n${truncatedDiff || '(no diff available)'}\n\`\`\`\n\n${context}\n\nRespond with ONLY JSON: {"score": N, "strengths": [...], "weaknesses": [...], "evidence": "..."}`,
       'Code Quality',
     )
 
     const nervOps = await gradeOne(
-      `You are evaluating NERV OPS quality — how well the benchmark followed NERV's workflow patterns.\n\nScore 1-10:\n- Worktree isolation per task\n- Cycle-based iteration\n- Review gates before merge\n- Error recovery and loop handling\n- Cost efficiency\n\n## Metrics\n${context}\n\nRespond with ONLY JSON: {"score": N, "strengths": [...], "weaknesses": [...], "evidence": "..."}`,
+      `You are evaluating NERV OPS quality — how well the benchmark followed NERV's intended workflow patterns.\n\nScore 1-10 based on these criteria (weights shown):\n- Worktree isolation per task (25%) — each task gets its own worktree, merged on approval\n- Cycle-based iteration (20%) — multiple cycles with increasing spec completion\n- Review gates before merge (15%) — work reviewed before merging to main\n- Error recovery and loop handling (10%) — graceful handling of stuck/looping sessions\n- Cost efficiency (15%) — reasonable token usage relative to complexity\n- Parallelism potential (15%) — tasks scoped for independent execution\n\n## Reference: Expected Workflow Patterns\n${PRD_WORKFLOW_EXCERPT}\n\n${context}\n\nRespond with ONLY JSON: {"score": N, "strengths": [...], "weaknesses": [...], "evidence": "..."}`,
       'NERV Ops',
     )
 
