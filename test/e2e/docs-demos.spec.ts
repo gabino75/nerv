@@ -606,28 +606,35 @@ test.afterEach(async () => {
  * 9. Final panoramic view
  */
 test('demo_quick_start', async () => {
-  test.setTimeout(180000)
+  test.setTimeout(240000)
   // Create test repo with realistic project structure
   testRepoPath = createTestRepo('my-app', {
     'src/index.ts': '// Main entry point\nimport { startServer } from "./server";\nstartServer();\n',
     'src/server.ts': '// Server setup\nexport function startServer() {\n  console.log("Server running on port 3000");\n}\n',
     'src/routes/api.ts': '// API routes\nexport const routes = [];\n',
+    'src/middleware/auth.ts': '// Auth middleware placeholder\nexport function requireAuth() {\n  return (req: any, res: any, next: any) => next();\n}\n',
+    'tests/api.test.ts': '// API tests\nimport { describe, it, expect } from "jest";\ndescribe("API", () => {\n  it("should start", () => { expect(true).toBe(true); });\n});\n',
     'package.json': JSON.stringify({
-      name: 'my-app',
-      version: '1.0.0',
+      name: 'my-rest-api',
+      version: '0.1.0',
       scripts: {
         dev: 'ts-node src/index.ts',
-        test: 'jest',
-        build: 'tsc'
-      }
-    }, null, 2)
+        test: 'jest --coverage',
+        build: 'tsc',
+        lint: 'eslint src/'
+      },
+      dependencies: { express: '^4.18.0' },
+      devDependencies: { jest: '^29.0.0', typescript: '^5.0.0' }
+    }, null, 2),
+    'tsconfig.json': JSON.stringify({ compilerOptions: { target: 'ES2022', module: 'commonjs', strict: true, outDir: './dist' } }, null, 2),
+    'CLAUDE.md': '# My REST API\n\n## Architecture\n- Express server with TypeScript\n- JWT authentication\n- PostgreSQL database\n\n## Testing\n- Run `npm test` for unit tests\n- Run `npm run lint` for linting\n'
   })
 
   const result = await launchApp('benchmark')
   electronApp = result.app
   window = result.page
 
-  await demoWait(window, 'App launched - showing empty NERV dashboard', 2500)
+  await demoWait(window, 'App launched - showing empty NERV dashboard', 3000)
 
   // ========================================
   // Step 1: Create a new project with slow typing
@@ -636,31 +643,38 @@ test('demo_quick_start', async () => {
   const newProjectBtn = window.locator(SELECTORS.newProject).first()
   await expect(newProjectBtn).toBeVisible({ timeout: 5000 })
   await glideToElement(window, SELECTORS.newProject)
-  await demoWait(window, 'Highlighting New Project button', 1000)
+  await demoWait(window, 'Highlighting New Project button', 1200)
   await newProjectBtn.click()
-  await demoWait(window, 'Project dialog opened', 1200)
+  await demoWait(window, 'Project dialog opened', 1500)
+
+  // Spotlight the new project dialog
+  const dialogSelector = SELECTORS.newProjectDialog
+  await spotlight(window, dialogSelector, 1500)
 
   // Slow type the project name
   const projectNameInput = window.locator(SELECTORS.projectNameInput).first()
   if (await projectNameInput.isVisible({ timeout: 3000 }).catch(() => false)) {
+    await glideToElement(window, SELECTORS.projectNameInput)
     await slowType(window, SELECTORS.projectNameInput, 'My REST API')
-    await demoWait(window, 'Project name entered', 800)
+    await demoWait(window, 'Project name entered', 1000)
   }
 
-  // Slow type the project goal
+  // Slow type a detailed project goal (spec-like)
   const projectGoalInput = window.locator(SELECTORS.projectGoalInput).first()
   if (await projectGoalInput.isVisible({ timeout: 2000 }).catch(() => false)) {
-    await slowType(window, SELECTORS.projectGoalInput, 'Build a REST API with user auth')
-    await demoWait(window, 'Project goal entered', 800)
+    await glideToElement(window, SELECTORS.projectGoalInput)
+    await slowType(window, SELECTORS.projectGoalInput,
+      'Build a REST API with JWT auth, user CRUD, PostgreSQL, and full test coverage', 35)
+    await demoWait(window, 'Project goal entered — detailed spec', 1500)
   }
 
   // Create the project
   const createBtn = window.locator(SELECTORS.createProjectBtn).first()
   if (await createBtn.isVisible({ timeout: 2000 }).catch(() => false)) {
     await glideToElement(window, SELECTORS.createProjectBtn)
-    await demoWait(window, 'About to create project', 600)
+    await demoWait(window, 'About to create project', 800)
     await createBtn.click()
-    await demoWait(window, 'Project created successfully', 1500)
+    await demoWait(window, 'Project created successfully', 2000)
   }
 
   // Get project ID for reference
@@ -675,40 +689,40 @@ test('demo_quick_start', async () => {
   console.log('[Demo] Step 2: What\'s Next? → Create cycle')
 
   await glideToElement(window, SELECTORS.recommendBtn)
-  await demoWait(window, 'About to ask "What\'s Next?"', 800)
+  await demoWait(window, 'About to ask "What\'s Next?"', 1200)
   await window.locator(SELECTORS.recommendBtn).click()
-  await demoWait(window, 'Recommend panel opened', 500)
+  await demoWait(window, 'Recommend panel opened', 800)
 
   await window.locator(SELECTORS.recommendPanel).waitFor({ timeout: 5000 })
 
-  const dirInput = window.locator(SELECTORS.recommendDirectionInput)
-  await slowType(window, SELECTORS.recommendDirectionInput, 'start with a cycle')
-  await demoWait(window, 'Direction entered', 600)
+  await glideToElement(window, SELECTORS.recommendDirectionInput)
+  await slowType(window, SELECTORS.recommendDirectionInput, 'plan the MVP cycle', 40)
+  await demoWait(window, 'Direction entered', 800)
 
   await glideToElement(window, SELECTORS.recommendAskBtn)
   await window.locator(SELECTORS.recommendAskBtn).click()
-  await demoWait(window, 'Asking Claude for recommendations...', 500)
+  await demoWait(window, 'Asking Claude for recommendations...', 800)
 
   const card0 = window.locator(SELECTORS.recommendCard(0))
   await card0.waitFor({ timeout: 15000 })
-  await demoWait(window, 'Recommendations received', 800)
+  await demoWait(window, 'Recommendations received — Claude suggests creating a cycle', 1500)
 
   // Spotlight the recommendation cards
-  await spotlight(window, SELECTORS.recommendPanel, 2000)
+  await spotlight(window, SELECTORS.recommendPanel, 2500)
 
   // Approve the first card (create_cycle)
   await glideToElement(window, SELECTORS.recommendApprove(0))
-  await demoWait(window, 'Approving: Start your first development cycle', 600)
+  await demoWait(window, 'Approving: Start your first development cycle', 800)
   await window.locator(SELECTORS.recommendApprove(0)).click()
 
   try {
     await window.locator(SELECTORS.recommendExecuteSuccess).waitFor({ timeout: 5000 })
-    await demoWait(window, 'Cycle created! Panel auto-dismissing...', 1500)
+    await demoWait(window, 'Cycle created! Panel auto-dismissing...', 2000)
   } catch {
     // Panel may have already auto-dismissed
   }
   await waitForRecommendDismissed(window)
-  await demoWait(window, 'Panel dismissed', 500)
+  await demoWait(window, 'Panel dismissed', 600)
 
   // Dismiss recommend backdrop if still present
   const backdrop = window.locator('.recommend-backdrop').first()
@@ -718,21 +732,22 @@ test('demo_quick_start', async () => {
   }
 
   // ========================================
-  // Step 3: Show the cycle that was created
+  // Step 3: Show the cycle panel in detail
   // ========================================
   console.log('[Demo] Step 3: Showing created cycle')
 
   const cyclesBtn = window.locator(SELECTORS.cyclesBtn).first()
   if (await cyclesBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
     await glideToElement(window, SELECTORS.cyclesBtn)
-    await demoWait(window, 'Opening cycle panel', 600)
+    await demoWait(window, 'Opening cycle panel', 800)
     await cyclesBtn.click()
 
     const cyclePanel = window.locator(SELECTORS.cyclePanel).first()
     if (await cyclePanel.isVisible({ timeout: 3000 }).catch(() => false)) {
-      await demoWait(window, 'Cycle panel showing active cycle', 800)
-      await spotlight(window, SELECTORS.cyclePanel, 2000)
+      await demoWait(window, 'Cycle #0 — active cycle with MVP goal', 1200)
+      await spotlight(window, SELECTORS.cyclePanel, 3000)
 
+      // Close cycle panel
       const closeBtn = window.locator(`${SELECTORS.cyclePanel} .close-btn`).first()
       if (await closeBtn.isVisible({ timeout: 1000 }).catch(() => false)) {
         await closeBtn.click()
@@ -748,7 +763,7 @@ test('demo_quick_start', async () => {
 
   await waitForRecommendDismissed(window)
   await glideToElement(window, SELECTORS.recommendBtn)
-  await demoWait(window, 'Asking "What\'s Next?" again', 800)
+  await demoWait(window, 'Asking "What\'s Next?" for task suggestions', 1000)
   await window.locator(SELECTORS.recommendBtn).click()
   await window.waitForTimeout(500)
 
@@ -761,16 +776,16 @@ test('demo_quick_start', async () => {
 
   await glideToElement(window, SELECTORS.recommendAskBtn)
   await window.locator(SELECTORS.recommendAskBtn).click()
-  await demoWait(window, 'Asking for next recommendations...', 500)
+  await demoWait(window, 'Asking for next recommendations...', 800)
 
   const card0Round2 = window.locator(SELECTORS.recommendCard(0))
   await card0Round2.waitFor({ timeout: 15000 })
-  await demoWait(window, 'Recommendations: Implement core feature', 800)
+  await demoWait(window, 'Claude recommends implementing a core feature', 1500)
 
-  await spotlight(window, SELECTORS.recommendPanel, 2000)
+  await spotlight(window, SELECTORS.recommendPanel, 2500)
 
   await glideToElement(window, SELECTORS.recommendApprove(0))
-  await demoWait(window, 'Approving: Implement core feature', 600)
+  await demoWait(window, 'Approving: Implement core feature', 800)
   await window.locator(SELECTORS.recommendApprove(0)).click()
 
   try {
@@ -784,25 +799,152 @@ test('demo_quick_start', async () => {
   // ========================================
   // Step 5: Show task on the board
   // ========================================
-  console.log('[Demo] Step 5: Showing task on board')
+  console.log('[Demo] Step 5: Showing task on kanban board')
 
   const taskList = window.locator(SELECTORS.taskList).first()
   if (await taskList.isVisible({ timeout: 3000 }).catch(() => false)) {
     await glideToElement(window, SELECTORS.taskList)
+    await demoWait(window, 'Task board — task in TODO column', 1000)
     await spotlight(window, SELECTORS.taskList, 2500)
   }
 
-  // Spotlight the task item specifically
-  const taskItem = window.locator('.task-item').first()
-  if (await taskItem.isVisible({ timeout: 3000 }).catch(() => false)) {
-    await spotlight(window, '.task-item', 2000)
+  // ========================================
+  // Step 6: Add a second task manually via + Add Task
+  // ========================================
+  console.log('[Demo] Step 6: Adding a second task manually')
+
+  const addTaskBtn = window.locator(SELECTORS.addTaskBtn).first()
+  if (await addTaskBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
+    await glideToElement(window, SELECTORS.addTaskBtn)
+    await demoWait(window, 'Opening Add Task dialog', 800)
+    await addTaskBtn.click()
+    await window.waitForTimeout(800)
+
+    // Select task type — click "Research" to show type selection
+    const researchTypeBtn = window.locator('[data-testid="task-type-research"]').first()
+    if (await researchTypeBtn.isVisible({ timeout: 2000 }).catch(() => false)) {
+      await glideToElement(window, '[data-testid="task-type-research"]')
+      await demoWait(window, 'Selecting Research task type', 600)
+      await researchTypeBtn.click()
+      await demoWait(window, 'Research type selected', 800)
+
+      // Switch back to Implementation for this task
+      const implTypeBtn = window.locator('[data-testid="task-type-implementation"]').first()
+      await glideToElement(window, '[data-testid="task-type-implementation"]')
+      await implTypeBtn.click()
+      await demoWait(window, 'Switched to Implementation type', 600)
+    }
+
+    // Type task title
+    const taskTitleInput = window.locator(SELECTORS.taskTitleInput).first()
+    if (await taskTitleInput.isVisible({ timeout: 2000 }).catch(() => false)) {
+      await glideToElement(window, SELECTORS.taskTitleInput)
+      await slowType(window, SELECTORS.taskTitleInput, 'Add JWT authentication middleware', 35)
+      await demoWait(window, 'Task title entered', 800)
+    }
+
+    // Type task description
+    const taskDescInput = window.locator('#task-description').first()
+    if (await taskDescInput.isVisible({ timeout: 2000 }).catch(() => false)) {
+      await glideToElement(window, '#task-description')
+      await slowType(window, '#task-description',
+        'Implement JWT token validation, refresh tokens, and role-based access control', 30)
+      await demoWait(window, 'Task description entered', 1000)
+    }
+
+    // Create the task
+    const createTaskBtn = window.locator(SELECTORS.createTaskBtn).first()
+    if (await createTaskBtn.isVisible({ timeout: 2000 }).catch(() => false)) {
+      await glideToElement(window, SELECTORS.createTaskBtn)
+      await demoWait(window, 'Creating task', 600)
+      await createTaskBtn.click()
+      await demoWait(window, 'Second task created!', 1500)
+    }
+  }
+
+  // Spotlight the board with both tasks
+  if (await taskList.isVisible({ timeout: 3000 }).catch(() => false)) {
+    await demoWait(window, 'Board now shows 2 tasks in TODO', 800)
+    await spotlight(window, SELECTORS.taskList, 2500)
   }
 
   // ========================================
-  // Step 6: Final panoramic view
+  // Step 7: Start a task — Claude works in terminal
   // ========================================
-  console.log('[Demo] Step 6: Final panoramic')
-  await demoWait(window, 'NERV - Recommend-driven AI development workflow', 2500)
+  console.log('[Demo] Step 7: Starting task — Claude in terminal')
+
+  const startBtn = window.locator('[data-testid="start-task-btn"]').first()
+  if (await startBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
+    await glideToElement(window, '[data-testid="start-task-btn"]')
+    await demoWait(window, 'About to start task — Claude will begin working', 1200)
+    await startBtn.click()
+    await demoWait(window, 'Task started! Claude is now working...', 2000)
+  }
+
+  // Wait for terminal output (mock Claude runs ~3.5s)
+  const terminal = window.locator(SELECTORS.terminal).first()
+  if (await terminal.isVisible({ timeout: 8000 }).catch(() => false)) {
+    console.log('[Demo] Step 8: Claude working in terminal')
+    await demoWait(window, 'Terminal showing Claude session output', 1500)
+    await spotlight(window, SELECTORS.terminalPanel, 4000)
+  }
+
+  // Wait for mock Claude to finish — task moves to review
+  await window.waitForTimeout(5000)
+
+  // ========================================
+  // Step 8: Task completes — show status change
+  // ========================================
+  console.log('[Demo] Step 9: Task status update')
+
+  // Check for task in review or in_progress (mock may complete quickly)
+  const taskBoard = window.locator(SELECTORS.taskList).first()
+  if (await taskBoard.isVisible({ timeout: 3000 }).catch(() => false)) {
+    await demoWait(window, 'Task progressing through workflow columns', 1200)
+    await spotlight(window, SELECTORS.taskList, 3000)
+  }
+
+  // ========================================
+  // Step 9: "What's Next?" round 3 — evolved recommendations
+  // ========================================
+  console.log('[Demo] Step 10: What\'s Next? — evolved recommendations')
+
+  await waitForRecommendDismissed(window)
+  const recommendBtn = window.locator(SELECTORS.recommendBtn).first()
+  if (await recommendBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
+    await glideToElement(window, SELECTORS.recommendBtn)
+    await demoWait(window, 'Asking "What\'s Next?" — recommendations evolve with context', 1000)
+    await recommendBtn.click()
+    await window.waitForTimeout(500)
+
+    const recPanel = window.locator(SELECTORS.recommendPanel).first()
+    if (await recPanel.isVisible({ timeout: 3000 }).catch(() => false)) {
+      await window.locator(SELECTORS.recommendPanel).waitFor({ timeout: 5000 })
+      await glideToElement(window, SELECTORS.recommendAskBtn)
+      await window.locator(SELECTORS.recommendAskBtn).click()
+      await window.waitForTimeout(500)
+
+      const card = window.locator(SELECTORS.recommendCard(0))
+      if (await card.isVisible({ timeout: 10000 }).catch(() => false)) {
+        await demoWait(window, 'New recommendations based on current progress', 1500)
+        await spotlight(window, SELECTORS.recommendPanel, 3000)
+      }
+    }
+
+    // Dismiss the panel via dispatchEvent (backdrop is behind the panel)
+    await waitForRecommendDismissed(window)
+    await window.evaluate(() => {
+      const backdrop = document.querySelector('.recommend-backdrop') as HTMLElement
+      if (backdrop) backdrop.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    })
+    await window.waitForTimeout(300)
+  }
+
+  // ========================================
+  // Step 10: Final panoramic view
+  // ========================================
+  console.log('[Demo] Step 11: Final panoramic')
+  await demoWait(window, 'NERV — AI-orchestrated development with cycles, tasks, and recommendations', 3500)
 
   await saveVideoAndClose(electronApp, window, 'quick-start')
 })

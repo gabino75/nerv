@@ -12,16 +12,19 @@ All demos are recorded using Playwright's built-in video capture inside Docker. 
 
 ## Quick Start
 
-A walkthrough of the core NERV workflow: project creation, cycle planning, and the "What's Next?" recommendation-driven flow.
+A comprehensive walkthrough of the NERV development workflow: project creation with a spec-like goal, cycle planning, task management, and Claude working in the terminal.
 
 **What you'll see:**
-- Launching NERV and the clean empty dashboard
-- Creating a new project with name, goal, and repo path
-- **"What's Next?" round 1** — Claude recommends starting a cycle → approve → cycle created
-- Viewing the active cycle in the cycle panel
-- **"What's Next?" round 2** — Claude recommends implementing a task → approve → task created
-- Task appearing on the board, starting it with Claude
-- Claude working in the terminal, task completing automatically
+- Launching NERV and the **clean empty dashboard**
+- Creating a new project with name and **detailed goal** (spec-like description)
+- **"What's Next?" round 1** — Claude recommends starting a cycle → approve → **Cycle #0 created**
+- Opening the **Cycle Panel** to view the active cycle with its MVP goal
+- **"What's Next?" round 2** — Claude recommends creating a task → approve → task on board
+- **Manually adding a second task** via + Add Task — selecting task type (Research → Implementation), typing title and description
+- **Kanban board** showing 2 tasks in the TODO column
+- Clicking **Start Task** — Claude spawns in the terminal and begins working
+- **Terminal output** showing Claude reading files, editing code, running tests
+- **"What's Next?" round 3** — recommendations evolve based on current context
 
 <video controls width="100%" preload="metadata">
   <source :src="withBase('/demos/quick-start.webm')" type="video/webm">
