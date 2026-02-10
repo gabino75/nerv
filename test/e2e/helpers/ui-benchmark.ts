@@ -155,6 +155,10 @@ export class UIBenchmarkRunner {
     // Write config.json — scoring script loads this from the output directory
     this.writeConfigJson()
 
+    // Write per-task output directories — scoring script reads tasks/{taskId}/
+    // for per-task metrics, review decisions, and stream summaries
+    await this.writePerTaskOutputDirs(setup)
+
     return {
       specFile: this.config.specFile,
       setup,
@@ -552,6 +556,108 @@ export class UIBenchmarkRunner {
       path.join(this.config.outputDir, 'config.json'),
       JSON.stringify(config, null, 2),
     )
+  }
+
+  // ==========================================================================
+  // Output: per-task directories for scoring script per-task context
+  // ==========================================================================
+
+  /**
+   * Write tasks/{taskId}/ directories with metrics.json and review-decision.json.
+   * The scoring script (score-benchmark.js:286-323) reads these to build
+   * per-task grading context: tool usage, metrics, review decisions, stream summaries.
+   * In mock mode, metrics will have zeros (correct — no real Claude session).
+   */
+  private async writePerTaskOutputDirs(setup: UIBenchmarkSetupResult): Promise<void> {
+    try {
+      const events = this.eventLog.getEvents()
+
+      // Get per-task metrics from DB (same query used by writeSummaryJson)
+      const metricsData = await this.window.evaluate(async () => {
+        const api = (window as unknown as { api: { db: { metrics: { getRecentTasks: (limit?: number) => Promise<Array<{ taskId: string; inputTokens: number; outputTokens: number; cacheReadTokens: number; costUsd: number; durationMs: number }>> } } } }).api
+        const tasks = await api.db.metrics.getRecentTasks(100)
+        if (!Array.isArray(tasks)) return [] as Array<{ taskId: string; inputTokens: number; outputTokens: number; cacheReadTokens: number; costUsd: number; durationMs: number }>
+        return tasks
+      })
+
+      // Build per-task durations from event log
+      const taskDurations = new Map<string, number>()
+      const taskStarts = new Map<string, number>()
+      for (const ev of events) {
+        const taskId = ev.label?.replace('Task ', '')
+        if (!taskId) continue
+        if (ev.event === 'task_started') taskStarts.set(taskId, ev.t)
+        if (ev.event === 'task_completed') {
+          const startT = taskStarts.get(taskId)
+          if (startT !== undefined) taskDurations.set(taskId, ev.t - startT)
+        }
+      }
+
+      // Build per-task review decisions from event log
+      const taskReviews = new Map<string, string>()
+      for (const ev of events) {
+        if (ev.event === 'review_decision' && ev.label) {
+          // Label format: "Review: Approved" — the task is the most recent task_started before this event
+          const decision = ev.label.replace('Review: ', '').toLowerCase()
+          // Find which task this review belongs to — the last task_started before this event
+          let latestTaskId: string | null = null
+          for (const prior of events) {
+            if (prior.t > ev.t) break
+            if (prior.event === 'task_started' && prior.label) {
+              latestTaskId = prior.label.replace('Task ', '')
+            }
+          }
+          if (latestTaskId) taskReviews.set(latestTaskId, decision)
+        }
+      }
+
+      // Collect all task IDs that were part of the benchmark
+      const allTaskIds = new Set<string>()
+      for (const ev of events) {
+        if (ev.event === 'task_started' && ev.label) {
+          allTaskIds.add(ev.label.replace('Task ', ''))
+        }
+      }
+
+      const tasksDir = path.join(this.config.outputDir, 'tasks')
+      fs.mkdirSync(tasksDir, { recursive: true })
+
+      const metricsMap = new Map(metricsData.map(m => [m.taskId, m]))
+
+      for (const taskId of allTaskIds) {
+        const taskDir = path.join(tasksDir, taskId)
+        fs.mkdirSync(taskDir, { recursive: true })
+
+        // Write metrics.json
+        const dbMetrics = metricsMap.get(taskId)
+        const metrics = {
+          taskId,
+          exitCode: 0,
+          durationMs: taskDurations.get(taskId) ?? 0,
+          costUsd: dbMetrics?.costUsd ?? 0,
+          tokens: {
+            input: dbMetrics?.inputTokens ?? 0,
+            output: dbMetrics?.outputTokens ?? 0,
+            cacheRead: dbMetrics?.cacheReadTokens ?? 0,
+          },
+        }
+        fs.writeFileSync(
+          path.join(taskDir, 'metrics.json'),
+          JSON.stringify(metrics, null, 2),
+        )
+
+        // Write review-decision.json if task was reviewed
+        const decision = taskReviews.get(taskId)
+        if (decision) {
+          fs.writeFileSync(
+            path.join(taskDir, 'review-decision.json'),
+            JSON.stringify({ decision, confidence: 'high' }, null, 2),
+          )
+        }
+      }
+    } catch (error) {
+      log('info', 'Failed to write per-task output dirs', { error: String(error) })
+    }
   }
 
   // ==========================================================================
