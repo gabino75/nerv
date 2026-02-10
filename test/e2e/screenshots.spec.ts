@@ -18,6 +18,7 @@ import fs from 'fs'
 import { fileURLToPath } from 'url'
 import { createTestRepo, cleanupTestRepo, ensureRecordingDirs } from './helpers/recording-utils'
 import { SELECTORS, TIMEOUT } from './helpers/selectors'
+import { openCyclePanel } from './helpers/actions'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -168,10 +169,8 @@ test('capture UI screenshots for documentation', async () => {
   await expect(actionBar).toBeVisible({ timeout: TIMEOUT.ui })
   await captureScreenshot(actionBar, 'action-bar')
 
-  // === Open cycles panel ===
-  const cyclesBtn = window.locator(SELECTORS.cyclesBtn)
-  await expect(cyclesBtn).toBeVisible({ timeout: TIMEOUT.ui })
-  await cyclesBtn.click()
+  // === Open cycles panel (behind "More" dropdown) ===
+  await openCyclePanel(window)
   await window.waitForTimeout(500)
 
   // === Screenshot 5: Cycle panel ===
@@ -205,8 +204,8 @@ test('capture UI screenshots for documentation', async () => {
   const addTaskBtn = window.locator(SELECTORS.addTaskBtn)
   await expect(addTaskBtn).toBeVisible({ timeout: TIMEOUT.ui })
 
-  // First task
-  await addTaskBtn.click()
+  // First task (dispatchEvent to bypass .layout-header flex-wrap overlap)
+  await addTaskBtn.dispatchEvent('click')
   await window.waitForTimeout(300)
   const taskTitle = window.locator(SELECTORS.taskTitleInput)
   await expect(taskTitle).toBeVisible({ timeout: TIMEOUT.ui })
@@ -217,7 +216,7 @@ test('capture UI screenshots for documentation', async () => {
   await window.waitForTimeout(500)
 
   // Second task
-  await addTaskBtn.click()
+  await addTaskBtn.dispatchEvent('click')
   await window.waitForTimeout(300)
   const taskTitle2 = window.locator(SELECTORS.taskTitleInput)
   await expect(taskTitle2).toBeVisible({ timeout: TIMEOUT.ui })
