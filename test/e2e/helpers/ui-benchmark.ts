@@ -94,6 +94,48 @@ class EventLog {
 }
 
 // ============================================================================
+// Stream Data Helpers
+// ============================================================================
+
+interface ToolCallEntry {
+  timestamp: number
+  tool: string
+  success: boolean
+}
+
+/**
+ * Extract tool_use blocks from raw stream.jsonl lines to produce tools.jsonl data.
+ * Mirrors postProcessStreamData() in src/cli/commands/benchmark.ts.
+ * score-benchmark.js reads tasks/{taskId}/tools.jsonl (lines 297-301) for grading.
+ */
+function extractToolCallsFromStream(streamLines: string[]): ToolCallEntry[] {
+  const toolCalls: ToolCallEntry[] = []
+  for (const line of streamLines) {
+    const trimmed = line.trim()
+    if (!trimmed || !trimmed.startsWith('{')) continue
+    let msg: Record<string, unknown>
+    try {
+      msg = JSON.parse(trimmed)
+    } catch {
+      continue
+    }
+    if (msg.type !== 'assistant') continue
+    const message = msg.message as { content?: Array<{ type: string; name?: string }> } | undefined
+    if (!message?.content) continue
+    for (const block of message.content) {
+      if (block.type === 'tool_use' && block.name) {
+        toolCalls.push({
+          timestamp: Date.now(),
+          tool: block.name,
+          success: true,
+        })
+      }
+    }
+  }
+  return toolCalls
+}
+
+// ============================================================================
 // UIBenchmarkRunner
 // ============================================================================
 
@@ -709,6 +751,16 @@ export class UIBenchmarkRunner {
             path.join(taskDir, 'stream.jsonl'),
             streamLines.join('\n') + '\n',
           )
+
+          // Derive tools.jsonl from stream data — score-benchmark.js reads
+          // tasks/{taskId}/tools.jsonl (lines 297-301) for per-task tool usage grading
+          const toolCalls = extractToolCallsFromStream(streamLines)
+          if (toolCalls.length > 0) {
+            fs.writeFileSync(
+              path.join(taskDir, 'tools.jsonl'),
+              toolCalls.map(t => JSON.stringify(t)).join('\n') + '\n',
+            )
+          }
         }
       }
     } catch (error) {
