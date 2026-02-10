@@ -139,12 +139,62 @@ Only include params fields that are relevant to the action. Rank recommendations
 }
 
 /**
+ * Extract JSON array or object from a string that may contain surrounding text.
+ * Handles real Claude output like: "Here are my recommendations:\n\n[{...}]\n\nI hope this helps"
+ */
+function extractJson(text: string): string | null {
+  // Try to find a JSON array first (most common)
+  const arrayStart = text.indexOf('[')
+  if (arrayStart !== -1) {
+    let depth = 0
+    for (let i = arrayStart; i < text.length; i++) {
+      if (text[i] === '[') depth++
+      else if (text[i] === ']') depth--
+      if (depth === 0) return text.slice(arrayStart, i + 1)
+    }
+  }
+
+  // Try to find a JSON object (single recommendation)
+  const objStart = text.indexOf('{')
+  if (objStart !== -1) {
+    let depth = 0
+    for (let i = objStart; i < text.length; i++) {
+      if (text[i] === '{') depth++
+      else if (text[i] === '}') depth--
+      if (depth === 0) return text.slice(objStart, i + 1)
+    }
+  }
+
+  return null
+}
+
+/**
  * Parse recommendation response — handles both array and single-object formats.
+ * Robust against real Claude output that includes surrounding text or code fences.
  */
 export function parseRecommendations(raw: string): Recommendation[] {
   try {
+    // Strip markdown code fences
     const cleaned = raw.replace(/```json\s*/g, '').replace(/```\s*/g, '').trim()
-    const parsed = JSON.parse(cleaned) as Recommendation | Recommendation[]
+
+    // First try direct parse (fast path for well-formatted responses)
+    try {
+      const direct = JSON.parse(cleaned) as Recommendation | Recommendation[]
+      if (Array.isArray(direct)) {
+        return direct.filter(r => r.phase && r.action && r.title && r.description)
+      }
+      if (direct.phase && direct.action && direct.title && direct.description) {
+        return [direct]
+      }
+    } catch {
+      // Direct parse failed — extract JSON from surrounding text
+    }
+
+    // Extract JSON from text that may have explanations before/after
+    const jsonStr = extractJson(cleaned)
+    if (!jsonStr) return []
+
+    const parsed = JSON.parse(jsonStr) as Recommendation | Recommendation[]
 
     if (Array.isArray(parsed)) {
       return parsed.filter(r => r.phase && r.action && r.title && r.description)
