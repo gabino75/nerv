@@ -179,6 +179,21 @@ export class UIBenchmarkRunner {
     const auditsRun = events.filter(e => e.event === 'audit_completed').length
     const auditsPassed = events.filter(e => e.event === 'audit_passed').length
 
+    // Count git commits in the collected repo (mirrors CLI benchmark's countGitCommits)
+    let commitsCreated = 0
+    try {
+      const { execSync } = await import('child_process')
+      const repoDir = path.join(this.config.outputDir, 'repo')
+      if (fs.existsSync(repoDir)) {
+        const result = execSync('git rev-list --count HEAD 2>/dev/null || echo "0"', {
+          cwd: repoDir, encoding: 'utf-8', timeout: 5000,
+        })
+        commitsCreated = parseInt(result.trim(), 10) || 0
+      }
+    } catch {
+      // Git count failed — leave as 0
+    }
+
     // Query audit_log DB for issue events (loop_detected, context_compacted, hang_detected, approval_waiting)
     // These are logged by recovery.ts in the main process but not emitted to the UIBenchmarkRunner event log
     const auditLogIssues = await this.window.evaluate(async () => {
@@ -231,6 +246,7 @@ export class UIBenchmarkRunner {
         parallelTasksRun: 0,
         reviewsRun,
         reviewsApproved,
+        commitsCreated,
         permissionsRequested: permissionsApproved + permissionsAlwaysAllowed,
         permissionsApproved,
         permissionsAlwaysAllowed,
