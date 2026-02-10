@@ -102,6 +102,8 @@ export class UIBenchmarkRunner {
   private config: UIBenchmarkConfig
   private eventLog: EventLog
   private totalStart = 0
+  /** Captured raw stream-json lines per task, keyed by taskId */
+  private streamBuffers = new Map<string, string[]>()
 
   constructor(window: Page, config: UIBenchmarkConfig) {
     this.window = window
@@ -606,10 +608,10 @@ export class UIBenchmarkRunner {
   // ==========================================================================
 
   /**
-   * Write tasks/{taskId}/ directories with metrics.json and review-decision.json.
+   * Write tasks/{taskId}/ directories with metrics.json, review-decision.json, and stream.jsonl.
    * The scoring script (score-benchmark.js:286-323) reads these to build
    * per-task grading context: tool usage, metrics, review decisions, stream summaries.
-   * In mock mode, metrics will have zeros (correct — no real Claude session).
+   * stream.jsonl is captured from claude:rawData IPC events during task execution.
    */
   private async writePerTaskOutputDirs(setup: UIBenchmarkSetupResult): Promise<void> {
     try {
@@ -695,6 +697,17 @@ export class UIBenchmarkRunner {
           fs.writeFileSync(
             path.join(taskDir, 'review-decision.json'),
             JSON.stringify({ decision, confidence: 'high' }, null, 2),
+          )
+        }
+
+        // Write stream.jsonl if we captured stream data for this task
+        // The scoring script (score-benchmark.js:309-314) reads this and calls
+        // summarizeStream() to extract tool calls, errors, thinking blocks for grading
+        const streamLines = this.streamBuffers.get(taskId)
+        if (streamLines && streamLines.length > 0) {
+          fs.writeFileSync(
+            path.join(taskDir, 'stream.jsonl'),
+            streamLines.join('\n') + '\n',
           )
         }
       }
@@ -973,6 +986,30 @@ export class UIBenchmarkRunner {
     const start = Date.now()
     this.eventLog.emit('phase_start', { label: 'Phase 2: Build', region: 'task-board' })
 
+    // Set up stream capture: listen to claude:rawData IPC in the page context
+    // and buffer lines per active task. Data arrives as raw PTY chunks that may
+    // contain multiple newline-delimited JSON lines.
+    await this.window.evaluate(() => {
+      const capture = { activeTaskId: null as string | null, buffers: {} as Record<string, string[]> }
+      ;(window as unknown as { __nervStreamCapture: typeof capture }).__nervStreamCapture = capture
+      const api = (window as unknown as { api?: { claude?: { onRawData?: (cb: (sessionId: string, data: string) => void) => void } } }).api
+      if (api?.claude?.onRawData) {
+        api.claude.onRawData((_sessionId: string, data: string) => {
+          const taskId = capture.activeTaskId
+          if (!taskId) return
+          if (!capture.buffers[taskId]) capture.buffers[taskId] = []
+          // Raw PTY data may contain multiple JSON lines separated by newlines
+          const lines = data.split('\n').filter(l => l.trim())
+          for (const line of lines) {
+            // Only keep lines that look like JSON objects (stream-json format)
+            if (line.startsWith('{')) {
+              capture.buffers[taskId].push(line)
+            }
+          }
+        })
+      }
+    })
+
     if (!setup.success) {
       return {
         phase: 'build',
@@ -1105,6 +1142,12 @@ export class UIBenchmarkRunner {
       region: 'action-bar',
       label: `Task ${taskId}`,
     })
+
+    // Set active task for stream capture
+    await this.window.evaluate((tid: string) => {
+      const capture = (window as unknown as { __nervStreamCapture?: { activeTaskId: string | null } }).__nervStreamCapture
+      if (capture) capture.activeTaskId = tid
+    }, taskId)
 
     const taskStart = Date.now()
     const isMockMode = process.env.NERV_MOCK_CLAUDE !== 'false'
@@ -1352,9 +1395,27 @@ export class UIBenchmarkRunner {
         if (store?.updateTaskStatus) await store.updateTaskStatus(tid, 'done')
       }, taskId)
 
+      // Retrieve captured stream data for this task
+      const streamLines = await this.window.evaluate((tid: string) => {
+        const capture = (window as unknown as { __nervStreamCapture?: { activeTaskId: string | null; buffers: Record<string, string[]> } }).__nervStreamCapture
+        if (capture) {
+          capture.activeTaskId = null
+          return capture.buffers[tid] ?? []
+        }
+        return [] as string[]
+      }, taskId)
+      if (streamLines.length > 0) {
+        this.streamBuffers.set(taskId, streamLines)
+      }
+
       this.eventLog.emit('task_completed', { label: `Task ${taskId}` })
       return { success: true, costUsd: 0 }
     } catch (error) {
+      // Clear stream capture on error too
+      await this.window.evaluate(() => {
+        const capture = (window as unknown as { __nervStreamCapture?: { activeTaskId: string | null } }).__nervStreamCapture
+        if (capture) capture.activeTaskId = null
+      }).catch(() => {})
       const msg = error instanceof Error ? error.message : String(error)
       this.eventLog.emit('task_error', { label: msg })
       return { success: false, costUsd: 0 }
