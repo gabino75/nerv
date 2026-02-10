@@ -148,6 +148,13 @@ export class UIBenchmarkRunner {
     // (uses timestamp field, not t field like event-log.jsonl)
     this.writeTimelineJsonl()
 
+    // Write pipeline-result.json — scoring script reads this for cycle-by-cycle
+    // progression narrative in the "Pipeline Progression" grading section
+    this.writePipelineResult(setup, build, totalDurationMs)
+
+    // Write config.json — scoring script loads this from the output directory
+    this.writeConfigJson()
+
     return {
       specFile: this.config.specFile,
       setup,
@@ -393,6 +400,157 @@ export class UIBenchmarkRunner {
     fs.writeFileSync(
       path.join(this.config.outputDir, 'timeline.jsonl'),
       timelineEntries.map(e => JSON.stringify(e)).join('\n') + '\n',
+    )
+  }
+
+  // ==========================================================================
+  // Output: pipeline-result.json for scoring script cycle-by-cycle narrative
+  // ==========================================================================
+
+  /**
+   * Write pipeline-result.json — the scoring script reads this to build a
+   * "Pipeline Progression (Cycle-by-Cycle)" section in the grading prompt.
+   * This gives Claude rich context about how each cycle progressed: tasks,
+   * merge status, cost, duration, and review decisions.
+   */
+  private writePipelineResult(
+    setup: UIBenchmarkSetupResult,
+    build: UIBenchmarkBuildResult,
+    totalDurationMs: number,
+  ): void {
+    const events = this.eventLog.getEvents()
+
+    // Build cycle-by-cycle data from event log
+    const cycles: Array<{
+      cycleNumber: number
+      title: string
+      durationMs: number
+      costUsd: number
+      specCompletionPercent: number
+      tasks: Array<{
+        taskId: string
+        merged: boolean
+        testsPassed: number
+        testsFailed: number
+        costUsd: number
+        durationMs: number
+        reviewDecision?: { decision: string }
+      }>
+    }> = []
+
+    let cycleNum = 0
+    let cycleStartT: number | null = null
+    let currentTasks: string[] = []
+    const taskMerged = new Set<string>()
+    const taskReviewed = new Set<string>()
+
+    // Collect merge/review info
+    for (const ev of events) {
+      if (ev.event === 'worktree_merged' && ev.label) {
+        const match = ev.label.match(/Task (\S+)/)
+        if (match) taskMerged.add(match[1])
+      }
+      if (ev.event === 'review_decision' && ev.label) {
+        const match = ev.label.match(/Task (\S+)/)
+        if (match) taskReviewed.add(match[1])
+      }
+    }
+
+    // Build cycles from events
+    for (const ev of events) {
+      if (ev.event === 'cycle_started' || ev.event === 'cycle_transition') {
+        cycleStartT = ev.t
+        currentTasks = []
+      } else if (ev.event === 'task_started' && ev.label) {
+        const taskId = ev.label.replace('Task ', '')
+        currentTasks.push(taskId)
+      } else if (ev.event === 'cycle_completed' && cycleStartT !== null) {
+        const durationMs = ev.t - cycleStartT
+        const milestoneTitle = this.config.scenario.roughMilestones[cycleNum] || `Cycle ${cycleNum}`
+        const specPct = this.config.scenario.roughMilestones.length > 0
+          ? Math.round(((cycleNum + 1) / this.config.scenario.roughMilestones.length) * 100)
+          : 0
+
+        cycles.push({
+          cycleNumber: cycleNum,
+          title: milestoneTitle,
+          durationMs,
+          costUsd: 0, // Will be filled below
+          specCompletionPercent: specPct,
+          tasks: currentTasks.map(tid => ({
+            taskId: tid,
+            merged: taskMerged.has(tid),
+            testsPassed: 0,
+            testsFailed: 0,
+            costUsd: 0,
+            durationMs: 0,
+            ...(taskReviewed.has(tid) ? { reviewDecision: { decision: 'approved' } } : {}),
+          })),
+        })
+        cycleNum++
+        cycleStartT = null
+        currentTasks = []
+      }
+    }
+
+    // Fill per-task duration from event log
+    const taskStarts = new Map<string, number>()
+    for (const ev of events) {
+      const taskId = ev.label?.replace('Task ', '')
+      if (!taskId) continue
+      if (ev.event === 'task_started') taskStarts.set(taskId, ev.t)
+      if (ev.event === 'task_completed') {
+        const startT = taskStarts.get(taskId)
+        if (startT !== undefined) {
+          for (const cycle of cycles) {
+            const task = cycle.tasks.find(t => t.taskId === taskId)
+            if (task) task.durationMs = ev.t - startT
+          }
+        }
+      }
+    }
+
+    const worktreesMerged = events.filter(e => e.event === 'worktree_merged').length
+    const reviewsRun = events.filter(e => e.event === 'review_started').length
+
+    const pipelineResult = {
+      outcome: build.success ? 'success' : build.tasksCompleted > 0 ? 'partial' : 'failed',
+      totalDurationMs,
+      worktreesCreated: build.tasksCompleted + build.tasksFailed,
+      worktreesMerged,
+      parallelTasksRun: 0,
+      reviewsRun,
+      cycles,
+    }
+
+    fs.writeFileSync(
+      path.join(this.config.outputDir, 'pipeline-result.json'),
+      JSON.stringify(pipelineResult, null, 2),
+    )
+  }
+
+  // ==========================================================================
+  // Output: config.json for scoring script compatibility
+  // ==========================================================================
+
+  /**
+   * Write config.json — mirrors BenchmarkCollector's writeConfigFile().
+   * The scoring script loads this from the output directory.
+   */
+  private writeConfigJson(): void {
+    const config = {
+      specFile: this.config.specFile,
+      taskTimeout: this.config.taskTimeout,
+      cycleTimeout: this.config.cycleTimeout,
+      totalTimeout: this.config.totalTimeout,
+      reviewMode: this.config.reviewMode,
+      maxReviewIterations: this.config.maxReviewIterations,
+      autoApproveAll: this.config.autoApproveAll ?? false,
+    }
+
+    fs.writeFileSync(
+      path.join(this.config.outputDir, 'config.json'),
+      JSON.stringify(config, null, 2),
     )
   }
 
