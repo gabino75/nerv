@@ -142,7 +142,7 @@ export class UIBenchmarkRunner {
 
     // Write summary.json — the scoring script (score-benchmark.js) depends on this
     // file for providing workflow context to Claude during grading
-    this.writeSummaryJson(setup, build, grade, totalDurationMs)
+    await this.writeSummaryJson(setup, build, grade, totalDurationMs)
 
     // Write timeline.jsonl — scoring script reads this for event timeline context
     // (uses timestamp field, not t field like event-log.jsonl)
@@ -162,12 +162,12 @@ export class UIBenchmarkRunner {
   // Output: summary.json for scoring script compatibility
   // ==========================================================================
 
-  private writeSummaryJson(
+  private async writeSummaryJson(
     setup: UIBenchmarkSetupResult,
     build: UIBenchmarkBuildResult,
     grade: UIBenchmarkGradeResult,
     totalDurationMs: number,
-  ): void {
+  ): Promise<void> {
     const events = this.eventLog.getEvents()
     const worktreesMerged = events.filter(e => e.event === 'worktree_merged').length
     const worktreesMergeFailed = events.filter(e => e.event === 'worktree_merge_failed').length
@@ -178,6 +178,19 @@ export class UIBenchmarkRunner {
     const permissionsAlwaysAllowed = events.filter(e => e.event === 'permission_always_allowed').length
     const auditsRun = events.filter(e => e.event === 'audit_completed').length
     const auditsPassed = events.filter(e => e.event === 'audit_passed').length
+
+    // Query audit_log DB for issue events (loop_detected, context_compacted, hang_detected)
+    // These are logged by recovery.ts in the main process but not emitted to the UIBenchmarkRunner event log
+    const auditLogIssues = await this.window.evaluate(async () => {
+      const api = (window as unknown as { api: { db: { audit: { get: (taskId?: string, limit?: number) => Promise<Array<{ event_type: string }>> } } } }).api
+      const entries = await api.db.audit.get(undefined, 1000)
+      if (!Array.isArray(entries)) return { loops: 0, compactions: 0, stuckDetections: 0 }
+      return {
+        loops: entries.filter((e: { event_type: string }) => e.event_type === 'loop_detected').length,
+        compactions: entries.filter((e: { event_type: string }) => e.event_type === 'context_compacted').length,
+        stuckDetections: entries.filter((e: { event_type: string }) => e.event_type === 'hang_detected').length,
+      }
+    })
 
     const summary = {
       benchmarkId: `ui-benchmark-${Date.now()}`,
@@ -223,12 +236,12 @@ export class UIBenchmarkRunner {
       },
 
       issues: {
-        loopsDetected,
-        compactions: 0,
+        loopsDetected: loopsDetected + auditLogIssues.loops,
+        compactions: auditLogIssues.compactions,
         toolErrors: 0,
         toolRetries: 0,
         permissionTimeouts: 0,
-        stuckDetections: 0,
+        stuckDetections: auditLogIssues.stuckDetections,
       },
 
       spec: {
