@@ -150,7 +150,7 @@ export class UIBenchmarkRunner {
 
     // Write pipeline-result.json — scoring script reads this for cycle-by-cycle
     // progression narrative in the "Pipeline Progression" grading section
-    this.writePipelineResult(setup, build, totalDurationMs)
+    await this.writePipelineResult(setup, build, totalDurationMs)
 
     // Write config.json — scoring script loads this from the output directory
     this.writeConfigJson()
@@ -421,12 +421,24 @@ export class UIBenchmarkRunner {
    * This gives Claude rich context about how each cycle progressed: tasks,
    * merge status, cost, duration, and review decisions.
    */
-  private writePipelineResult(
+  private async writePipelineResult(
     setup: UIBenchmarkSetupResult,
     build: UIBenchmarkBuildResult,
     totalDurationMs: number,
-  ): void {
+  ): Promise<void> {
     const events = this.eventLog.getEvents()
+
+    // Query per-task cost from session_metrics DB (same pattern as writeSummaryJson)
+    const perTaskCost = await this.window.evaluate(async () => {
+      const api = (window as unknown as { api: { db: { metrics: { getRecentTasks: (limit?: number) => Promise<Array<{ taskId: string; costUsd: number }>> } } } }).api
+      const tasks = await api.db.metrics.getRecentTasks(100)
+      if (!Array.isArray(tasks)) return {} as Record<string, number>
+      const result: Record<string, number> = {}
+      for (const t of tasks) {
+        result[t.taskId] = t.costUsd || 0
+      }
+      return result
+    })
 
     // Build cycle-by-cycle data from event log
     const cycles: Array<{
@@ -483,14 +495,14 @@ export class UIBenchmarkRunner {
           cycleNumber: cycleNum,
           title: milestoneTitle,
           durationMs,
-          costUsd: 0, // Will be filled below
+          costUsd: 0, // Aggregated from per-task costs below
           specCompletionPercent: specPct,
           tasks: currentTasks.map(tid => ({
             taskId: tid,
             merged: taskMerged.has(tid),
             testsPassed: 0,
             testsFailed: 0,
-            costUsd: 0,
+            costUsd: perTaskCost[tid] || 0,
             durationMs: 0,
             ...(taskReviewed.has(tid) ? { reviewDecision: { decision: 'approved' } } : {}),
           })),
@@ -516,6 +528,11 @@ export class UIBenchmarkRunner {
           }
         }
       }
+    }
+
+    // Aggregate per-cycle costUsd from per-task costs
+    for (const cycle of cycles) {
+      cycle.costUsd = cycle.tasks.reduce((sum, t) => sum + t.costUsd, 0)
     }
 
     const worktreesMerged = events.filter(e => e.event === 'worktree_merged').length
