@@ -316,6 +316,7 @@ export class MetricsOperations {
     durationMs: number
     inputTokens: number
     outputTokens: number
+    cacheReadTokens: number
     costUsd: number
     completedAt: string | null
     updatedAt: string
@@ -328,6 +329,7 @@ export class MetricsOperations {
         COALESCE(sm.duration_ms, 0) as durationMs,
         COALESCE(sm.input_tokens, 0) as inputTokens,
         COALESCE(sm.output_tokens, 0) as outputTokens,
+        COALESCE(sm.cache_read_tokens, 0) as cacheReadTokens,
         COALESCE(sm.cost_usd, 0) as costUsd,
         t.completed_at as completedAt,
         sm.updated_at as updatedAt
@@ -343,6 +345,7 @@ export class MetricsOperations {
       durationMs: number
       inputTokens: number
       outputTokens: number
+      cacheReadTokens: number
       costUsd: number
       completedAt: string | null
       updatedAt: string

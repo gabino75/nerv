@@ -401,7 +401,7 @@ function formatDataForScoring(data, specContent) {
 - Outcome: ${s.outcome || (s.allPassed ? 'success' : s.passed !== false ? 'success' : 'failed')}
 - Duration: ${s.duration?.totalMs ? (s.duration.totalMs / 60000).toFixed(1) + ' minutes' : s.totalDuration ? (s.totalDuration / 1000).toFixed(1) + 's' : s.metrics?.durationMs ? (s.metrics.durationMs / 1000).toFixed(1) + 's' : 'unknown'}
 - Cost: ${s.cost?.totalUsd ? '$' + s.cost.totalUsd.toFixed(2) : s.totalCostUsd ? '$' + s.totalCostUsd.toFixed(4) : s.metrics?.costUsd ? '$' + s.metrics.costUsd.toFixed(4) : 'unknown'}
-- Tokens: ${s.tokens?.total ? s.tokens.total.toLocaleString() : s.metrics?.tokens ? `${s.metrics.tokens.inputTokens?.toLocaleString() || 0} in / ${s.metrics.tokens.outputTokens?.toLocaleString() || 0} out` : 'unknown'}
+- Tokens: ${s.tokens?.total ? s.tokens.total.toLocaleString() + (s.tokens.cached ? ` (${s.tokens.cached.toLocaleString()} cached)` : '') : s.metrics?.tokens ? `${s.metrics.tokens.inputTokens?.toLocaleString() || 0} in / ${s.metrics.tokens.outputTokens?.toLocaleString() || 0} out` : 'unknown'}
 - All Tests Passed: ${s.allPassed ?? s.passed ?? 'unknown'}`)
 
     if (s.spec) {

@@ -197,18 +197,19 @@ export class UIBenchmarkRunner {
     // Query session_metrics DB for cost and token data per task
     // TabContainer.svelte persists cost_usd/tokens via onResult → updateSessionMetrics
     const metricsData = await this.window.evaluate(async () => {
-      const api = (window as unknown as { api: { db: { metrics: { getRecentTasks: (limit?: number) => Promise<Array<{ taskId: string; inputTokens: number; outputTokens: number; costUsd: number; durationMs: number }>> } } } }).api
+      const api = (window as unknown as { api: { db: { metrics: { getRecentTasks: (limit?: number) => Promise<Array<{ taskId: string; inputTokens: number; outputTokens: number; cacheReadTokens: number; costUsd: number; durationMs: number }>> } } } }).api
       const tasks = await api.db.metrics.getRecentTasks(100)
-      if (!Array.isArray(tasks)) return { totalCost: 0, totalInput: 0, totalOutput: 0, perTask: {} as Record<string, { cost: number; input: number; output: number }> }
-      let totalCost = 0, totalInput = 0, totalOutput = 0
+      if (!Array.isArray(tasks)) return { totalCost: 0, totalInput: 0, totalOutput: 0, totalCacheRead: 0, perTask: {} as Record<string, { cost: number; input: number; output: number }> }
+      let totalCost = 0, totalInput = 0, totalOutput = 0, totalCacheRead = 0
       const perTask: Record<string, { cost: number; input: number; output: number }> = {}
       for (const t of tasks) {
         totalCost += t.costUsd || 0
         totalInput += t.inputTokens || 0
         totalOutput += t.outputTokens || 0
+        totalCacheRead += t.cacheReadTokens || 0
         perTask[t.taskId] = { cost: t.costUsd || 0, input: t.inputTokens || 0, output: t.outputTokens || 0 }
       }
-      return { totalCost, totalInput, totalOutput, perTask }
+      return { totalCost, totalInput, totalOutput, totalCacheRead, perTask }
     })
 
     // Query audit_log DB for issue events (loop_detected, context_compacted, hang_detected, approval_waiting)
@@ -244,7 +245,7 @@ export class UIBenchmarkRunner {
         total: metricsData.totalInput + metricsData.totalOutput,
         input: metricsData.totalInput,
         output: metricsData.totalOutput,
-        cached: 0,  // Cache breakdown not available from getRecentTasks
+        cached: metricsData.totalCacheRead,
         perTask: Object.fromEntries(Object.entries(metricsData.perTask).map(([k, v]) => [k, v.input + v.output])),
         perCycle: [] as number[],
       },

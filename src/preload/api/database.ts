@@ -149,6 +149,7 @@ export const db = {
       durationMs: number
       inputTokens: number
       outputTokens: number
+      cacheReadTokens: number
       costUsd: number
       completedAt: string | null
       updatedAt: string
