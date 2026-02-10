@@ -146,6 +146,8 @@ export class UIBenchmarkRunner {
   private totalStart = 0
   /** Captured raw stream-json lines per task, keyed by taskId */
   private streamBuffers = new Map<string, string[]>()
+  /** Cached aggregate test results from runTestsInCollectedRepo (set by writeSummaryJson) */
+  private cachedTestResults: { total: number; passed: number; failed: number; skipped: number } | null = null
 
   constructor(window: Page, config: UIBenchmarkConfig) {
     this.window = window
@@ -422,7 +424,7 @@ export class UIBenchmarkRunner {
           : 0,
       },
 
-      tests: await this.runTestsInCollectedRepo(),
+      tests: await this.getOrRunTests(),
 
       scores: grade.success ? {
         planningScore: grade.planningScore,
@@ -581,6 +583,19 @@ export class UIBenchmarkRunner {
     // Aggregate per-cycle costUsd from per-task costs
     for (const cycle of cycles) {
       cycle.costUsd = cycle.tasks.reduce((sum, t) => sum + t.costUsd, 0)
+    }
+
+    // Populate per-task test results from cached aggregate test run.
+    // Tests run against the final merged repo, so assign results to the last
+    // task of the last cycle (that's the state tests were actually run against).
+    const testResults = await this.getOrRunTests()
+    if (testResults.total > 0 && cycles.length > 0) {
+      const lastCycle = cycles[cycles.length - 1]
+      if (lastCycle.tasks.length > 0) {
+        const lastTask = lastCycle.tasks[lastCycle.tasks.length - 1]
+        lastTask.testsPassed = testResults.passed
+        lastTask.testsFailed = testResults.failed
+      }
     }
 
     const worktreesMerged = events.filter(e => e.event === 'worktree_merged').length
@@ -835,6 +850,17 @@ export class UIBenchmarkRunner {
   // ==========================================================================
   // Test Execution: run tests in collected repo for summary.json
   // ==========================================================================
+
+  /**
+   * Get cached test results or run tests for the first time.
+   * Caches the result so writeSummaryJson and writePipelineResult share the same data.
+   */
+  private async getOrRunTests(): Promise<{ total: number; passed: number; failed: number; skipped: number }> {
+    if (!this.cachedTestResults) {
+      this.cachedTestResults = await this.runTestsInCollectedRepo()
+    }
+    return this.cachedTestResults
+  }
 
   /**
    * Run tests in the collected repo directory and return parsed results.
