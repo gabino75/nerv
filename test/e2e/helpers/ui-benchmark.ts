@@ -1946,6 +1946,33 @@ Write your review comments (plain text, no JSON):`
         JSON.stringify(manifest, null, 2),
       )
 
+      // Generate git-diff.patch and git-log.txt for scoring script context
+      // score-benchmark.js reads these to give Claude visibility into actual code changes
+      try {
+        const firstCommit = execSync('git rev-list --max-parents=0 HEAD 2>/dev/null | head -1', {
+          cwd: repoOutputDir, maxBuffer: 1024, encoding: 'utf-8',
+        }).trim()
+        if (firstCommit) {
+          const diff = execSync(`git diff ${firstCommit}..HEAD`, {
+            cwd: repoOutputDir, maxBuffer: 10 * 1024 * 1024, encoding: 'utf-8',
+          })
+          fs.writeFileSync(path.join(this.config.outputDir, 'git-diff.patch'), diff)
+        }
+      } catch {
+        try {
+          const diff = execSync('git diff HEAD~10...HEAD 2>/dev/null || git diff HEAD 2>/dev/null || echo ""', {
+            cwd: repoOutputDir, maxBuffer: 5 * 1024 * 1024, encoding: 'utf-8',
+          })
+          fs.writeFileSync(path.join(this.config.outputDir, 'git-diff.patch'), diff)
+        } catch { /* no diff available */ }
+      }
+      try {
+        const gitLog = execSync('git log --oneline --no-decorate -20', {
+          cwd: repoOutputDir, maxBuffer: 64 * 1024, encoding: 'utf-8',
+        })
+        fs.writeFileSync(path.join(this.config.outputDir, 'git-log.txt'), gitLog)
+      } catch { /* no log available */ }
+
       log('step', 'Collected merged base repo', {
         from: repoInfo.repoPath,
         to: repoOutputDir,
