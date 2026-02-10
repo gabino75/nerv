@@ -442,6 +442,7 @@ function formatDataForScoring(data, specContent) {
       sections.push(`## Issues Detected
 - Tool Errors: ${s.issues.toolErrors}
 - Tool Retries: ${s.issues.toolRetries}
+- Permission Timeouts: ${s.issues.permissionTimeouts}
 - Loops Detected: ${s.issues.loopsDetected}
 - Compactions: ${s.issues.compactions}
 - Stuck Detections: ${s.issues.stuckDetections}`)

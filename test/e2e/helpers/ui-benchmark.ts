@@ -179,16 +179,17 @@ export class UIBenchmarkRunner {
     const auditsRun = events.filter(e => e.event === 'audit_completed').length
     const auditsPassed = events.filter(e => e.event === 'audit_passed').length
 
-    // Query audit_log DB for issue events (loop_detected, context_compacted, hang_detected)
+    // Query audit_log DB for issue events (loop_detected, context_compacted, hang_detected, approval_waiting)
     // These are logged by recovery.ts in the main process but not emitted to the UIBenchmarkRunner event log
     const auditLogIssues = await this.window.evaluate(async () => {
       const api = (window as unknown as { api: { db: { audit: { get: (taskId?: string, limit?: number) => Promise<Array<{ event_type: string }>> } } } }).api
       const entries = await api.db.audit.get(undefined, 1000)
-      if (!Array.isArray(entries)) return { loops: 0, compactions: 0, stuckDetections: 0 }
+      if (!Array.isArray(entries)) return { loops: 0, compactions: 0, stuckDetections: 0, permissionTimeouts: 0 }
       return {
         loops: entries.filter((e: { event_type: string }) => e.event_type === 'loop_detected').length,
         compactions: entries.filter((e: { event_type: string }) => e.event_type === 'context_compacted').length,
         stuckDetections: entries.filter((e: { event_type: string }) => e.event_type === 'hang_detected').length,
+        permissionTimeouts: entries.filter((e: { event_type: string }) => e.event_type === 'approval_waiting').length,
       }
     })
 
@@ -238,9 +239,9 @@ export class UIBenchmarkRunner {
       issues: {
         loopsDetected: loopsDetected + auditLogIssues.loops,
         compactions: auditLogIssues.compactions,
-        toolErrors: 0,
-        toolRetries: 0,
-        permissionTimeouts: 0,
+        toolErrors: 0,  // Not tracked in UI mode — benchmark-collector handles this for real Claude runs
+        toolRetries: 0,  // Not tracked in UI mode — benchmark-collector handles this for real Claude runs
+        permissionTimeouts: auditLogIssues.permissionTimeouts,
         stuckDetections: auditLogIssues.stuckDetections,
       },
 
