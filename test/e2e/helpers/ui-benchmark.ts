@@ -194,6 +194,23 @@ export class UIBenchmarkRunner {
       // Git count failed — leave as 0
     }
 
+    // Query session_metrics DB for cost and token data per task
+    // TabContainer.svelte persists cost_usd/tokens via onResult → updateSessionMetrics
+    const metricsData = await this.window.evaluate(async () => {
+      const api = (window as unknown as { api: { db: { metrics: { getRecentTasks: (limit?: number) => Promise<Array<{ taskId: string; inputTokens: number; outputTokens: number; costUsd: number; durationMs: number }>> } } } }).api
+      const tasks = await api.db.metrics.getRecentTasks(100)
+      if (!Array.isArray(tasks)) return { totalCost: 0, totalInput: 0, totalOutput: 0, perTask: {} as Record<string, { cost: number; input: number; output: number }> }
+      let totalCost = 0, totalInput = 0, totalOutput = 0
+      const perTask: Record<string, { cost: number; input: number; output: number }> = {}
+      for (const t of tasks) {
+        totalCost += t.costUsd || 0
+        totalInput += t.inputTokens || 0
+        totalOutput += t.outputTokens || 0
+        perTask[t.taskId] = { cost: t.costUsd || 0, input: t.inputTokens || 0, output: t.outputTokens || 0 }
+      }
+      return { totalCost, totalInput, totalOutput, perTask }
+    })
+
     // Query audit_log DB for issue events (loop_detected, context_compacted, hang_detected, approval_waiting)
     // These are logged by recovery.ts in the main process but not emitted to the UIBenchmarkRunner event log
     const auditLogIssues = await this.window.evaluate(async () => {
@@ -223,8 +240,19 @@ export class UIBenchmarkRunner {
         perTask: {} as Record<string, number>,
       },
 
-      tokens: { total: 0, input: 0, output: 0, cached: 0, perTask: {}, perCycle: [] as number[] },
-      cost: { totalUsd: build.totalCostUsd, perTask: {}, perCycle: [] as number[] },
+      tokens: {
+        total: metricsData.totalInput + metricsData.totalOutput,
+        input: metricsData.totalInput,
+        output: metricsData.totalOutput,
+        cached: 0,  // Cache breakdown not available from getRecentTasks
+        perTask: Object.fromEntries(Object.entries(metricsData.perTask).map(([k, v]) => [k, v.input + v.output])),
+        perCycle: [] as number[],
+      },
+      cost: {
+        totalUsd: metricsData.totalCost || build.totalCostUsd,
+        perTask: Object.fromEntries(Object.entries(metricsData.perTask).map(([k, v]) => [k, v.cost])),
+        perCycle: [] as number[],
+      },
 
       tasks: {
         total: setup.taskIds.length + build.cyclesCompleted - 1,  // initial + per-cycle tasks
