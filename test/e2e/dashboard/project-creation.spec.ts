@@ -27,6 +27,7 @@ import {
   standardCleanup,
   setupBenchmarkProjectWithRepo,
   createBenchmarkTask,
+  switchToCliTab,
 } from '../helpers'
 
 // ES module compatible __dirname
@@ -408,7 +409,10 @@ test.describe('NERV Dashboard Tests - Project & Display', () => {
       expect(taskId).toBeTruthy()
       await window.waitForTimeout(500)
 
-      // STEP 1: Verify terminal panel exists
+      // STEP 1: Switch to CLIs tab and verify terminal panel exists
+      log('step', 'Switching to CLIs tab for terminal verification')
+      await switchToCliTab(window)
+
       log('step', 'Verifying terminal panel exists')
       const terminalPanel = window.locator('[data-testid="terminal-panel"]')
       await expect(terminalPanel).toBeVisible({ timeout: TIMEOUT.ui })

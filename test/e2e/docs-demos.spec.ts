@@ -881,6 +881,14 @@ test('demo_quick_start', async () => {
     await demoWait(window, 'Task started! Claude is now working...', 2000)
   }
 
+  // Switch to CLIs tab to see terminal output (terminal moved behind CLIs tab in P6)
+  const cliTabForTerminal = window.locator('[data-testid="tab-clis"]')
+  if (await cliTabForTerminal.isVisible({ timeout: 3000 }).catch(() => false)) {
+    await glideToElement(window, '[data-testid="tab-clis"]')
+    await cliTabForTerminal.click()
+    await demoWait(window, 'Switching to CLIs tab to see terminal', 800)
+  }
+
   // Wait for terminal output (mock Claude runs ~3.5s)
   const terminal = window.locator(SELECTORS.terminal).first()
   if (await terminal.isVisible({ timeout: 8000 }).catch(() => false)) {

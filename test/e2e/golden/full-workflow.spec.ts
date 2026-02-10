@@ -526,7 +526,7 @@ test.describe('NERV Golden Workflow Tests', () => {
 
       // STEP 6: Complete cycle
       log('step', 'Step 6: Completing cycle')
-      await cyclesBtn.click()
+      await openCyclePanel(window)
       await slowWait(window, 'CyclePanel reopening')
 
       const completeCycleBtn = window.locator(SELECTORS.completeCycleBtn)

@@ -356,6 +356,36 @@ export async function openCyclePanel(window: Page): Promise<boolean> {
 }
 
 /**
+ * Switch to the CLIs tab to access terminal panel
+ */
+export async function switchToCliTab(window: Page): Promise<boolean> {
+  const cliTab = window.locator(SELECTORS.tabClis)
+  if (await cliTab.isVisible({ timeout: 3000 }).catch(() => false)) {
+    await cliTab.click()
+    await window.waitForTimeout(300)
+    log('pass', 'Switched to CLIs tab')
+    return true
+  }
+  log('fail', 'CLIs tab not visible')
+  return false
+}
+
+/**
+ * Switch to the Kanban tab
+ */
+export async function switchToKanbanTab(window: Page): Promise<boolean> {
+  const kanbanTab = window.locator(SELECTORS.tabKanban)
+  if (await kanbanTab.isVisible({ timeout: 3000 }).catch(() => false)) {
+    await kanbanTab.click()
+    await window.waitForTimeout(300)
+    log('pass', 'Switched to Kanban tab')
+    return true
+  }
+  log('fail', 'Kanban tab not visible')
+  return false
+}
+
+/**
  * Approve a permission request by clicking "Just Once"
  */
 export async function approvePermission(window: Page): Promise<boolean> {

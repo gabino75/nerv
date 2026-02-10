@@ -47,6 +47,8 @@ export {
   clickDropdownItem,
   openAuditPanel,
   openCyclePanel,
+  switchToCliTab,
+  switchToKanbanTab,
   approvePermission,
   denyPermission,
   closeModal,

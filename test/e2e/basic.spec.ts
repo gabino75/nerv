@@ -204,6 +204,13 @@ test('test_create_project - Can select folder and create project', async () => {
  * Test: Terminal panel exists and can show output
  */
 test('test_terminal_output - Terminal panel is present', async () => {
+  // Terminal is behind the CLIs tab — switch to it first
+  const cliTab = window.locator('[data-testid="tab-clis"]');
+  if (await cliTab.isVisible({ timeout: 3000 }).catch(() => false)) {
+    await cliTab.click();
+    await window.waitForTimeout(300);
+  }
+
   // Look for terminal element (xterm.js creates specific elements)
   const terminal = await window.locator(
     '.xterm, .terminal, [data-testid="terminal"], .xterm-screen'
@@ -590,6 +597,13 @@ test('test_task_execution_flow - Start task shows terminal output', async () => 
 
       // Wait for terminal to show output (using mock Claude)
       await window.waitForTimeout(2000);
+
+      // Switch to CLIs tab to check terminal panel
+      const cliTabBtn = window.locator('[data-testid="tab-clis"]');
+      if (await cliTabBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
+        await cliTabBtn.click();
+        await window.waitForTimeout(300);
+      }
 
       // Check terminal panel for content
       const terminalPanel = await window.locator(

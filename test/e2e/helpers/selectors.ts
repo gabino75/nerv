@@ -60,6 +60,10 @@ export const SELECTORS = {
 
   // Dropdowns (header menus)
   moreDropdown: '[data-testid="more-dropdown"]',
+  // Legacy dropdown aliases (consolidated into "More" dropdown in P6)
+  workflowDropdown: '[data-testid="more-dropdown"]',
+  knowledgeDropdown: '[data-testid="more-dropdown"]',
+  settingsDropdown: '[data-testid="more-dropdown"]',
 
   // Three-tab layout
   tabSpec: '[data-testid="tab-spec"]',
