@@ -4831,53 +4831,64 @@ test.describe('NERV Golden Benchmark Tests - REAL Functionality', () => {
       for (let i = 0; i < 3; i++) {
         log('step', `Creating Cycle ${i}`)
 
-        // Click "Start Cycle 0" button (available when no active cycle)
+        // Click "Start Cycle" button (available when no active cycle)
         const startFirstCycleBtn = window.locator('[data-testid="start-first-cycle-btn"]')
-        if (await startFirstCycleBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
-          await startFirstCycleBtn.click()
-          await window.waitForTimeout(500)
-        }
+        await expect(startFirstCycleBtn).toBeVisible({ timeout: 5000 })
+        await startFirstCycleBtn.click()
+        await window.waitForTimeout(500)
 
         // Fill in cycle goal in NewCycleModal
         const cycleGoalInput = window.locator('[data-testid="cycle-goal-input"]')
-        if (await cycleGoalInput.isVisible({ timeout: 3000 }).catch(() => false)) {
-          await cycleGoalInput.fill(`Cycle ${i} goal`)
-          await microWait(window)
-        }
+        await expect(cycleGoalInput).toBeVisible({ timeout: 5000 })
+        await cycleGoalInput.fill(`Cycle ${i} goal`)
+        await microWait(window)
 
         // Click Create Cycle button
         const createCycleBtn = window.locator('[data-testid="create-cycle-btn"]')
-        if (await createCycleBtn.isVisible({ timeout: 2000 }).catch(() => false)) {
-          await createCycleBtn.click()
-          await slowWait(window, `Cycle ${i} created`)
-        }
+        await expect(createCycleBtn).toBeVisible({ timeout: 5000 })
+        await createCycleBtn.click()
+        await slowWait(window, `Cycle ${i} created`)
 
         // Complete the cycle
         log('step', `Completing Cycle ${i}`)
         const completeCycleBtn = window.locator('[data-testid="complete-cycle-btn"]')
-        if (await completeCycleBtn.isVisible({ timeout: 5000 }).catch(() => false)) {
-          await completeCycleBtn.click()
-          await window.waitForTimeout(500)
-        }
+        await expect(completeCycleBtn).toBeVisible({ timeout: 5000 })
+        await completeCycleBtn.click()
+        await window.waitForTimeout(500)
 
         // Fill in learnings
         const learningsInput = window.locator('[data-testid="learnings-input"]')
-        if (await learningsInput.isVisible({ timeout: 3000 }).catch(() => false)) {
-          await learningsInput.fill(`Learnings from cycle ${i}`)
-          await microWait(window)
-        }
+        await expect(learningsInput).toBeVisible({ timeout: 5000 })
+        await learningsInput.fill(`Learnings from cycle ${i}`)
+        await microWait(window)
 
         // Click Confirm Complete Cycle button
         const confirmCompleteCycleBtn = window.locator('[data-testid="confirm-complete-cycle-btn"]')
-        if (await confirmCompleteCycleBtn.isVisible({ timeout: 2000 }).catch(() => false)) {
-          await confirmCompleteCycleBtn.click()
-          await slowWait(window, `Cycle ${i} completed`)
-        }
+        await expect(confirmCompleteCycleBtn).toBeVisible({ timeout: 5000 })
+        await confirmCompleteCycleBtn.click()
+        await slowWait(window, `Cycle ${i} completed`)
+        log('step', `Cycle ${i} completed successfully`)
       }
 
+      // Verify all 3 cycles were actually completed in DB
+      const completedCycles = await window.evaluate(async (pid: string) => {
+        const api = (window as unknown as { api: { db: { cycles: { getForProject: (projectId: string) => Promise<Array<{ status: string; cycle_number: number }>> } } } }).api
+        const cycles = await api.db.cycles.getForProject(pid)
+        return cycles.filter(c => c.status === 'completed')
+      }, projectId)
+      log('check', 'Completed cycles in DB', { count: completedCycles.length })
+      expect(completedCycles.length).toBe(3)
+
       // STEP 3: Close cycle panel to see notification
+      // Note: CyclePanel has no Escape handler — dismiss via .close-btn
       log('step', 'Closing CyclePanel to check for notification')
-      await window.keyboard.press('Escape')
+      const closePanelBtn = window.locator('[data-testid="cycle-panel"] .close-btn')
+      if (await closePanelBtn.isVisible({ timeout: 2000 }).catch(() => false)) {
+        await closePanelBtn.click()
+      } else {
+        // Fallback: try Escape in case close-btn isn't visible
+        await window.keyboard.press('Escape')
+      }
       await window.waitForTimeout(1000)
 
       // STEP 4: Check for audit notification
