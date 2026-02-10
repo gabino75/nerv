@@ -11,6 +11,8 @@
   import ContextMonitor from './components/ContextMonitor.svelte'
   import TabContainer from './components/TabContainer.svelte'
   import ActionBar from './components/ActionBar.svelte'
+  import ThreeTabLayout from './components/ThreeTabLayout.svelte'
+  import SpecTab from './components/SpecTab.svelte'
   import RecoveryDialog from './components/RecoveryDialog.svelte'
   import AlertNotification from './components/AlertNotification.svelte'
   import BranchingDialog from './components/BranchingDialog.svelte'
@@ -249,94 +251,90 @@
     </div>
   {/if}
 
-  <header class="header">
-    <div class="header-brand">
-      <h1>NERV</h1>
-      <p class="tagline">Neural Evolution & Repository Vectoring</p>
-    </div>
-    <div class="header-actions">
-      <ModelSelector />
+  <ThreeTabLayout activeTab="kanban">
+    {#snippet header()}
+      <div class="header-brand">
+        <h1>NERV</h1>
+        <ProjectSelector />
+      </div>
+      <div class="header-actions">
+        <ModelSelector />
 
-      <button
-        class="btn-header"
-        data-testid="cycles-btn"
-        onclick={() => showCyclePanel = true}
-        disabled={!projectId}
-        title="Manage development cycles"
-      >
-        Cycles
-      </button>
+        <DropdownMenu label="More" testId="more-dropdown">
+          {#snippet items()}
+            <button class="dropdown-item" data-testid="cycles-btn" onclick={() => showCyclePanel = true} disabled={!projectId}>
+              <span class="item-icon">C</span> Cycles
+            </button>
+            <button class="dropdown-item" data-testid="yolo-btn" onclick={() => showYoloBenchmarkPanel = true} disabled={!projectId}>
+              <span class="item-icon">Y</span> YOLO Mode
+            </button>
+            <button class="dropdown-item" data-testid="audit-btn" onclick={() => showAuditPanel = true} disabled={!projectId}>
+              <span class="item-icon">A</span> Audit
+            </button>
+            <div class="dropdown-separator"></div>
+            <button class="dropdown-item" data-testid="knowledge-btn" onclick={() => showKnowledgePanel = true} disabled={!projectId}>
+              <span class="item-icon">K</span> Knowledge Base
+            </button>
+            <button class="dropdown-item" data-testid="repos-btn" onclick={() => showReposPanel = true} disabled={!projectId}>
+              <span class="item-icon">R</span> Repos
+            </button>
+            <button class="dropdown-item" data-testid="templates-btn" onclick={() => showWorkflowTemplatesPanel = true}>
+              <span class="item-icon">T</span> Templates
+            </button>
+            <div class="dropdown-separator"></div>
+            <button class="dropdown-item" data-testid="settings-btn" onclick={() => showSettingsPanel = true}>
+              <span class="item-icon">G</span> Settings
+            </button>
+            <button class="dropdown-item" data-testid="cost-btn" onclick={() => showCostDashboard = true}>
+              <span class="item-icon">$</span> Cost Dashboard
+            </button>
+            <button class="dropdown-item" onclick={() => showModelStats = true}>
+              <span class="item-icon">M</span> Model Stats
+            </button>
+            <button class="dropdown-item" onclick={() => showExportImport = true}>
+              <span class="item-icon">E</span> Export / Import
+            </button>
+            <button class="dropdown-item" data-testid="worktrees-btn" onclick={() => showWorktreePanel = true} disabled={!projectId}>
+              <span class="item-icon">W</span> Worktrees
+            </button>
+            <button class="dropdown-item" data-testid="sessions-btn" onclick={() => showActiveSessionsPanel = true}>
+              <span class="item-icon">S</span> Sessions
+            </button>
+            <button class="dropdown-item" data-testid="org-btn" onclick={() => showOrgConfigPanel = true}>
+              <span class="item-icon">O</span> Org Config
+            </button>
+          {/snippet}
+        </DropdownMenu>
+      </div>
+    {/snippet}
 
-      <DropdownMenu label="Knowledge" testId="knowledge-dropdown" disabled={!projectId}>
-        {#snippet items()}
-          <button class="dropdown-item" data-testid="knowledge-btn" onclick={() => showKnowledgePanel = true} disabled={!projectId}>
-            <span class="item-icon">K</span> Knowledge Base
-          </button>
-          <button class="dropdown-item" data-testid="templates-btn" onclick={() => showWorkflowTemplatesPanel = true}>
-            <span class="item-icon">T</span> Templates
-          </button>
-          <button class="dropdown-item" data-testid="repos-btn" onclick={() => showReposPanel = true} disabled={!projectId}>
-            <span class="item-icon">R</span> Repos
-          </button>
-        {/snippet}
-      </DropdownMenu>
+    {#snippet specTab()}
+      <SpecTab />
+    {/snippet}
 
-      <DropdownMenu label="Workflow" testId="workflow-dropdown">
-        {#snippet items()}
-          <button class="dropdown-item" data-testid="worktrees-btn" onclick={() => showWorktreePanel = true} disabled={!projectId}>
-            <span class="item-icon">W</span> Worktrees
-          </button>
-          <button class="dropdown-item" data-testid="sessions-btn" onclick={() => showActiveSessionsPanel = true}>
-            <span class="item-icon">S</span> Sessions
-          </button>
-          <button class="dropdown-item" data-testid="yolo-btn" onclick={() => showYoloBenchmarkPanel = true} disabled={!projectId}>
-            <span class="item-icon">Y</span> YOLO Mode
-          </button>
-          <button class="dropdown-item" data-testid="audit-btn" onclick={() => showAuditPanel = true} disabled={!projectId}>
-            <span class="item-icon">A</span> Audit
-          </button>
-          <button class="dropdown-item" data-testid="org-btn" onclick={() => showOrgConfigPanel = true}>
-            <span class="item-icon">O</span> Org Config
-          </button>
-        {/snippet}
-      </DropdownMenu>
+    {#snippet kanbanTab()}
+      <div class="kanban-layout">
+        <div class="kanban-main">
+          <TaskBoard />
+          <ContextMonitor />
+        </div>
+        <div class="kanban-sidebar">
+          <ApprovalQueue />
+        </div>
+      </div>
+      <ActionBar
+        bind:this={actionBar}
+        terminalPanel={tabContainer}
+        {branchingDialog}
+        {clearWithSummaryDialog}
+        {mergeBranchDialog}
+      />
+    {/snippet}
 
-      <DropdownMenu label="Settings" testId="settings-dropdown">
-        {#snippet items()}
-          <button class="dropdown-item" data-testid="settings-btn" onclick={() => showSettingsPanel = true}>
-            <span class="item-icon">G</span> General Settings
-          </button>
-          <button class="dropdown-item" onclick={() => showModelStats = true}>
-            <span class="item-icon">S</span> Model Stats
-          </button>
-          <button class="dropdown-item" data-testid="cost-btn" onclick={() => showCostDashboard = true}>
-            <span class="item-icon">C</span> Cost Dashboard
-          </button>
-          <button class="dropdown-item" onclick={() => showExportImport = true}>
-            <span class="item-icon">E</span> Export / Import
-          </button>
-        {/snippet}
-      </DropdownMenu>
-    </div>
-  </header>
-
-  <div class="dashboard">
-    <ProjectSelector />
-    <TaskBoard />
-    <ApprovalQueue />
-  </div>
-
-  <ContextMonitor />
-
-  <TabContainer bind:this={tabContainer} />
-
-  <ActionBar
-    bind:this={actionBar}
-    terminalPanel={tabContainer}
-    {branchingDialog}
-    {clearWithSummaryDialog}
-    {mergeBranchDialog}
-  />
+    {#snippet clisTab()}
+      <TabContainer bind:this={tabContainer} />
+    {/snippet}
+  </ThreeTabLayout>
 </main>
 
 <!-- Recovery dialog for interrupted tasks (shows on startup if needed) -->
@@ -526,32 +524,18 @@
     }
   }
 
-  .header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    flex-wrap: wrap;
-    gap: 8px;
-    flex-shrink: 0;
-  }
-
   .header-brand {
     display: flex;
-    align-items: baseline;
-    gap: 16px;
+    align-items: center;
+    gap: 12px;
   }
 
-  .header h1 {
-    font-size: 26px;
+  .header-brand h1 {
+    font-size: 22px;
     font-weight: 700;
     color: #ff6b35;
     letter-spacing: 3px;
-  }
-
-  .tagline {
-    font-size: 12px;
-    color: #555;
-    letter-spacing: 0.5px;
+    flex-shrink: 0;
   }
 
   .header-actions {
@@ -560,97 +544,41 @@
     align-items: center;
   }
 
-  /* Small screens - compress header buttons */
-  @media (max-width: 800px) {
-    .header-actions {
-      gap: 4px;
-    }
-    .btn-header {
-      padding: 4px 8px;
-      font-size: 11px;
-    }
-  }
-
-  .btn-header {
-    padding: 6px 14px;
-    font-size: 12px;
-    background: #12121a;
-    border: 1px solid #2a2a3a;
-    border-radius: 4px;
-    color: #888;
-    cursor: pointer;
-    transition: all 0.15s;
-  }
-
-  .btn-header:hover:not(:disabled) {
-    background: #1a1a24;
-    border-color: #ff6b35;
-    color: #ff6b35;
-  }
-
-  .btn-header:disabled {
-    opacity: 0.4;
-    cursor: not-allowed;
-  }
-
-  .dashboard {
+  .kanban-layout {
     display: grid;
-    grid-template-columns: 200px 1fr 220px;
+    grid-template-columns: 1fr 220px;
     gap: 8px;
-    flex: 0 0 auto;
-    min-height: 120px;
-    max-height: 220px;
-    position: relative;
-    z-index: 10; /* Stack above terminal for dropdowns */
+    flex: 1;
+    min-height: 0;
     overflow: hidden;
   }
 
-  @media (max-width: 1200px) {
-    .dashboard {
-      grid-template-columns: 160px 1fr 180px;
-    }
+  .kanban-main {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    min-height: 0;
+    overflow: auto;
+  }
+
+  .kanban-sidebar {
+    overflow: auto;
+    min-height: 0;
   }
 
   @media (max-width: 900px) {
-    .dashboard {
-      grid-template-columns: 1fr 1fr;
-      max-height: 180px;
-    }
-  }
-
-  /* Very narrow screens - stack dashboard vertically */
-  @media (max-width: 600px) {
-    .dashboard {
+    .kanban-layout {
       grid-template-columns: 1fr;
-      grid-template-rows: auto auto auto;
-      max-height: none;
-      min-height: auto;
-      gap: 4px;
+    }
+    .kanban-sidebar {
+      max-height: 200px;
     }
   }
 
-  @media (max-height: 600px) {
-    .dashboard {
-      max-height: 160px;
-      min-height: 100px;
-    }
-    .header {
-      padding: 4px 0;
-    }
-    .header h1 {
-      font-size: 20px;
-    }
-    .tagline {
-      display: none;
-    }
-  }
-
-  /* Very short screens - collapse dashboard further */
-  @media (max-height: 500px) {
-    .dashboard {
-      max-height: 120px;
-      min-height: 80px;
-    }
+  :global(.dropdown-separator) {
+    height: 1px;
+    background: #2a2a3a;
+    margin: 4px 0;
   }
 
   .error-banner {
