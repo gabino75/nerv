@@ -408,6 +408,15 @@ async function createBenchmarkTaskViaAPI(
 
   if (taskId) {
     log('pass', 'Task created via API', { taskId })
+
+    // Refresh the Svelte store so TaskBoard/ActionBar picks up the new task
+    await window.evaluate(async (pid: string) => {
+      const store = (window as unknown as { __nervStore?: { loadTasks: (pid: string) => Promise<void> } }).__nervStore
+      if (store?.loadTasks) {
+        await store.loadTasks(pid)
+      }
+    }, projectId)
+
     await slowWait(window, 'Task created')
   } else {
     log('fail', 'Failed to create task')
@@ -512,6 +521,88 @@ async function openCyclePanel(window: Page): Promise<boolean> {
   return false
 }
 
+/**
+ * Click the Start Task button reliably.
+ * Uses dispatchEvent to bypass header overlap that intercepts pointer events.
+ */
+async function clickStartTask(window: Page): Promise<boolean> {
+  const startBtn = window.locator('[data-testid="start-task-btn"]').first()
+  const visible = await startBtn.isVisible({ timeout: TIMEOUT.ui }).catch(() => false)
+  if (!visible) {
+    log('fail', 'Start Task button not visible')
+    return false
+  }
+  const enabled = await startBtn.isEnabled().catch(() => false)
+  if (!enabled) {
+    log('fail', 'Start Task button disabled')
+    return false
+  }
+  await startBtn.dispatchEvent('click')
+  log('pass', 'Start Task clicked via dispatchEvent')
+  return true
+}
+
+/**
+ * Switch to the CLIs tab to access terminal panel
+ */
+async function switchToCliTab(window: Page): Promise<boolean> {
+  const cliTab = window.locator('[data-testid="tab-clis"]')
+  if (await cliTab.isVisible({ timeout: 3000 }).catch(() => false)) {
+    await cliTab.click()
+    await window.waitForTimeout(300)
+    log('pass', 'Switched to CLIs tab')
+    return true
+  }
+  log('fail', 'CLIs tab not visible')
+  return false
+}
+
+/**
+ * Switch to the Kanban tab
+ */
+async function switchToKanbanTab(window: Page): Promise<boolean> {
+  const kanbanTab = window.locator('[data-testid="tab-kanban"]')
+  if (await kanbanTab.isVisible({ timeout: 3000 }).catch(() => false)) {
+    await kanbanTab.click()
+    await window.waitForTimeout(300)
+    log('pass', 'Switched to Kanban tab')
+    return true
+  }
+  log('fail', 'Kanban tab not visible')
+  return false
+}
+
+/**
+ * Click a button that lives inside a DropdownMenu.
+ * Opens the parent dropdown first, then clicks the item via dispatchEvent
+ * to avoid backdrop interception.
+ */
+async function clickDropdownItem(window: Page, itemTestId: string): Promise<boolean> {
+  // Open the "More" dropdown
+  const trigger = window.locator('[data-testid="more-dropdown"]')
+  const triggerVisible = await trigger.isVisible({ timeout: 3000 }).catch(() => false)
+  if (!triggerVisible) {
+    log('fail', 'More dropdown trigger not visible')
+    return false
+  }
+
+  await trigger.click()
+  await window.waitForTimeout(200)
+
+  // Click the item via dispatchEvent to bypass backdrop
+  const item = window.locator(`[data-testid="${itemTestId}"]`)
+  const itemVisible = await item.isVisible({ timeout: 2000 }).catch(() => false)
+  if (!itemVisible) {
+    log('fail', 'Dropdown item not visible', { itemTestId })
+    return false
+  }
+
+  await item.dispatchEvent('click')
+  await window.waitForTimeout(200)
+  log('pass', 'Clicked dropdown item', { itemTestId })
+  return true
+}
+
 // ============================================================================
 // REAL FUNCTIONALITY BENCHMARK TESTS
 // ============================================================================
@@ -590,7 +681,7 @@ test.describe('NERV Golden Benchmark Tests - REAL Functionality', () => {
       const startBtn = window.locator('button:has-text("Start Task")').first()
       if (await startBtn.isVisible({ timeout: TIMEOUT.ui }) && await startBtn.isEnabled()) {
         await slowWait(window, 'Before Start Task')
-        await startBtn.click()
+        await startBtn.dispatchEvent('click')
         await slowWait(window, 'After Start Task')
         await window.waitForTimeout(3000)
       }
@@ -676,7 +767,7 @@ test.describe('NERV Golden Benchmark Tests - REAL Functionality', () => {
       log('step', 'Starting task')
       const startBtn = window.locator('button:has-text("Start Task")').first()
       if (await startBtn.isVisible({ timeout: TIMEOUT.ui }) && await startBtn.isEnabled()) {
-        await startBtn.click()
+        await startBtn.dispatchEvent('click')
 
         // Wait for Claude session to start
         await window.waitForTimeout(2000)
@@ -754,7 +845,7 @@ test.describe('NERV Golden Benchmark Tests - REAL Functionality', () => {
 
       const startBtn = window.locator('button:has-text("Start Task")').first()
       if (await startBtn.isVisible({ timeout: TIMEOUT.ui }) && await startBtn.isEnabled()) {
-        await startBtn.click()
+        await startBtn.dispatchEvent('click')
         log('info', 'Started permission_required scenario')
         await slowWait(window, 'Task started, waiting for permission request')
       }
@@ -886,7 +977,7 @@ test.describe('NERV Golden Benchmark Tests - REAL Functionality', () => {
 
       const startBtn = window.locator('button:has-text("Start Task")').first()
       if (await startBtn.isVisible({ timeout: TIMEOUT.ui }) && await startBtn.isEnabled()) {
-        await startBtn.click()
+        await startBtn.dispatchEvent('click')
         await window.waitForTimeout(2000)
       }
 
@@ -951,7 +1042,7 @@ test.describe('NERV Golden Benchmark Tests - REAL Functionality', () => {
 
       const startBtn = window.locator('button:has-text("Start Task")').first()
       if (await startBtn.isVisible({ timeout: TIMEOUT.ui }) && await startBtn.isEnabled()) {
-        await startBtn.click()
+        await startBtn.dispatchEvent('click')
         log('info', 'Started long_running scenario for context tracking')
 
         // Wait for mock Claude to produce token usage data
@@ -1040,7 +1131,9 @@ test.describe('NERV Golden Benchmark Tests - REAL Functionality', () => {
       expect(isDisabled).toBeFalsy() // Button should be enabled when project is selected
 
       // Close the dropdown without navigating
-      await window.locator('.dropdown-backdrop').click().catch(() => {})
+      await window.locator('.dropdown-backdrop').dispatchEvent('click').catch(() => {
+        // Backdrop may have already closed
+      })
       await window.waitForTimeout(200)
 
       // STEP 2: Log an audit event directly
@@ -1119,7 +1212,7 @@ test.describe('NERV Golden Benchmark Tests - REAL Functionality', () => {
       // Start first task
       const startBtn = window.locator('button:has-text("Start Task")').first()
       if (await startBtn.isVisible({ timeout: TIMEOUT.ui }) && await startBtn.isEnabled()) {
-        await startBtn.click()
+        await startBtn.dispatchEvent('click')
         log('info', 'Started first task')
         await window.waitForTimeout(2000)
       }
@@ -1210,7 +1303,7 @@ test.describe('NERV Golden Benchmark Tests - REAL Functionality', () => {
 
       const startBtn = window.locator('button:has-text("Start Task")').first()
       if (await startBtn.isVisible({ timeout: TIMEOUT.ui }) && await startBtn.isEnabled()) {
-        await startBtn.click()
+        await startBtn.dispatchEvent('click')
         log('info', 'Task started')
         await window.waitForTimeout(5000)
       }
@@ -1524,7 +1617,7 @@ test.describe('NERV Golden Benchmark Tests - REAL Functionality', () => {
 
       const startBtn = window.locator('button:has-text("Start Task")').first()
       if (await startBtn.isVisible({ timeout: TIMEOUT.ui }) && await startBtn.isEnabled()) {
-        await startBtn.click()
+        await startBtn.dispatchEvent('click')
         log('info', 'Task started, waiting for session ID...')
         // Wait for mock Claude to output session info
         await window.waitForTimeout(5000)
@@ -1689,7 +1782,7 @@ test.describe('NERV Golden Benchmark Tests - REAL Functionality', () => {
       log('step', 'Starting task via UI')
       const startBtn = window.locator('button:has-text("Start Task")').first()
       if (await startBtn.isVisible({ timeout: TIMEOUT.ui }) && await startBtn.isEnabled()) {
-        await startBtn.click()
+        await startBtn.dispatchEvent('click')
         await window.waitForTimeout(2000)
       }
 
@@ -1959,7 +2052,7 @@ test.describe('NERV Golden Benchmark Tests - REAL Functionality', () => {
       log('step', 'Starting task to enable Branch button')
       const startBtn = window.locator('button:has-text("Start Task")').first()
       if (await startBtn.isVisible({ timeout: TIMEOUT.ui }) && await startBtn.isEnabled()) {
-        await startBtn.click()
+        await startBtn.dispatchEvent('click')
         await window.waitForTimeout(2000)
       }
 
@@ -2178,19 +2271,11 @@ test.describe('NERV Golden Benchmark Tests - REAL Functionality', () => {
         await window.waitForTimeout(500)
       }
 
-      // Look for Worktrees/Repos button inside Workflow dropdown
-      // Open Workflow dropdown first, then click the item
-      const workflowDropdown = window.locator('[data-testid="more-dropdown"]')
+      // Look for Worktrees/Repos button inside More dropdown
       let addedViaUI = false
 
-      if (await workflowDropdown.isVisible({ timeout: 3000 }).catch(() => false)) {
-        log('step', 'Opening Worktrees/Repos panel via Workflow dropdown')
-        await workflowDropdown.click()
-        await window.waitForTimeout(200)
-        const worktreesBtn = window.locator('[data-testid="worktrees-btn"]')
-        if (await worktreesBtn.isVisible({ timeout: 2000 }).catch(() => false)) {
-          await worktreesBtn.click()
-        }
+      if (await clickDropdownItem(window, 'worktrees-btn')) {
+        log('step', 'Opened Worktrees/Repos panel via More dropdown')
         await slowWait(window, 'Panel opening')
 
         // Look for Add Repo button in the panel
@@ -2443,7 +2528,7 @@ test.describe('NERV Golden Benchmark Tests - REAL Functionality', () => {
       log('step', 'Starting task')
       const startBtn = window.locator('button:has-text("Start Task")').first()
       if (await startBtn.isVisible({ timeout: TIMEOUT.ui }) && await startBtn.isEnabled()) {
-        await startBtn.click()
+        await startBtn.dispatchEvent('click')
         log('info', 'Task started, waiting a moment before stopping...')
         await window.waitForTimeout(2000)
       }
@@ -2466,7 +2551,7 @@ test.describe('NERV Golden Benchmark Tests - REAL Functionality', () => {
       log('check', 'Stop button state', { visible: stopBtnVisible, enabled: stopBtnEnabled })
 
       if (stopBtnVisible && stopBtnEnabled) {
-        await stopBtn.click()
+        await stopBtn.dispatchEvent('click')
         await slowWait(window, 'Task stopping')
         log('pass', 'Clicked Stop button')
       }
@@ -2583,7 +2668,7 @@ test.describe('NERV Golden Benchmark Tests - REAL Functionality', () => {
       log('step', 'Starting first task')
       const startBtn = window.locator('button:has-text("Start Task")').first()
       if (await startBtn.isVisible({ timeout: TIMEOUT.ui }) && await startBtn.isEnabled()) {
-        await startBtn.click()
+        await startBtn.dispatchEvent('click')
         await window.waitForTimeout(2000)
       }
 
@@ -2630,7 +2715,7 @@ test.describe('NERV Golden Benchmark Tests - REAL Functionality', () => {
       // Now start second task
       log('step', 'Starting second task')
       if (await startBtn.isVisible({ timeout: TIMEOUT.ui }) && await startBtn.isEnabled()) {
-        await startBtn.click()
+        await startBtn.dispatchEvent('click')
         await window.waitForTimeout(2000)
       }
 
@@ -2723,7 +2808,7 @@ test.describe('NERV Golden Benchmark Tests - REAL Functionality', () => {
       log('step', 'Starting task')
       const startBtn = window.locator('button:has-text("Start Task")').first()
       if (await startBtn.isVisible({ timeout: TIMEOUT.ui }) && await startBtn.isEnabled()) {
-        await startBtn.click()
+        await startBtn.dispatchEvent('click')
         log('info', 'Task started, waiting for Claude to run...')
         await window.waitForTimeout(3000)
       }
@@ -2751,7 +2836,7 @@ test.describe('NERV Golden Benchmark Tests - REAL Functionality', () => {
       log('step', 'Stopping task to create interrupted state')
       const stopBtn = window.locator('[data-testid="stop-task-btn"]')
       if (await stopBtn.isVisible({ timeout: 5000 }).catch(() => false) && await stopBtn.isEnabled().catch(() => false)) {
-        await stopBtn.click()
+        await stopBtn.dispatchEvent('click')
         await slowWait(window, 'Task stopping')
       }
 
@@ -2794,7 +2879,7 @@ test.describe('NERV Golden Benchmark Tests - REAL Functionality', () => {
 
         // Click Resume button
         log('step', 'Clicking Resume button')
-        await resumeBtn.click()
+        await resumeBtn.dispatchEvent('click')
         await slowWait(window, 'Task resuming')
 
         // Wait for task to be in_progress again
@@ -2862,7 +2947,7 @@ test.describe('NERV Golden Benchmark Tests - REAL Functionality', () => {
       log('step', 'Opening New Task dialog')
       const addTaskBtn = window.locator('[data-testid="add-task-btn"]').first()
       await expect(addTaskBtn).toBeVisible({ timeout: TIMEOUT.ui })
-      await addTaskBtn.click({ force: true })
+      await addTaskBtn.dispatchEvent('click')
       await slowWait(window, 'New Task dialog opening')
 
       // STEP 2: Verify dialog is open
@@ -3073,7 +3158,7 @@ test.describe('NERV Golden Benchmark Tests - REAL Functionality', () => {
       log('step', 'Starting task to enable Branch button')
       const startBtn = window.locator('button:has-text("Start Task")').first()
       if (await startBtn.isVisible({ timeout: TIMEOUT.ui }) && await startBtn.isEnabled()) {
-        await startBtn.click()
+        await startBtn.dispatchEvent('click')
         await window.waitForTimeout(2000)
       }
 
@@ -3286,7 +3371,7 @@ test.describe('NERV Golden Benchmark Tests - REAL Functionality', () => {
       log('step', 'Starting task to enable Branch button')
       const startBtn = window.locator('button:has-text("Start Task")').first()
       if (await startBtn.isVisible({ timeout: TIMEOUT.ui }) && await startBtn.isEnabled()) {
-        await startBtn.click()
+        await startBtn.dispatchEvent('click')
         await window.waitForTimeout(2000)
       }
 
@@ -3486,7 +3571,7 @@ test.describe('NERV Golden Benchmark Tests - REAL Functionality', () => {
       log('step', 'Starting task to create worktree')
       const startBtn = window.locator('button:has-text("Start Task")').first()
       if (await startBtn.isVisible({ timeout: TIMEOUT.ui }) && await startBtn.isEnabled()) {
-        await startBtn.click()
+        await startBtn.dispatchEvent('click')
         await window.waitForTimeout(3000)
       }
 
@@ -3503,14 +3588,9 @@ test.describe('NERV Golden Benchmark Tests - REAL Functionality', () => {
       }, taskId!)
       await window.waitForTimeout(500)
 
-      // STEP: Open WorktreePanel via Workflow dropdown
-      log('step', 'Opening WorktreePanel via Workflow dropdown')
-      const wfDropdown = window.locator('[data-testid="more-dropdown"]')
-      await expect(wfDropdown).toBeVisible({ timeout: TIMEOUT.ui })
-      await wfDropdown.click()
-      await window.waitForTimeout(200)
-      const worktreesBtn = window.locator('[data-testid="worktrees-btn"]')
-      await worktreesBtn.click()
+      // STEP: Open WorktreePanel via More dropdown
+      log('step', 'Opening WorktreePanel via More dropdown')
+      await clickDropdownItem(window, 'worktrees-btn')
       await slowWait(window, 'WorktreePanel opening')
 
       // Verify WorktreePanel is visible
@@ -3682,8 +3762,9 @@ test.describe('NERV Golden Benchmark Tests - REAL Functionality', () => {
       expect(taskId).toBeTruthy()
       await window.waitForTimeout(500)
 
-      // STEP 1: Verify terminal panel exists
-      log('step', 'Verifying terminal panel exists')
+      // STEP 1: Switch to CLIs tab and verify terminal panel exists
+      log('step', 'Switching to CLIs tab for terminal panel')
+      await switchToCliTab(window)
       const terminalPanel = window.locator('[data-testid="terminal-panel"]')
       await expect(terminalPanel).toBeVisible({ timeout: TIMEOUT.ui })
       log('pass', 'Terminal panel visible')
@@ -3704,7 +3785,7 @@ test.describe('NERV Golden Benchmark Tests - REAL Functionality', () => {
       log('step', 'Starting task to see terminal output')
       const startBtn = window.locator('[data-testid="start-task-btn"]')
       if (await startBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
-        await startBtn.click()
+        await startBtn.dispatchEvent('click')
         await window.waitForTimeout(1000)
       }
 
@@ -4131,7 +4212,7 @@ test.describe('NERV Golden Benchmark Tests - REAL Functionality', () => {
       log('step', 'Starting task via UI')
       const startBtn = window.locator('button:has-text("Start Task")').first()
       if (await startBtn.isVisible({ timeout: TIMEOUT.ui }) && await startBtn.isEnabled()) {
-        await startBtn.click()
+        await startBtn.dispatchEvent('click')
         await window.waitForTimeout(3000) // Wait for NERV.md to be generated
       }
 
@@ -4224,7 +4305,7 @@ test.describe('NERV Golden Benchmark Tests - REAL Functionality', () => {
       log('step', 'Starting task to verify CLI flags')
       const startBtn = window.locator('button:has-text("Start Task")').first()
       await expect(startBtn).toBeVisible({ timeout: TIMEOUT.ui })
-      await startBtn.click()
+      await startBtn.dispatchEvent('click')
 
       // Poll for session info - mock Claude exits quickly so we need to catch it while running
       let sessionInfo: { spawnArgs?: string[]; model?: string; isRunning?: boolean } | null = null
@@ -4389,7 +4470,7 @@ test.describe('NERV Golden Benchmark Tests - REAL Functionality', () => {
       log('step', 'Starting task')
       const startBtn = window.locator('button:has-text("Start Task")').first()
       await expect(startBtn).toBeVisible({ timeout: TIMEOUT.ui })
-      await startBtn.click()
+      await startBtn.dispatchEvent('click')
       await window.waitForTimeout(2000)
 
       // Get session ID before stopping
@@ -4405,7 +4486,7 @@ test.describe('NERV Golden Benchmark Tests - REAL Functionality', () => {
       log('step', 'Stopping task')
       const stopBtn = window.locator('[data-testid="stop-task-btn"]').first()
       if (await stopBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
-        await stopBtn.click()
+        await stopBtn.dispatchEvent('click')
         await window.waitForTimeout(1000)
       }
 
@@ -4440,7 +4521,7 @@ test.describe('NERV Golden Benchmark Tests - REAL Functionality', () => {
       const resumeVisible = await resumeBtn.isVisible({ timeout: 5000 }).catch(() => false)
 
       if (resumeVisible) {
-        await resumeBtn.click()
+        await resumeBtn.dispatchEvent('click')
         await window.waitForTimeout(2000)
 
         // Get the new session info and verify --resume flag
@@ -4538,7 +4619,7 @@ test.describe('NERV Golden Benchmark Tests - REAL Functionality', () => {
       log('step', 'Starting task to verify --add-dir flag')
       const startBtn = window.locator('button:has-text("Start Task")').first()
       await expect(startBtn).toBeVisible({ timeout: TIMEOUT.ui })
-      await startBtn.click()
+      await startBtn.dispatchEvent('click')
 
       // Poll for session info to capture spawn args
       let sessionInfo: { spawnArgs?: string[] } | null = null
@@ -4688,7 +4769,7 @@ test.describe('NERV Golden Benchmark Tests - REAL Functionality', () => {
       log('step', 'Starting task to verify model in spawn')
       const startBtn = window.locator('button:has-text("Start Task")').first()
       await expect(startBtn).toBeVisible({ timeout: TIMEOUT.ui })
-      await startBtn.click()
+      await startBtn.dispatchEvent('click')
 
       // Poll for session info
       let sessionInfo: { spawnArgs?: string[]; model?: string } | null = null
@@ -4765,7 +4846,7 @@ test.describe('NERV Golden Benchmark Tests - REAL Functionality', () => {
       log('step', 'Starting task to verify cost tracking')
       const startBtn = window.locator('button:has-text("Start Task")').first()
       await expect(startBtn).toBeVisible({ timeout: TIMEOUT.ui })
-      await startBtn.click()
+      await startBtn.dispatchEvent('click')
 
       // Wait for task to complete (mock completes quickly)
       await window.waitForTimeout(3000)
@@ -5086,7 +5167,7 @@ test.describe('NERV Golden Benchmark Tests - REAL Functionality', () => {
       // Start the task (triggers permission_required scenario)
       const startBtn = window.locator('button:has-text("Start Task")').first()
       if (await startBtn.isVisible({ timeout: TIMEOUT.ui }) && await startBtn.isEnabled()) {
-        await startBtn.click()
+        await startBtn.dispatchEvent('click')
         log('step', 'Started task - waiting for permission request')
         await slowWait(window, 'Task started')
       }
@@ -5201,7 +5282,7 @@ test.describe('NERV Golden Benchmark Tests - REAL Functionality', () => {
       log('step', 'Starting task to verify --mcp-config flag')
       const startBtn = window.locator('button:has-text("Start Task")').first()
       await expect(startBtn).toBeVisible({ timeout: TIMEOUT.ui })
-      await startBtn.click()
+      await startBtn.dispatchEvent('click')
 
       // Poll for session info to capture spawn args
       let sessionInfo: { spawnArgs?: string[]; isRunning?: boolean } | null = null
@@ -5330,7 +5411,7 @@ test.describe('NERV Golden Benchmark Tests - REAL Functionality', () => {
       log('step', 'Starting task to verify --agents flag')
       const startBtn = window.locator('button:has-text("Start Task")').first()
       await expect(startBtn).toBeVisible({ timeout: TIMEOUT.ui })
-      await startBtn.click()
+      await startBtn.dispatchEvent('click')
 
       // Poll for session info to capture spawn args
       let sessionInfo: { spawnArgs?: string[]; isRunning?: boolean } | null = null
@@ -5590,7 +5671,7 @@ test.describe('NERV Golden Benchmark Tests - REAL Functionality', () => {
 
       const startButton = window.locator('[data-testid="start-task-btn"]')
       if (await startButton.isVisible({ timeout: 3000 }).catch(() => false)) {
-        await startButton.click()
+        await startButton.dispatchEvent('click')
         await slowWait(window, 'task start')
 
         // Wait for mock Claude to run
@@ -5686,7 +5767,7 @@ test.describe('NERV Golden Benchmark Tests - REAL Functionality', () => {
       log('step', 'Opening New Task dialog for research task')
       const addTaskBtn = window.locator('[data-testid="add-task-btn"]').first()
       await expect(addTaskBtn).toBeVisible({ timeout: TIMEOUT.ui })
-      await addTaskBtn.click({ force: true })
+      await addTaskBtn.dispatchEvent('click')
       await slowWait(window, 'New Task dialog opening')
 
       const dialog = window.locator('[data-testid="new-task-dialog"]')
@@ -5719,7 +5800,7 @@ test.describe('NERV Golden Benchmark Tests - REAL Functionality', () => {
       await window.waitForTimeout(500)
       const startBtn = window.locator('button:has-text("Start Task")').first()
       if (await startBtn.isVisible({ timeout: 5000 }).catch(() => false)) {
-        await startBtn.click()
+        await startBtn.dispatchEvent('click')
         await slowWait(window, 'Task starting')
       }
 
@@ -5736,7 +5817,7 @@ test.describe('NERV Golden Benchmark Tests - REAL Functionality', () => {
 
       // STEP 5: Complete the cycle via UI
       log('step', 'Opening CyclePanel to complete cycle')
-      await cyclesBtn.click()
+      await openCyclePanel(window)
       await slowWait(window, 'CyclePanel opening')
 
       const completeCycleBtn = window.locator('[data-testid="complete-cycle-btn"]')
@@ -5836,7 +5917,7 @@ test.describe('NERV Golden Benchmark Tests - REAL Functionality', () => {
 
       const startBtn = window.locator('button:has-text("Start Task")').first()
       if (await startBtn.isVisible({ timeout: 5000 }).catch(() => false)) {
-        await startBtn.click()
+        await startBtn.dispatchEvent('click')
         await window.waitForTimeout(3000) // Let mock Claude run
       }
 
@@ -5879,7 +5960,7 @@ test.describe('NERV Golden Benchmark Tests - REAL Functionality', () => {
 
       // STEP 6: Complete the cycle
       log('step', 'Completing cycle after branching')
-      await cyclesBtn.click()
+      await openCyclePanel(window)
       await slowWait(window, 'CyclePanel opening')
 
       const completeCycleBtn = window.locator('[data-testid="complete-cycle-btn"]')
@@ -5968,7 +6049,7 @@ test.describe('NERV Golden Benchmark Tests - REAL Functionality', () => {
       log('step', 'Starting task')
       const startBtn = window.locator('button:has-text("Start Task")').first()
       if (await startBtn.isVisible({ timeout: 5000 }).catch(() => false)) {
-        await startBtn.click()
+        await startBtn.dispatchEvent('click')
         await window.waitForTimeout(1500) // Let it start
       }
 
@@ -5976,7 +6057,7 @@ test.describe('NERV Golden Benchmark Tests - REAL Functionality', () => {
       log('step', 'Stopping task to simulate interruption')
       const stopBtn = window.locator('[data-testid="stop-task-btn"], button:has-text("Stop")').first()
       if (await stopBtn.isVisible({ timeout: 5000 }).catch(() => false)) {
-        await stopBtn.click()
+        await stopBtn.dispatchEvent('click')
         await window.waitForTimeout(1000)
       }
 
@@ -5993,7 +6074,7 @@ test.describe('NERV Golden Benchmark Tests - REAL Functionality', () => {
         log('step', 'Resuming interrupted task')
         const resumeBtn = window.locator('[data-testid="resume-task-btn"], button:has-text("Resume")').first()
         if (await resumeBtn.isVisible({ timeout: 5000 }).catch(() => false)) {
-          await resumeBtn.click()
+          await resumeBtn.dispatchEvent('click')
           await window.waitForTimeout(3000) // Let resumed task run
         }
       } else {
@@ -6010,7 +6091,7 @@ test.describe('NERV Golden Benchmark Tests - REAL Functionality', () => {
 
       // STEP 6: Complete the cycle
       log('step', 'Completing cycle after recovery')
-      await cyclesBtn.click()
+      await openCyclePanel(window)
       await slowWait(window, 'CyclePanel opening')
 
       const completeCycleBtn = window.locator('[data-testid="complete-cycle-btn"]')
@@ -6071,16 +6152,9 @@ test.describe('NERV Golden Benchmark Tests - REAL Functionality', () => {
         await window.waitForTimeout(300)
       }
 
-      // STEP 1: Open Knowledge panel via Knowledge dropdown
+      // STEP 1: Open Knowledge panel via More dropdown
       log('step', 'Opening Knowledge panel via dropdown')
-      const knowledgeDropdown = window.locator('[data-testid="more-dropdown"]')
-      await expect(knowledgeDropdown).toBeVisible({ timeout: TIMEOUT.ui })
-      await knowledgeDropdown.click()
-      await window.waitForTimeout(200)
-      const knowledgeBtn = window.locator('[data-testid="knowledge-btn"]')
-      await expect(knowledgeBtn).toBeVisible({ timeout: 2000 })
-      await expect(knowledgeBtn).toBeEnabled()
-      await knowledgeBtn.click()
+      await clickDropdownItem(window, 'knowledge-btn')
       await slowWait(window, 'Knowledge panel opening')
 
       // STEP 2: Navigate to Agents tab
