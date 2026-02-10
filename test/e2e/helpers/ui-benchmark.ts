@@ -769,6 +769,7 @@ export class UIBenchmarkRunner {
         } else if (reviewMode === 'auto') {
           await this.reviewAndIterateTask(taskId, projectId, timeout)
         } else {
+          this.eventLog.emit('review_started', { region: 'terminal-panel', label: 'Review: auto-approve (mock)' })
           this.eventLog.emit('review_decision', { region: 'terminal-panel', label: 'Review: Approved' })
           await this.approveTask(taskId)
         }
@@ -1166,7 +1167,7 @@ export class UIBenchmarkRunner {
     const taskStart = Date.now()
 
     for (let iteration = 0; iteration < maxIterations; iteration++) {
-      this.eventLog.emit('human_review_started', {
+      this.eventLog.emit('review_started', {
         region: 'terminal-panel',
         label: `Human review iteration ${iteration + 1}/${maxIterations}`,
       })
