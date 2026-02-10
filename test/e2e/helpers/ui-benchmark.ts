@@ -174,6 +174,8 @@ export class UIBenchmarkRunner {
     const loopsDetected = events.filter(e => e.event === 'loop_dialog_dismissed').length
     const reviewsRun = events.filter(e => e.event === 'review_started').length
     const reviewsApproved = events.filter(e => e.event === 'review_decision').length
+    const permissionsApproved = events.filter(e => e.event === 'permission_approved').length
+    const permissionsAlwaysAllowed = events.filter(e => e.event === 'permission_always_allowed').length
 
     const summary = {
       benchmarkId: `ui-benchmark-${Date.now()}`,
@@ -213,6 +215,9 @@ export class UIBenchmarkRunner {
         parallelTasksRun: 0,
         reviewsRun,
         reviewsApproved,
+        permissionsRequested: permissionsApproved + permissionsAlwaysAllowed,
+        permissionsApproved,
+        permissionsAlwaysAllowed,
       },
 
       issues: {
@@ -885,6 +890,7 @@ export class UIBenchmarkRunner {
     await this.window.evaluate(() => {
       const win = window as unknown as {
         __nervApprovalWatcher?: ReturnType<typeof setInterval>
+        __nervApprovalCount?: number
         api: {
           db: {
             approvals: {
@@ -896,6 +902,7 @@ export class UIBenchmarkRunner {
       }
       // Clear any existing watcher
       if (win.__nervApprovalWatcher) clearInterval(win.__nervApprovalWatcher)
+      win.__nervApprovalCount = 0
 
       win.__nervApprovalWatcher = setInterval(async () => {
         try {
@@ -903,6 +910,7 @@ export class UIBenchmarkRunner {
           for (const approval of pending) {
             console.log(`[NERV] Auto-approving: ${approval.tool_name} (id=${approval.id})`)
             await win.api.db.approvals.resolve(approval.id, 'approved')
+            win.__nervApprovalCount = (win.__nervApprovalCount || 0) + 1
           }
         } catch {
           // Approvals API may not be available yet
@@ -912,13 +920,28 @@ export class UIBenchmarkRunner {
 
     log('step', 'Approval auto-watcher started')
 
+    const emitEvents = async () => {
+      const count = await this.window.evaluate(() => {
+        const win = window as unknown as { __nervApprovalCount?: number }
+        return win.__nervApprovalCount || 0
+      })
+      for (let i = 0; i < count; i++) {
+        this.eventLog.emit('permission_approved', { region: 'approval-watcher' })
+      }
+    }
+
     return async () => {
+      await emitEvents()
       await this.window.evaluate(() => {
-        const win = window as unknown as { __nervApprovalWatcher?: ReturnType<typeof setInterval> }
+        const win = window as unknown as {
+          __nervApprovalWatcher?: ReturnType<typeof setInterval>
+          __nervApprovalCount?: number
+        }
         if (win.__nervApprovalWatcher) {
           clearInterval(win.__nervApprovalWatcher)
           delete win.__nervApprovalWatcher
         }
+        delete win.__nervApprovalCount
       })
     }
   }

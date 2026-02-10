@@ -425,6 +425,9 @@ function formatDataForScoring(data, specContent) {
 - Commits Created: ${s.workflow.commitsCreated || 'unknown'}
 - Reviews Run: ${s.workflow.reviewsRun || 0}
 - Reviews Approved: ${s.workflow.reviewsApproved || 0}
+- Permissions Requested: ${s.workflow.permissionsRequested || 0}
+- Permissions Approved: ${s.workflow.permissionsApproved || 0}
+- Permissions Always-Allowed: ${s.workflow.permissionsAlwaysAllowed || 0}
 `)
     }
 
