@@ -163,6 +163,10 @@ export class UIBenchmarkRunner {
     // for per-task metrics, review decisions, and stream summaries
     await this.writePerTaskOutputDirs(setup)
 
+    // Write per-cycle output directories — scoring script reads cycles/{cycleId}/
+    // for audit reports and review reports (score-benchmark.js:331-347)
+    await this.writePerCycleOutputDirs(setup.projectId)
+
     return {
       specFile: this.config.specFile,
       setup,
@@ -696,6 +700,70 @@ export class UIBenchmarkRunner {
       }
     } catch (error) {
       log('info', 'Failed to write per-task output dirs', { error: String(error) })
+    }
+  }
+
+  // ==========================================================================
+  // Output: per-cycle directories for scoring script per-cycle context
+  // ==========================================================================
+
+  /**
+   * Write cycles/{cycleId}/ directories with audit-report.json.
+   * The scoring script (score-benchmark.js:331-347) reads these to build
+   * per-cycle audit context for the NERV Ops grading section.
+   * Queries audit results from the DB and maps them to cycle IDs.
+   */
+  private async writePerCycleOutputDirs(projectId: string): Promise<void> {
+    try {
+      // Query all audit results for this project from DB
+      const auditResults = await this.window.evaluate(async (pid: string) => {
+        const api = (window as unknown as { api: { db: { audit: { getResultsForProject: (pid: string, limit?: number) => Promise<Array<{ id: string; cycle_id: string | null; audit_type: string; status: string; issues: Array<{ severity: string; message: string; category?: string }>; failed_checks: string[]; created_at: string }>> } } } }).api
+        const results = await api.db.audit.getResultsForProject(pid, 100)
+        if (!Array.isArray(results)) return []
+        return results.map(r => ({
+          id: r.id,
+          cycleId: r.cycle_id,
+          auditType: r.audit_type,
+          status: r.status,
+          issues: Array.isArray(r.issues) ? r.issues : [],
+          failedChecks: Array.isArray(r.failed_checks) ? r.failed_checks : [],
+          createdAt: r.created_at,
+        }))
+      }, projectId)
+
+      if (!auditResults || auditResults.length === 0) return
+
+      const cyclesDir = path.join(this.config.outputDir, 'cycles')
+      fs.mkdirSync(cyclesDir, { recursive: true })
+
+      for (const audit of auditResults) {
+        // Use cycle_id if available, otherwise use audit id as fallback
+        const dirName = audit.cycleId || audit.id
+        const cycleDir = path.join(cyclesDir, dirName)
+        fs.mkdirSync(cycleDir, { recursive: true })
+
+        // Write audit-report.json in the format score-benchmark.js expects
+        const auditReport = {
+          auditId: audit.id,
+          auditType: audit.auditType,
+          status: audit.status,
+          issueCount: audit.issues.length,
+          issues: audit.issues.map(issue => ({
+            severity: issue.severity,
+            message: issue.message,
+            category: issue.category || 'general',
+          })),
+          failedChecks: audit.failedChecks,
+          timestamp: audit.createdAt,
+        }
+
+        fs.writeFileSync(
+          path.join(cycleDir, 'audit-report.json'),
+          JSON.stringify(auditReport, null, 2),
+        )
+      }
+    } catch (error) {
+      log('info', 'Failed to write per-cycle output dirs', { error: String(error) })
     }
   }
 

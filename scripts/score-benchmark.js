@@ -575,6 +575,34 @@ ${cycleNarrative}`)
     sections.push(`## Claude Session Logs (per task)\n${streamSummaries.join('\n\n')}`)
   }
 
+  // Per-cycle audit reports (from cycles/{cycleId}/audit-report.json)
+  const cycleAudits = Object.entries(data.cycles)
+    .filter(([, cycle]) => cycle.auditReport)
+    .map(([cycleId, cycle]) => {
+      const ar = cycle.auditReport
+      let line = `### Cycle ${cycleId}\n- Audit type: ${ar.auditType || 'unknown'}, Status: ${ar.status || 'unknown'}`
+      line += `\n- Issues: ${ar.issueCount ?? (ar.issues?.length || 0)}`
+      if (ar.failedChecks?.length) line += `\n- Failed checks: ${ar.failedChecks.join(', ')}`
+      if (ar.issues?.length > 0) {
+        line += '\n- Details: ' + ar.issues.slice(0, 5).map(i => `[${i.severity}] ${i.message}`).join('; ')
+      }
+      return line
+    })
+  if (cycleAudits.length > 0) {
+    sections.push(`## Audit Reports (per cycle)\n${cycleAudits.join('\n\n')}`)
+  }
+
+  // Per-cycle review reports (from cycles/{cycleId}/review-report.json)
+  const cycleReviews = Object.entries(data.cycles)
+    .filter(([, cycle]) => cycle.reviewReport)
+    .map(([cycleId, cycle]) => {
+      const rr = cycle.reviewReport
+      return `### Cycle ${cycleId}\n- Decision: ${rr.decision || 'unknown'}, Confidence: ${rr.confidence || 'N/A'}${rr.concerns?.length ? '\n- Concerns: ' + rr.concerns.slice(0, 3).join('; ') : ''}`
+    })
+  if (cycleReviews.length > 0) {
+    sections.push(`## Review Reports (per cycle)\n${cycleReviews.join('\n\n')}`)
+  }
+
   const spec = specContent || data.spec
   if (spec) {
     sections.push(`## Original Spec
