@@ -155,6 +155,10 @@ export class UIBenchmarkRunner {
     // Write config.json — scoring script loads this from the output directory
     this.writeConfigJson()
 
+    // Write spec.md — scoring script reads this to include original requirements
+    // in the grading prompt (score-benchmark.js:272-275, 578-582)
+    this.writeSpecFile()
+
     // Write per-task output directories — scoring script reads tasks/{taskId}/
     // for per-task metrics, review decisions, and stream summaries
     await this.writePerTaskOutputDirs(setup)
@@ -556,6 +560,24 @@ export class UIBenchmarkRunner {
       path.join(this.config.outputDir, 'config.json'),
       JSON.stringify(config, null, 2),
     )
+  }
+
+  /**
+   * Copy the spec file to spec.md in the output directory.
+   * The scoring script (score-benchmark.js:272-275) reads this to include
+   * the original requirements in grading prompts (line 578-582).
+   */
+  private writeSpecFile(): void {
+    try {
+      const specsDir = path.join(__dirname, '../../../specs')
+      const specPath = path.join(specsDir, this.config.specFile)
+      if (fs.existsSync(specPath)) {
+        const content = fs.readFileSync(specPath, 'utf-8')
+        fs.writeFileSync(path.join(this.config.outputDir, 'spec.md'), content)
+      }
+    } catch {
+      // Non-critical — scoring script falls back to --spec CLI arg
+    }
   }
 
   // ==========================================================================
