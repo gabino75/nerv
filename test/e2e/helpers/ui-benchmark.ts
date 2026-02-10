@@ -140,6 +140,14 @@ export class UIBenchmarkRunner {
     const eventLogPath = path.join(this.config.outputDir, 'event-log.jsonl')
     this.eventLog.write(eventLogPath)
 
+    // Write summary.json — the scoring script (score-benchmark.js) depends on this
+    // file for providing workflow context to Claude during grading
+    this.writeSummaryJson(setup, build, grade, totalDurationMs)
+
+    // Write timeline.jsonl — scoring script reads this for event timeline context
+    // (uses timestamp field, not t field like event-log.jsonl)
+    this.writeTimelineJsonl()
+
     return {
       specFile: this.config.specFile,
       setup,
@@ -148,6 +156,118 @@ export class UIBenchmarkRunner {
       totalDurationMs,
       eventLogPath,
     }
+  }
+
+  // ==========================================================================
+  // Output: summary.json for scoring script compatibility
+  // ==========================================================================
+
+  private writeSummaryJson(
+    setup: UIBenchmarkSetupResult,
+    build: UIBenchmarkBuildResult,
+    grade: UIBenchmarkGradeResult,
+    totalDurationMs: number,
+  ): void {
+    const events = this.eventLog.getEvents()
+    const worktreesMerged = events.filter(e => e.event === 'worktree_merged').length
+    const worktreesMergeFailed = events.filter(e => e.event === 'worktree_merge_failed').length
+    const loopsDetected = events.filter(e => e.event === 'loop_dialog_dismissed').length
+    const reviewsRun = events.filter(e => e.event === 'review_started').length
+    const reviewsApproved = events.filter(e => e.event === 'review_decision').length
+
+    const summary = {
+      benchmarkId: `ui-benchmark-${Date.now()}`,
+      timestamp: Date.now(),
+      nervVersion: '1.0.0',
+      specFile: this.config.specFile,
+      model: 'claude-sonnet-4-20250514',
+      outcome: build.success && grade.success ? 'success' : build.tasksCompleted > 0 ? 'partial' : 'failed',
+
+      duration: {
+        totalMs: totalDurationMs,
+        perCycle: [] as number[],
+        perTask: {} as Record<string, number>,
+      },
+
+      tokens: { total: 0, input: 0, output: 0, cached: 0, perTask: {}, perCycle: [] as number[] },
+      cost: { totalUsd: build.totalCostUsd, perTask: {}, perCycle: [] as number[] },
+
+      tasks: {
+        total: setup.taskIds.length + build.cyclesCompleted - 1,  // initial + per-cycle tasks
+        completed: build.tasksCompleted,
+        failed: build.tasksFailed,
+        byStatus: { done: build.tasksCompleted, failed: build.tasksFailed },
+      },
+
+      cycles: {
+        total: build.cyclesCompleted,
+        auditsRun: 0,
+        auditsPassed: 0,
+      },
+
+      workflow: {
+        worktreesCreated: build.tasksCompleted + build.tasksFailed,
+        worktreesMerged,
+        worktreesDiscarded: worktreesMergeFailed,
+        branchesCreated: build.tasksCompleted + build.tasksFailed,
+        parallelTasksRun: 0,
+        reviewsRun,
+        reviewsApproved,
+      },
+
+      issues: {
+        loopsDetected,
+        compactions: 0,
+        toolErrors: 0,
+        toolRetries: 0,
+        permissionTimeouts: 0,
+        stuckDetections: 0,
+      },
+
+      spec: {
+        totalItems: this.config.scenario.roughMilestones.length,
+        itemsPassed: build.tasksCompleted,
+        itemsFailed: build.tasksFailed,
+        completionPercent: this.config.scenario.roughMilestones.length > 0
+          ? Math.round((build.tasksCompleted / this.config.scenario.roughMilestones.length) * 100)
+          : 0,
+      },
+
+      tests: { total: 0, passed: 0, failed: 0, skipped: 0 },
+
+      scores: grade.success ? {
+        planningScore: grade.planningScore,
+        codeScore: grade.codeScore,
+        nervOpsScore: grade.nervOpsScore,
+        overallScore: grade.overallScore,
+      } : null,
+    }
+
+    fs.writeFileSync(
+      path.join(this.config.outputDir, 'summary.json'),
+      JSON.stringify(summary, null, 2),
+    )
+  }
+
+  /**
+   * Write timeline.jsonl in the format expected by the scoring script.
+   * The scoring script expects objects with a `timestamp` field (ISO string),
+   * while event-log.jsonl uses `t` (relative milliseconds).
+   */
+  private writeTimelineJsonl(): void {
+    const events = this.eventLog.getEvents()
+    const baseTime = this.totalStart
+    const timelineEntries = events.map(e => ({
+      timestamp: new Date(baseTime + (e.t || 0)).toISOString(),
+      event: e.event,
+      label: e.label || '',
+      region: e.region || '',
+    }))
+
+    fs.writeFileSync(
+      path.join(this.config.outputDir, 'timeline.jsonl'),
+      timelineEntries.map(e => JSON.stringify(e)).join('\n') + '\n',
+    )
   }
 
   // ==========================================================================
