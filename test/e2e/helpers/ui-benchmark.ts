@@ -227,6 +227,65 @@ export class UIBenchmarkRunner {
       }
     })
 
+    // Compute per-cycle and per-task durations from event log timestamps
+    const perCycleDurations: number[] = []
+    const perTaskDurations: Record<string, number> = {}
+    {
+      // Per-cycle: pair cycle_started/cycle_transition with subsequent cycle_completed
+      let cycleStartT: number | null = null
+      for (const ev of events) {
+        if (ev.event === 'cycle_started' || ev.event === 'cycle_transition') {
+          cycleStartT = ev.t
+        } else if (ev.event === 'cycle_completed' && cycleStartT !== null) {
+          perCycleDurations.push(ev.t - cycleStartT)
+          cycleStartT = null
+        }
+      }
+      // Per-task: pair task_started with task_completed by task ID in label
+      const taskStarts = new Map<string, number>()
+      for (const ev of events) {
+        const taskId = ev.label?.replace('Task ', '')
+        if (!taskId) continue
+        if (ev.event === 'task_started') {
+          taskStarts.set(taskId, ev.t)
+        } else if (ev.event === 'task_completed') {
+          const startT = taskStarts.get(taskId)
+          if (startT !== undefined) {
+            perTaskDurations[taskId] = ev.t - startT
+          }
+        }
+      }
+    }
+
+    // Group tasks by cycle for per-cycle token/cost aggregation
+    const tasksByCycle: string[][] = []
+    {
+      let currentCycleTasks: string[] = []
+      for (const ev of events) {
+        if (ev.event === 'cycle_started' || ev.event === 'cycle_transition') {
+          currentCycleTasks = []
+        } else if (ev.event === 'task_started' && ev.label) {
+          const taskId = ev.label.replace('Task ', '')
+          currentCycleTasks.push(taskId)
+        } else if (ev.event === 'cycle_completed') {
+          tasksByCycle.push(currentCycleTasks)
+          currentCycleTasks = []
+        }
+      }
+    }
+    const perCycleTokens = tasksByCycle.map(tasks =>
+      tasks.reduce((sum, tid) => {
+        const m = metricsData.perTask[tid]
+        return sum + (m ? m.input + m.output : 0)
+      }, 0)
+    )
+    const perCycleCost = tasksByCycle.map(tasks =>
+      tasks.reduce((sum, tid) => {
+        const m = metricsData.perTask[tid]
+        return sum + (m ? m.cost : 0)
+      }, 0)
+    )
+
     const summary = {
       benchmarkId: `ui-benchmark-${Date.now()}`,
       timestamp: Date.now(),
@@ -237,8 +296,8 @@ export class UIBenchmarkRunner {
 
       duration: {
         totalMs: totalDurationMs,
-        perCycle: [] as number[],
-        perTask: {} as Record<string, number>,
+        perCycle: perCycleDurations,
+        perTask: perTaskDurations,
       },
 
       tokens: {
@@ -247,12 +306,12 @@ export class UIBenchmarkRunner {
         output: metricsData.totalOutput,
         cached: metricsData.totalCacheRead,
         perTask: Object.fromEntries(Object.entries(metricsData.perTask).map(([k, v]) => [k, v.input + v.output])),
-        perCycle: [] as number[],
+        perCycle: perCycleTokens,
       },
       cost: {
         totalUsd: metricsData.totalCost || build.totalCostUsd,
         perTask: Object.fromEntries(Object.entries(metricsData.perTask).map(([k, v]) => [k, v.cost])),
-        perCycle: [] as number[],
+        perCycle: perCycleCost,
       },
 
       tasks: {
