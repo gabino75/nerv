@@ -143,6 +143,49 @@ function recordToolActionForLoopDetection(session: ClaudeSession, msg: StreamMes
   }
 }
 
+// Detect tool_result errors and log to audit_log for benchmark scoring
+function detectToolErrors(session: ClaudeSession, msg: StreamMessage): void {
+  if (msg.type !== 'user' || !msg.message?.content) return
+
+  for (const content of msg.message.content) {
+    if (content.type !== 'tool_result') continue
+
+    // Check explicit is_error flag from Claude stream
+    const isError = content.is_error === true
+
+    // Also check content text for error patterns (same heuristic as CLI benchmark-collector)
+    let errorText = ''
+    if (typeof content.content === 'string') {
+      errorText = content.content
+    } else if (Array.isArray(content.content)) {
+      errorText = content.content
+        .filter((b: { type: string; text?: string }) => b.type === 'text' && b.text)
+        .map((b: { text?: string }) => b.text)
+        .join(' ')
+    }
+
+    const hasErrorPattern = errorText && (
+      errorText.includes('Error') || errorText.includes('error') || errorText.includes('FAILED')
+    )
+
+    if (isError || hasErrorPattern) {
+      if (session.taskId) {
+        try {
+          databaseService.logAuditEvent(session.taskId, 'tool_error', JSON.stringify({
+            sessionId: session.id,
+            toolUseId: content.tool_use_id || 'unknown',
+            isExplicitError: isError,
+            errorSnippet: errorText.slice(0, 200),
+            timestamp: new Date().toISOString()
+          }))
+        } catch {
+          // Don't break stream processing if audit logging fails
+        }
+      }
+    }
+  }
+}
+
 // Detect file access operations and track them for conflict detection (PRD Section 10)
 function detectFileAccess(session: ClaudeSession, msg: StreamMessage): void {
   if (msg.type !== 'assistant' || !msg.message?.content) return
@@ -247,6 +290,9 @@ export function processStreamOutput(session: ClaudeSession, data: string): void 
 
     // Detect file access for conflict detection (PRD Section 10)
     detectFileAccess(session, msg)
+
+    // Detect tool errors for benchmark scoring
+    detectToolErrors(session, msg)
 
     // Record tool actions for loop detection (PRD Section 21)
     recordToolActionForLoopDetection(session, msg)

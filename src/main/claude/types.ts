@@ -16,6 +16,8 @@ export interface StreamMessage {
       id?: string // tool_use block id
       name?: string
       input?: unknown
+      is_error?: boolean // tool_result error flag
+      content?: string | Array<{ type: string; text?: string }> // tool_result content
     }>
   }
   session_id?: string
