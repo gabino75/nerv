@@ -92,7 +92,7 @@ test.describe('NERV Real Claude Benchmark', () => {
   // -------------------------------------------------------------------------
   test('real_claude_benchmark - Complete multi-repo todo app with real Claude', async () => {
     // Skip if explicitly mocked (this test requires real Claude)
-    if (process.env.NERV_MOCK_CLAUDE === 'true') {
+    if (process.env.NERV_MOCK_CLAUDE === '1' || process.env.NERV_MOCK_CLAUDE === 'true') {
       test.skip()
       return
     }

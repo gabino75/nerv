@@ -49,6 +49,12 @@ function gatherContext(projectId: string, direction?: string): RecommendContext 
     decision: d.decision,
   }))
 
+  const repositories = databaseService.getReposForProject(projectId).map(r => ({
+    name: r.name,
+    stack: r.stack,
+    path: r.path,
+  }))
+
   const activeCycle = databaseService.getActiveCycle(projectId)
 
   return {
@@ -59,6 +65,7 @@ function gatherContext(projectId: string, direction?: string): RecommendContext 
     tasks,
     learnings,
     decisions,
+    repositories,
     hasCycle: !!activeCycle,
     totalCycles: allCycles.length,
     userDirection: direction,

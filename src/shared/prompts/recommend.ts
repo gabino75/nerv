@@ -38,6 +38,7 @@ export interface RecommendContext {
   tasks: { id: string; title: string; status: string; taskType: string }[]
   learnings: { content: string; category: string }[]
   decisions: { title: string; decision: string }[]
+  repositories: { name: string; stack: string | null; path: string }[]
   hasCycle: boolean
   totalCycles: number
   userDirection?: string
@@ -110,6 +111,8 @@ Current State:
 ${taskList}
 - Recent Learnings (last 5):
 ${learningsSummary}
+- Repositories:
+${ctx.repositories.length > 0 ? ctx.repositories.map(r => `  - ${r.name}: ${r.stack || 'unknown stack'} (${r.path})`).join('\n') : '  (no repositories added)'}
 - Recent Decisions (last 5):
 ${decisionsSummary}
 
