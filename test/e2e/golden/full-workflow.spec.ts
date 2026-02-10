@@ -37,6 +37,7 @@ import {
   registerTestRepo2,
   approvePermission,
   openAuditPanel,
+  openCyclePanel,
 } from '../helpers'
 
 // ES module compatible __dirname
@@ -480,9 +481,7 @@ test.describe('NERV Golden Workflow Tests', () => {
 
       // STEP 3: Create Cycle 0
       log('step', 'Step 3: Creating Cycle 0')
-      const cyclesBtn = window.locator(SELECTORS.cyclesBtn)
-      await expect(cyclesBtn).toBeVisible({ timeout: TIMEOUT.ui })
-      await cyclesBtn.click()
+      await openCyclePanel(window)
       await slowWait(window, 'CyclePanel opening')
 
       const startFirstCycleBtn = window.locator(SELECTORS.startFirstCycleBtn)

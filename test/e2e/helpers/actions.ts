@@ -326,6 +326,36 @@ export async function openAuditPanel(window: Page): Promise<boolean> {
 }
 
 /**
+ * Helper to reliably open the Cycle Panel via "More" dropdown
+ */
+export async function openCyclePanel(window: Page): Promise<boolean> {
+  log('step', 'Opening Cycle Panel')
+
+  const cyclePanel = window.locator(SELECTORS.cyclePanel)
+
+  // Check if panel is already open
+  let panelVisible = await cyclePanel.isVisible({ timeout: 1000 }).catch(() => false)
+  if (panelVisible) {
+    log('check', 'Cycle panel already visible')
+    return true
+  }
+
+  // Click cycles-btn via "More" dropdown
+  const clicked = await clickDropdownItem(window, 'cycles-btn')
+  if (clicked) {
+    await window.waitForTimeout(300)
+    panelVisible = await cyclePanel.isVisible({ timeout: 2000 }).catch(() => false)
+    if (panelVisible) {
+      log('check', 'Cycle panel visible (dropdown click)')
+      return true
+    }
+  }
+
+  log('fail', 'Could not open Cycle panel')
+  return false
+}
+
+/**
  * Approve a permission request by clicking "Just Once"
  */
 export async function approvePermission(window: Page): Promise<boolean> {

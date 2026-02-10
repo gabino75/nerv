@@ -46,6 +46,7 @@ export {
   selectProject,
   clickDropdownItem,
   openAuditPanel,
+  openCyclePanel,
   approvePermission,
   denyPermission,
   closeModal,

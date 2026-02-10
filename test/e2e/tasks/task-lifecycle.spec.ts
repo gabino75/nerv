@@ -30,6 +30,7 @@ import {
   standardCleanup,
   setupBenchmarkProjectWithRepo,
   createBenchmarkTask,
+  openCyclePanel,
 } from '../helpers'
 
 // ES module compatible __dirname
@@ -333,9 +334,7 @@ test.describe('NERV Task Lifecycle Tests', () => {
 
       // Create a cycle first
       log('step', 'Creating Cycle 0')
-      const cyclesBtn = window.locator('[data-testid="cycles-btn"]')
-      await expect(cyclesBtn).toBeVisible({ timeout: TIMEOUT.ui })
-      await cyclesBtn.click()
+      await openCyclePanel(window)
       await slowWait(window, 'CyclePanel opening')
 
       const startFirstCycleBtn = window.locator('[data-testid="start-first-cycle-btn"]')

@@ -59,9 +59,15 @@ export const SELECTORS = {
   activeCycle: '.active-cycle',
 
   // Dropdowns (header menus)
-  knowledgeDropdown: '[data-testid="knowledge-dropdown"]',
-  workflowDropdown: '[data-testid="workflow-dropdown"]',
-  settingsDropdown: '[data-testid="settings-dropdown"]',
+  moreDropdown: '[data-testid="more-dropdown"]',
+
+  // Three-tab layout
+  tabSpec: '[data-testid="tab-spec"]',
+  tabKanban: '[data-testid="tab-kanban"]',
+  tabClis: '[data-testid="tab-clis"]',
+  tabPaneSpec: '[data-testid="tab-pane-spec"]',
+  tabPaneKanban: '[data-testid="tab-pane-kanban"]',
+  tabPaneClis: '[data-testid="tab-pane-clis"]',
 
   // Audit
   auditBtn: '[data-testid="audit-btn"]',
@@ -185,14 +191,15 @@ export function getTimeout(base: number): number {
  * Items inside DropdownMenu components must have their parent opened first.
  */
 export const DROPDOWN_PARENT: Record<string, string> = {
-  'knowledge-btn': 'knowledge-dropdown',
-  'templates-btn': 'knowledge-dropdown',
-  'repos-btn': 'knowledge-dropdown',
-  'worktrees-btn': 'workflow-dropdown',
-  'sessions-btn': 'workflow-dropdown',
-  'yolo-btn': 'workflow-dropdown',
-  'audit-btn': 'workflow-dropdown',
-  'org-btn': 'workflow-dropdown',
-  'settings-btn': 'settings-dropdown',
-  'cost-btn': 'settings-dropdown',
+  'cycles-btn': 'more-dropdown',
+  'knowledge-btn': 'more-dropdown',
+  'templates-btn': 'more-dropdown',
+  'repos-btn': 'more-dropdown',
+  'worktrees-btn': 'more-dropdown',
+  'sessions-btn': 'more-dropdown',
+  'yolo-btn': 'more-dropdown',
+  'audit-btn': 'more-dropdown',
+  'org-btn': 'more-dropdown',
+  'settings-btn': 'more-dropdown',
+  'cost-btn': 'more-dropdown',
 }

@@ -25,6 +25,7 @@ import {
   launchNervBenchmark,
   standardCleanup,
   setupBenchmarkProjectWithRepo,
+  openCyclePanel,
 } from '../helpers'
 
 // ES module compatible __dirname
@@ -66,11 +67,9 @@ test.describe('NERV Cycle Management Tests', () => {
         await window.waitForTimeout(500)
       }
 
-      // STEP 1: Click Cycles button to open CyclePanel
-      log('step', 'Opening CyclePanel via Cycles button')
-      const cyclesBtn = window.locator('[data-testid="cycles-btn"]')
-      await expect(cyclesBtn).toBeVisible({ timeout: TIMEOUT.ui })
-      await cyclesBtn.click()
+      // STEP 1: Open CyclePanel via More dropdown
+      log('step', 'Opening CyclePanel via More dropdown')
+      await openCyclePanel(window)
       await slowWait(window, 'CyclePanel opening')
 
       // Verify CyclePanel is open
@@ -179,11 +178,9 @@ test.describe('NERV Cycle Management Tests', () => {
         await window.waitForTimeout(500)
       }
 
-      // STEP 1: Open CyclePanel
+      // STEP 1: Open CyclePanel via More dropdown
       log('step', 'Opening CyclePanel')
-      const cyclesBtn = window.locator('[data-testid="cycles-btn"]')
-      await expect(cyclesBtn).toBeVisible({ timeout: TIMEOUT.ui })
-      await cyclesBtn.click()
+      await openCyclePanel(window)
       await slowWait(window, 'CyclePanel opening')
 
       const cyclePanel = window.locator('[data-testid="cycle-panel"]')

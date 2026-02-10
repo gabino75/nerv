@@ -141,13 +141,12 @@ test('full NERV development workflow', async () => {
   await expect(sendInput).toBeVisible()
   await expect(sendInput).toHaveAttribute('placeholder', 'Start a task to chat with Claude')
 
-  // Step 5: Verify header dropdowns exist
-  await expect(window.locator('[data-testid="cycles-btn"]')).toBeVisible()
-  await expect(window.locator('[data-testid="knowledge-dropdown"]')).toBeVisible()
-  await expect(window.locator('[data-testid="workflow-dropdown"]')).toBeVisible()
-  await expect(window.locator('[data-testid="settings-dropdown"]')).toBeVisible()
+  // Step 5: Verify header "More" dropdown and tab layout exist
+  await expect(window.locator('[data-testid="more-dropdown"]')).toBeVisible()
+  await expect(window.locator('[data-testid="three-tab-layout"]')).toBeVisible()
+  await expect(window.locator('[data-testid="tab-kanban"]')).toBeVisible()
 
-  // Step 6: Verify the "More" actions button exists
+  // Step 6: Verify the "More" actions button exists in ActionBar
   const moreBtn = window.locator('.action-btn.more-actions')
   await expect(moreBtn).toBeVisible()
 

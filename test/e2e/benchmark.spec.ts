@@ -448,7 +448,7 @@ async function openAuditPanel(window: Page): Promise<boolean> {
 
   // Fallback: Try clicking the button via Workflow dropdown
   log('info', 'Trying button click via Workflow dropdown')
-  const workflowTrigger = window.locator('[data-testid="workflow-dropdown"]')
+  const workflowTrigger = window.locator('[data-testid="more-dropdown"]')
   const triggerVisible = await workflowTrigger.isVisible({ timeout: 3000 }).catch(() => false)
   if (triggerVisible) {
     try {
@@ -469,6 +469,46 @@ async function openAuditPanel(window: Page): Promise<boolean> {
   }
 
   log('fail', 'Could not open Audit panel')
+  return false
+}
+
+/**
+ * Open the Cycle Panel via the "More" dropdown
+ */
+async function openCyclePanel(window: Page): Promise<boolean> {
+  log('step', 'Opening Cycle Panel')
+
+  const cyclePanel = window.locator('[data-testid="cycle-panel"]')
+
+  // Check if panel is already open
+  let panelVisible = await cyclePanel.isVisible({ timeout: 1000 }).catch(() => false)
+  if (panelVisible) {
+    log('check', 'Cycle panel already visible')
+    return true
+  }
+
+  // Click cycles-btn via "More" dropdown
+  const moreTrigger = window.locator('[data-testid="more-dropdown"]')
+  const triggerVisible = await moreTrigger.isVisible({ timeout: 3000 }).catch(() => false)
+  if (triggerVisible) {
+    try {
+      await moreTrigger.click()
+      await window.waitForTimeout(200)
+      const cyclesBtn = window.locator('[data-testid="cycles-btn"]')
+      await cyclesBtn.click({ timeout: 5000 })
+    } catch (e) {
+      log('info', 'Dropdown button click failed', { error: String(e) })
+    }
+    await window.waitForTimeout(300)
+
+    panelVisible = await cyclePanel.isVisible({ timeout: 2000 }).catch(() => false)
+    if (panelVisible) {
+      log('check', 'Cycle panel visible (dropdown click)')
+      return true
+    }
+  }
+
+  log('fail', 'Could not open Cycle panel')
   return false
 }
 
@@ -986,7 +1026,7 @@ test.describe('NERV Golden Benchmark Tests - REAL Functionality', () => {
 
       // STEP 1: Verify Audit button exists and is enabled (inside Workflow dropdown)
       log('step', 'Checking Audit button state via Workflow dropdown')
-      const workflowTrigger = window.locator('[data-testid="workflow-dropdown"]')
+      const workflowTrigger = window.locator('[data-testid="more-dropdown"]')
       await workflowTrigger.click()
       await window.waitForTimeout(200)
 
@@ -1274,9 +1314,7 @@ test.describe('NERV Golden Benchmark Tests - REAL Functionality', () => {
 
       // STEP 1: Click Cycles button to open CyclePanel
       log('step', 'Opening CyclePanel via Cycles button')
-      const cyclesBtn = window.locator('[data-testid="cycles-btn"]')
-      await expect(cyclesBtn).toBeVisible({ timeout: TIMEOUT.ui })
-      await cyclesBtn.click()
+      await openCyclePanel(window)
       await slowWait(window, 'CyclePanel opening')
 
       // Verify CyclePanel is open
@@ -2142,7 +2180,7 @@ test.describe('NERV Golden Benchmark Tests - REAL Functionality', () => {
 
       // Look for Worktrees/Repos button inside Workflow dropdown
       // Open Workflow dropdown first, then click the item
-      const workflowDropdown = window.locator('[data-testid="workflow-dropdown"]')
+      const workflowDropdown = window.locator('[data-testid="more-dropdown"]')
       let addedViaUI = false
 
       if (await workflowDropdown.isVisible({ timeout: 3000 }).catch(() => false)) {
@@ -2273,9 +2311,7 @@ test.describe('NERV Golden Benchmark Tests - REAL Functionality', () => {
 
       // STEP 1: Open CyclePanel
       log('step', 'Opening CyclePanel')
-      const cyclesBtn = window.locator('[data-testid="cycles-btn"]')
-      await expect(cyclesBtn).toBeVisible({ timeout: TIMEOUT.ui })
-      await cyclesBtn.click()
+      await openCyclePanel(window)
       await slowWait(window, 'CyclePanel opening')
 
       const cyclePanel = window.locator('[data-testid="cycle-panel"]')
@@ -2501,9 +2537,7 @@ test.describe('NERV Golden Benchmark Tests - REAL Functionality', () => {
 
       // Create a cycle first
       log('step', 'Creating Cycle 0')
-      const cyclesBtn = window.locator('[data-testid="cycles-btn"]')
-      await expect(cyclesBtn).toBeVisible({ timeout: TIMEOUT.ui })
-      await cyclesBtn.click()
+      await openCyclePanel(window)
       await slowWait(window, 'CyclePanel opening')
 
       const startFirstCycleBtn = window.locator('[data-testid="start-first-cycle-btn"]')
@@ -3471,7 +3505,7 @@ test.describe('NERV Golden Benchmark Tests - REAL Functionality', () => {
 
       // STEP: Open WorktreePanel via Workflow dropdown
       log('step', 'Opening WorktreePanel via Workflow dropdown')
-      const wfDropdown = window.locator('[data-testid="workflow-dropdown"]')
+      const wfDropdown = window.locator('[data-testid="more-dropdown"]')
       await expect(wfDropdown).toBeVisible({ timeout: TIMEOUT.ui })
       await wfDropdown.click()
       await window.waitForTimeout(200)
@@ -3733,9 +3767,7 @@ test.describe('NERV Golden Benchmark Tests - REAL Functionality', () => {
 
       // STEP 1: Open CyclePanel
       log('step', 'Opening CyclePanel')
-      const cyclesBtn = window.locator('[data-testid="cycles-btn"]')
-      await expect(cyclesBtn).toBeVisible({ timeout: TIMEOUT.ui })
-      await cyclesBtn.click()
+      await openCyclePanel(window)
       await slowWait(window, 'CyclePanel opening')
 
       const cyclePanel = window.locator('[data-testid="cycle-panel"]')
@@ -4040,9 +4072,7 @@ test.describe('NERV Golden Benchmark Tests - REAL Functionality', () => {
 
       // STEP 2: Create cycle via UI
       log('step', 'Creating Cycle 0 via UI')
-      const cyclesBtn = window.locator('[data-testid="cycles-btn"]')
-      await expect(cyclesBtn).toBeVisible({ timeout: TIMEOUT.ui })
-      await cyclesBtn.click()
+      await openCyclePanel(window)
       await slowWait(window, 'CyclePanel opening')
 
       const startFirstCycleBtn = window.locator('[data-testid="start-first-cycle-btn"]')
@@ -4820,8 +4850,7 @@ test.describe('NERV Golden Benchmark Tests - REAL Functionality', () => {
 
       // STEP 1: Open CyclePanel
       log('step', 'Opening CyclePanel')
-      const cyclesBtn = window.locator('[data-testid="cycles-btn"]')
-      await cyclesBtn.click()
+      await openCyclePanel(window)
       await slowWait(window, 'CyclePanel opening')
 
       const cyclePanel = window.locator('[data-testid="cycle-panel"]')
@@ -5630,9 +5659,7 @@ test.describe('NERV Golden Benchmark Tests - REAL Functionality', () => {
 
       // STEP 1: Create Cycle 0 for research
       log('step', 'Creating Cycle 0 for research task')
-      const cyclesBtn = window.locator('[data-testid="cycles-btn"]')
-      await expect(cyclesBtn).toBeVisible({ timeout: TIMEOUT.ui })
-      await cyclesBtn.click()
+      await openCyclePanel(window)
       await slowWait(window, 'CyclePanel opening')
 
       const startFirstCycleBtn = window.locator('[data-testid="start-first-cycle-btn"]')
@@ -5783,8 +5810,7 @@ test.describe('NERV Golden Benchmark Tests - REAL Functionality', () => {
 
       // STEP 1: Create Cycle 0
       log('step', 'Creating Cycle 0 for branching test')
-      const cyclesBtn = window.locator('[data-testid="cycles-btn"]')
-      await cyclesBtn.click()
+      await openCyclePanel(window)
       await slowWait(window, 'CyclePanel opening')
 
       const startFirstCycleBtn = window.locator('[data-testid="start-first-cycle-btn"]')
@@ -5915,8 +5941,7 @@ test.describe('NERV Golden Benchmark Tests - REAL Functionality', () => {
 
       // STEP 1: Create Cycle 0
       log('step', 'Creating Cycle 0 for recovery test')
-      const cyclesBtn = window.locator('[data-testid="cycles-btn"]')
-      await cyclesBtn.click()
+      await openCyclePanel(window)
       await slowWait(window, 'CyclePanel opening')
 
       const startFirstCycleBtn = window.locator('[data-testid="start-first-cycle-btn"]')
@@ -6048,7 +6073,7 @@ test.describe('NERV Golden Benchmark Tests - REAL Functionality', () => {
 
       // STEP 1: Open Knowledge panel via Knowledge dropdown
       log('step', 'Opening Knowledge panel via dropdown')
-      const knowledgeDropdown = window.locator('[data-testid="knowledge-dropdown"]')
+      const knowledgeDropdown = window.locator('[data-testid="more-dropdown"]')
       await expect(knowledgeDropdown).toBeVisible({ timeout: TIMEOUT.ui })
       await knowledgeDropdown.click()
       await window.waitForTimeout(200)
