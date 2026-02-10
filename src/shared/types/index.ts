@@ -37,6 +37,7 @@ export type {
   Branch,
   BranchStatus,
   AuditLogEntry,
+  AuditResult,
   DocumentationSource,
   TaskReview,
   TaskReviewStatus,

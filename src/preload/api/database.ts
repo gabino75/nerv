@@ -14,6 +14,7 @@ import type {
   Decision,
   Branch,
   AuditLogEntry,
+  AuditResult,
   DocumentationSource,
   TaskReview,
   ReviewContext,
@@ -252,7 +253,9 @@ export const db = {
     log: (taskId: string | null, eventType: string, details: string | null): Promise<void> =>
       ipcRenderer.invoke('db:audit:log', taskId, eventType, details),
     get: (taskId?: string, limit?: number): Promise<AuditLogEntry[]> =>
-      ipcRenderer.invoke('db:audit:get', taskId, limit)
+      ipcRenderer.invoke('db:audit:get', taskId, limit),
+    getResultsForProject: (projectId: string, limit?: number): Promise<AuditResult[]> =>
+      ipcRenderer.invoke('audit:getResultsForProject', projectId, limit),
   },
 
   // Documentation Sources

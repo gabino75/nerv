@@ -176,6 +176,8 @@ export class UIBenchmarkRunner {
     const reviewsApproved = events.filter(e => e.event === 'review_decision').length
     const permissionsApproved = events.filter(e => e.event === 'permission_approved').length
     const permissionsAlwaysAllowed = events.filter(e => e.event === 'permission_always_allowed').length
+    const auditsRun = events.filter(e => e.event === 'audit_completed').length
+    const auditsPassed = events.filter(e => e.event === 'audit_passed').length
 
     const summary = {
       benchmarkId: `ui-benchmark-${Date.now()}`,
@@ -203,8 +205,8 @@ export class UIBenchmarkRunner {
 
       cycles: {
         total: build.cyclesCompleted,
-        auditsRun: 0,
-        auditsPassed: 0,
+        auditsRun,
+        auditsPassed,
       },
 
       workflow: {
@@ -1401,6 +1403,13 @@ Write your review comments (plain text, no JSON):`
   private async completeCycle(projectId: string): Promise<void> {
     this.eventLog.emit('cycle_completing', { region: 'task-board' })
 
+    // Count audit results before completing cycle, so we can detect new ones
+    const auditCountBefore = await this.window.evaluate(async (pid: string) => {
+      const api = (window as unknown as { api: { db: { audit: { getResultsForProject: (pid: string, limit?: number) => Promise<Array<{ status: string; issues: unknown[] }>> } } } }).api
+      const results = await api.db.audit.getResultsForProject(pid, 100)
+      return Array.isArray(results) ? results.length : 0
+    }, projectId)
+
     // Try to complete via API (more reliable than UI clicks)
     await this.window.evaluate(async (pid: string) => {
       const api = (window as unknown as { api: { db: { cycles: { getActive: (pid: string) => Promise<{ id: string } | undefined>, complete: (id: string, l?: string) => Promise<unknown> } } } }).api
@@ -1411,6 +1420,27 @@ Write your review comments (plain text, no JSON):`
     }, projectId)
 
     this.eventLog.emit('cycle_completed', { region: 'task-board' })
+
+    // Check if an audit ran during cycle completion (PRD Section 5: audit on cycle complete)
+    const auditResult = await this.window.evaluate(async (args: { pid: string; before: number }) => {
+      const api = (window as unknown as { api: { db: { audit: { getResultsForProject: (pid: string, limit?: number) => Promise<Array<{ status: string; issues: unknown[] }>> } } } }).api
+      const results = await api.db.audit.getResultsForProject(args.pid, 100)
+      if (!Array.isArray(results) || results.length <= args.before) return null
+      // Return the newest audit result (first in DESC order)
+      const newest = results[0]
+      return { status: newest.status, issueCount: Array.isArray(newest.issues) ? newest.issues.length : 0 }
+    }, { pid: projectId, before: auditCountBefore })
+
+    if (auditResult) {
+      this.eventLog.emit('audit_completed', {
+        region: 'task-board',
+        label: `Audit: ${auditResult.status} (${auditResult.issueCount} issues)`,
+      })
+      if (auditResult.status === 'passed') {
+        this.eventLog.emit('audit_passed', { region: 'task-board', label: 'Audit passed' })
+      }
+    }
+
     await this.window.waitForTimeout(500)
   }
 
