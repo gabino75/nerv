@@ -311,13 +311,21 @@ async function mergeWorktreeBranch(
     // Get the base branch to merge into
     const baseBranch = await getMainBranch(repoPath)
 
+    // Check if worktree branch has any commits beyond the base
+    const { stdout: baseHead } = await execAsync(`git -C "${repoPath}" rev-parse ${baseBranch}`, { cwd: repoPath })
+    const { stdout: branchHead } = await execAsync(`git -C "${repoPath}" rev-parse ${branchName}`, { cwd: repoPath })
+    if (baseHead.trim() === branchHead.trim()) {
+      console.log(`[Worktree] No commits to merge: ${branchName} is at same commit as ${baseBranch}`)
+      return { merged: true, error: 'no-op: branch has no new commits' }
+    }
+
     // Merge: --no-ff to preserve branch history
     console.log(`[Worktree] Merging ${branchName} into ${baseBranch} in ${repoPath}`)
-    await execAsync(`git -C "${repoPath}" merge --no-ff "${branchName}" -m "Merge task ${branchName}"`, {
+    const { stdout: mergeOutput } = await execAsync(`git -C "${repoPath}" merge --no-ff "${branchName}" -m "Merge task ${branchName}"`, {
       cwd: repoPath,
     })
 
-    console.log(`[Worktree] Merge succeeded: ${branchName} → ${baseBranch}`)
+    console.log(`[Worktree] Merge succeeded: ${branchName} → ${baseBranch} (${mergeOutput.trim().split('\n')[0]})`)
     return { merged: true }
   } catch (error) {
     const err = error as Error

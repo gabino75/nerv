@@ -156,6 +156,64 @@ export class UIBenchmarkRunner {
   }
 
   /**
+   * Write SPEC.md into the test repo so Claude can check off items.
+   * Also commits the file so it's part of the git history.
+   */
+  private writeSpecToRepo(): void {
+    const { execSync } = require('child_process') as typeof import('child_process')
+    const repoPath = this.config.testRepoPath
+
+    // Build SPEC.md checklist from scenario milestones + quality bar
+    const scenario = this.config.scenario
+    const lines = [`# ${scenario.projectIdea.split('.')[0].trim()}\n`]
+    lines.push('## Milestones\n')
+    for (const m of scenario.roughMilestones) {
+      lines.push(`- [ ] ${m}`)
+    }
+    if (scenario.qualityBar && scenario.qualityBar.length > 0) {
+      lines.push('\n## Quality Requirements\n')
+      for (const q of scenario.qualityBar) {
+        lines.push(`- [ ] ${q}`)
+      }
+    }
+
+    const specContent = lines.join('\n') + '\n'
+    fs.writeFileSync(path.join(repoPath, 'SPEC.md'), specContent)
+    execSync('git add SPEC.md && git commit -m "Add SPEC.md checklist"', {
+      cwd: repoPath, stdio: 'pipe',
+    })
+  }
+
+  /**
+   * Build a task description that includes git commit instructions.
+   * Without these, Claude writes code but never commits — worktree branches
+   * stay at the initial commit and merges are no-ops.
+   */
+  private buildTaskDescription(milestone: string, projectIdea: string): string {
+    return `${milestone}
+
+## Project
+${projectIdea.slice(0, 300)}
+
+## Workflow (repeat for each feature)
+
+1. **Read** SPEC.md — find the FIRST unchecked item (\`- [ ]\`)
+2. **Implement** that feature (write code, create files)
+3. **Test** — verify it works
+4. **Check off** — edit SPEC.md to change that item from \`- [ ]\` to \`- [x]\`
+5. **Commit** — \`git add -A && git commit -m "feat: <description>"\`
+6. **Repeat** from step 1 for the next unchecked item
+
+## CRITICAL RULES
+
+- **Commit after each feature** so progress is saved even if time runs out.
+- **Update SPEC.md checkboxes** — progress is measured by counting \`[x]\` items.
+- Work through items in order.
+
+Start by reading SPEC.md, then implement and commit each feature.`
+  }
+
+  /**
    * Run the full 3-phase benchmark pipeline.
    */
   async run(): Promise<UIBenchmarkResult> {
@@ -943,6 +1001,10 @@ export class UIBenchmarkRunner {
     try {
       // Step 1: Create project via UI
       this.eventLog.emit('project_creating', { region: 'project-selector' })
+      // Write SPEC.md into the test repo before creating the project
+      // so worktrees inherit the checklist and Claude can check off items
+      this.writeSpecToRepo()
+
       const project = await setupBenchmarkProjectWithRepo(
         this.window,
         this.config.testRepoPath,
@@ -1049,7 +1111,7 @@ export class UIBenchmarkRunner {
       this.window,
       projectId,
       firstMilestone,
-      `Build: ${scenario.projectIdea.slice(0, 200)}`,
+      this.buildTaskDescription(firstMilestone, scenario.projectIdea),
     )
     if (taskId) taskIds.push(taskId)
 
@@ -1160,7 +1222,7 @@ export class UIBenchmarkRunner {
           this.window,
           setup.projectId,
           milestone,
-          `Continue building: ${this.config.scenario.projectIdea.slice(0, 200)}`,
+          this.buildTaskDescription(milestone, this.config.scenario.projectIdea),
         )
 
         if (newTaskId) {
@@ -2196,7 +2258,7 @@ Write your review comments (plain text, no JSON):`
             this.window,
             projectId,
             event.content.slice(0, 100),
-            `Scope addition: ${event.content}`,
+            this.buildTaskDescription(event.content.slice(0, 100), event.content),
           )
           break
 
