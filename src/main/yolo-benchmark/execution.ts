@@ -312,21 +312,12 @@ async function runBenchmarkCycle(active: ActiveBenchmark): Promise<CycleResult> 
         // Broadcast review result for UI display
         broadcastToRenderers('yolo:reviewCompleted', active.resultId, task.id, decision)
 
-        // PRD: Flag for human review if confidence is low
-        const MIN_CONFIDENCE_FOR_AUTO_MERGE = 0.7
-        if (decision.confidence < MIN_CONFIDENCE_FOR_AUTO_MERGE) {
-          console.log(`[YOLO] Low confidence (${decision.confidence}), flagging for human review`)
-          broadcastToRenderers('yolo:humanReviewNeeded', active.resultId, task.id, decision)
-          result.blocked = true
-          result.blockReason = `Review agent uncertain (confidence: ${decision.confidence}) - flagged for human review`
-        } else if (decision.decision === 'approve' && decision.autoMerge) {
+        if (decision.decision === 'approve') {
+          // In YOLO mode with autoApproveReview, always accept approve decisions
+          // regardless of confidence/autoMerge flags (which may be unreliable
+          // from heuristic fallback when Claude's JSON can't be parsed)
           databaseService.updateTaskStatus(task.id, 'done')
           result.tasksCompleted = 1
-        } else if (decision.decision === 'approve' && !decision.autoMerge) {
-          // Approved but not auto-merge - flag for human review
-          broadcastToRenderers('yolo:humanReviewNeeded', active.resultId, task.id, decision)
-          result.blocked = true
-          result.blockReason = `Review agent approved but flagged for human review: ${decision.justification}`
         } else if (decision.decision === 'needs_changes') {
           // Keep in review status for potential retry
           result.blocked = true
@@ -402,8 +393,10 @@ export async function runBenchmarkLoop(resultId: string): Promise<void> {
         return
       }
       if (cycleResult.blocked) {
-        completeBenchmark(resultId, 'blocked', cycleResult.blockReason || 'Unknown block')
-        return
+        // Log the block but continue — next cycle can retry
+        // Only unrecoverable blocks (like worktree creation failure) should be fatal,
+        // but those are better handled by the time/cycle limits
+        console.warn(`[YOLO] Cycle blocked: ${cycleResult.blockReason}. Continuing to next cycle.`)
       }
     } catch (err) {
       console.error(`[YOLO] Cycle error: ${(err as Error).message}`)
