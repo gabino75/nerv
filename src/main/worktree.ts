@@ -319,8 +319,9 @@ async function mergeWorktreeBranch(
       return { merged: true, error: 'no-op: branch has no new commits' }
     }
 
-    // Merge: --no-ff to preserve branch history
+    // Merge: checkout base branch first, then --no-ff to preserve branch history
     console.log(`[Worktree] Merging ${branchName} into ${baseBranch} in ${repoPath}`)
+    await execAsync(`git -C "${repoPath}" checkout ${baseBranch}`, { cwd: repoPath })
     const { stdout: mergeOutput } = await execAsync(`git -C "${repoPath}" merge --no-ff "${branchName}" -m "Merge task ${branchName}"`, {
       cwd: repoPath,
     })
