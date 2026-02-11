@@ -59,9 +59,7 @@
       {@render kanbanTab()}
     </div>
     <div class="tab-pane" class:visible={currentTab === 'clis'} data-testid="tab-pane-clis">
-      {#if currentTab === 'clis'}
-        {@render clisTab()}
-      {/if}
+      {@render clisTab()}
     </div>
   </div>
 </div>

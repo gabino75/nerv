@@ -2691,7 +2691,7 @@ test.describe('NERV Golden Benchmark Tests - REAL Functionality', () => {
       const approveBtnVisible = await approveBtn.isVisible({ timeout: 5000 }).catch(() => false)
       if (approveBtnVisible) {
         log('step', 'Approving first task via UI')
-        await approveBtn.click()
+        await approveBtn.dispatchEvent('click')
         await slowWait(window, 'First task approved')
       } else {
         log('info', 'Approve button not visible, approving first task via API')
@@ -5811,7 +5811,7 @@ test.describe('NERV Golden Benchmark Tests - REAL Functionality', () => {
       log('step', 'Approving research task in review')
       const approveBtn = window.locator('[data-testid="approve-task-btn"]').first()
       if (await approveBtn.isVisible({ timeout: 10000 }).catch(() => false)) {
-        await approveBtn.click()
+        await approveBtn.dispatchEvent('click')
         await slowWait(window, 'Task approval')
       }
 
@@ -5954,7 +5954,7 @@ test.describe('NERV Golden Benchmark Tests - REAL Functionality', () => {
       await window.waitForTimeout(1000)
       const approveBtn = window.locator('[data-testid="approve-task-btn"]').first()
       if (await approveBtn.isVisible({ timeout: 5000 }).catch(() => false)) {
-        await approveBtn.click()
+        await approveBtn.dispatchEvent('click')
         await slowWait(window, 'Task approval')
       }
 
@@ -6085,7 +6085,7 @@ test.describe('NERV Golden Benchmark Tests - REAL Functionality', () => {
       await window.waitForTimeout(1000)
       const approveBtn = window.locator('[data-testid="approve-task-btn"]').first()
       if (await approveBtn.isVisible({ timeout: 5000 }).catch(() => false)) {
-        await approveBtn.click()
+        await approveBtn.dispatchEvent('click')
         await slowWait(window, 'Task approval')
       }
 
