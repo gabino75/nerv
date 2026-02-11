@@ -150,7 +150,12 @@ async function waitForClaudeCompletion(
 
   const startTime = Date.now()
   const envTimeout = parseInt(process.env.NERV_CLAUDE_TIMEOUT || '0', 10)
-  const maxWaitMs = envTimeout > 0 ? envTimeout : 15 * 60 * 1000
+  // Use remaining benchmark time instead of hardcoded 15 min.
+  // The overall benchmark duration limit (checkBenchmarkLimits) is the real constraint;
+  // the per-task timeout just prevents a single task from consuming all remaining time
+  // when there are multiple cycles to attempt.
+  const remainingBenchmarkMs = active.config.maxDurationMs - (Date.now() - active.startTime)
+  const maxWaitMs = envTimeout > 0 ? envTimeout : Math.max(remainingBenchmarkMs, 2 * 60 * 1000)
 
   while (hasClaudeSession(sessionId)) {
     if (active.stopRequested || isAppShuttingDown()) return result
