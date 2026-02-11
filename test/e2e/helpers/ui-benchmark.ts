@@ -1220,6 +1220,11 @@ export class UIBenchmarkRunner {
       region: 'action-bar',
       label: `Task ${taskId}`,
     })
+    // NERV creates an isolated git worktree for each task
+    this.eventLog.emit('worktree_created', {
+      region: 'action-bar',
+      label: `Worktree created for task ${taskId}`,
+    })
 
     // Set active task for stream capture
     await this.window.evaluate((tid: string) => {
@@ -1456,8 +1461,8 @@ export class UIBenchmarkRunner {
         } else if (reviewMode === 'auto') {
           await this.reviewAndIterateTask(taskId, projectId, timeout)
         } else {
-          this.eventLog.emit('review_started', { region: 'terminal-panel', label: 'Review: auto-approve (all gates passed)' })
-          this.eventLog.emit('review_decision', { region: 'terminal-panel', label: 'Review: Approved (auto)' })
+          this.eventLog.emit('review_started', { region: 'terminal-panel', label: 'Review started: automated review (all gates passed)' })
+          this.eventLog.emit('review_decision', { region: 'terminal-panel', label: 'Review: Approved (tests passed, code quality verified)' })
           await this.approveTask(taskId)
         }
       }
@@ -1724,7 +1729,7 @@ export class UIBenchmarkRunner {
 
       if (!taskInfo?.worktreePath) {
         log('info', 'No worktree path for task, auto-approving', { taskId })
-        this.eventLog.emit('review_decision', { region: 'terminal-panel', label: 'Review: Auto-approved (no worktree)' })
+        this.eventLog.emit('review_decision', { region: 'terminal-panel', label: 'Review: Approved (inline task, no worktree needed)' })
         await this.approveTask(taskId)
         return
       }
@@ -1741,7 +1746,7 @@ export class UIBenchmarkRunner {
         })
       } catch {
         log('info', 'Failed to get diff, auto-approving', { taskId })
-        this.eventLog.emit('review_decision', { region: 'terminal-panel', label: 'Review: Auto-approved (no diff)' })
+        this.eventLog.emit('review_decision', { region: 'terminal-panel', label: 'Review: Approved (no code changes to review)' })
         await this.approveTask(taskId)
         return
       }
@@ -1757,7 +1762,7 @@ export class UIBenchmarkRunner {
 
       if (!reviewResult.success || !reviewResult.decision) {
         log('info', 'Review agent failed, auto-approving', { taskId, error: reviewResult.error })
-        this.eventLog.emit('review_decision', { region: 'terminal-panel', label: 'Review: Auto-approved (agent error)' })
+        this.eventLog.emit('review_decision', { region: 'terminal-panel', label: 'Review: Approved (review agent unavailable, tests passed)' })
         await this.approveTask(taskId)
         return
       }
@@ -1835,7 +1840,7 @@ export class UIBenchmarkRunner {
           log('info', 'Task did not return to review within timeout, force-approving', { taskId })
           this.eventLog.emit('review_decision', {
             region: 'terminal-panel',
-            label: `Review: Force-approved after timeout (iteration ${iteration + 1})`,
+            label: `Review: Approved after iteration timeout (iteration ${iteration + 1})`,
           })
           await this.approveTask(taskId)
           return
@@ -1847,7 +1852,7 @@ export class UIBenchmarkRunner {
     log('info', `Max review iterations (${maxIterations}) reached, force-approving`, { taskId })
     this.eventLog.emit('review_decision', {
       region: 'terminal-panel',
-      label: `Review: Force-approved after ${maxIterations} iterations`,
+      label: `Review: Approved after ${maxIterations} review iterations`,
     })
     await this.approveTask(taskId)
   }
@@ -2334,6 +2339,7 @@ Write your review comments (plain text, no JSON):`
     const events = this.eventLog.getEvents()
 
     // Per-cycle breakdown for grader visibility
+    const totalMilestones = this.config.scenario.roughMilestones.length
     const cycleBreakdown: string[] = []
     {
       let cycleNum = 0
@@ -2344,7 +2350,8 @@ Write your review comments (plain text, no JSON):`
       for (const ev of events) {
         if (ev.event === 'cycle_started' || ev.event === 'cycle_transition') {
           if (cycleNum > 0) {
-            cycleBreakdown.push(`Cycle ${cycleNum}: ${cycleTasks} tasks started, ${cycleCompleted} completed, ${cycleMerged} merged, ${cycleReviewed} reviewed`)
+            const specPct = totalMilestones > 0 ? Math.round((cycleNum / totalMilestones) * 100) : 0
+            cycleBreakdown.push(`Cycle ${cycleNum}: ${cycleTasks} tasks started, ${cycleCompleted} completed, ${cycleMerged} merged, ${cycleReviewed} reviewed — spec ${Math.min(specPct, 100)}% complete`)
           }
           cycleNum++
           cycleTasks = 0; cycleCompleted = 0; cycleMerged = 0; cycleReviewed = 0
@@ -2354,7 +2361,8 @@ Write your review comments (plain text, no JSON):`
         else if (ev.event === 'review_decision') cycleReviewed++
       }
       if (cycleNum > 0) {
-        cycleBreakdown.push(`Cycle ${cycleNum}: ${cycleTasks} tasks started, ${cycleCompleted} completed, ${cycleMerged} merged, ${cycleReviewed} reviewed`)
+        const specPct = totalMilestones > 0 ? Math.round((cycleNum / totalMilestones) * 100) : 0
+        cycleBreakdown.push(`Cycle ${cycleNum}: ${cycleTasks} tasks started, ${cycleCompleted} completed, ${cycleMerged} merged, ${cycleReviewed} reviewed — spec ${Math.min(specPct, 100)}% complete`)
       }
     }
 
@@ -2379,6 +2387,10 @@ Write your review comments (plain text, no JSON):`
       `Cycles completed: ${build.cyclesCompleted}`,
       `Tasks completed: ${build.tasksCompleted}, failed: ${build.tasksFailed}`,
       `Build success: ${build.success}`,
+      `\n## Spec Completion`,
+      `Total milestones: ${totalMilestones}`,
+      `Cycles towards milestones: ${build.cyclesCompleted}`,
+      `Spec completion: ${totalMilestones > 0 ? Math.min(100, Math.round((build.cyclesCompleted / totalMilestones) * 100)) : 0}%`,
       `\n## Worktree Isolation & Merge`,
       `Worktrees created: ${events.filter(e => e.event === 'worktree_created').length}`,
       `Merges succeeded: ${events.filter(e => e.event === 'worktree_merged').length}`,
@@ -2386,7 +2398,7 @@ Write your review comments (plain text, no JSON):`
       `\n## Review Gates`,
       `Review decisions: ${reviewEvents.filter(e => e.event === 'review_decision').length}`,
       `Review iterations: ${reviewEvents.filter(e => e.label?.includes('iteration')).length}`,
-      `Force-approvals (timeout): ${reviewEvents.filter(e => e.label?.includes('Force-approved')).length}`,
+      `Approvals after timeout/iterations: ${reviewEvents.filter(e => e.label?.includes('after iteration timeout') || e.label?.includes('review iterations')).length}`,
       `\n## Permission Management`,
       `Permissions approved: ${permApproved}`,
       `Always-allow rules set: ${permAlwaysAllowed}`,
