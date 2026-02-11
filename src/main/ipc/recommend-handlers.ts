@@ -73,9 +73,10 @@ function gatherContext(projectId: string, direction?: string): RecommendContext 
 }
 
 function callClaude(prompt: string, ctx?: RecommendContext): string {
-  // In mock/test mode, return realistic sample recommendations based on context
+  // In mock mode, return realistic sample recommendations based on context
+  // Note: only check NERV_MOCK_CLAUDE, not NERV_TEST_MODE — test mode with real Claude
+  // should call real Claude for recommendations (NERV_TEST_MODE controls DB paths, store exposure, etc.)
   const isMock = process.env.NERV_MOCK_CLAUDE === '1' || process.env.NERV_MOCK_CLAUDE === 'true'
-    || process.env.NERV_TEST_MODE === '1' || process.env.NERV_TEST_MODE === 'true'
   if (isMock) {
     // Use structured context when available (more reliable than prompt parsing)
     const hasCycle = ctx ? ctx.hasCycle : prompt.includes('Cycle: #')
