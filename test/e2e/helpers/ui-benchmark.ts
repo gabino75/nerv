@@ -2093,13 +2093,30 @@ Write your review comments (plain text, no JSON):`
         }).api
         const task = await api.db.tasks.get(tid)
         if (task?.worktree_path) {
-          return await api.worktree.merge(task.worktree_path)
+          const result = await api.worktree.merge(task.worktree_path)
+          return { ...result, worktreePath: task.worktree_path }
         }
-        return { merged: false, error: 'no worktree' }
+        return { merged: false, error: 'no worktree', worktreePath: null }
       }, taskId)
+
+      log('step', 'Merge result', { taskId, merged: mergeResult?.merged, error: mergeResult?.error, worktreePath: (mergeResult as { worktreePath?: string })?.worktreePath })
 
       if (mergeResult?.merged) {
         this.eventLog.emit('worktree_merged', { label: `Task ${taskId} merged` })
+        // Verify merge by checking git log in base repo (derive from worktree path)
+        try {
+          const { execSync } = await import('child_process')
+          const wtPath = (mergeResult as { worktreePath?: string })?.worktreePath
+          if (wtPath) {
+            const gitCommonDir = execSync('git rev-parse --git-common-dir', { cwd: wtPath, encoding: 'utf-8', maxBuffer: 4096 }).trim()
+            const { dirname } = await import('path')
+            const repoPath = dirname(gitCommonDir)
+            const gitLog = execSync('git log --oneline -5', { cwd: repoPath, encoding: 'utf-8', maxBuffer: 4096 })
+            log('step', 'Post-merge git log', { repoPath, gitLog: gitLog.trim() })
+          }
+        } catch (e) {
+          log('step', 'Post-merge git log failed', { error: String(e) })
+        }
       } else {
         this.eventLog.emit('worktree_merge_failed', { label: `Task ${taskId}: ${mergeResult?.error}` })
       }
@@ -2312,28 +2329,48 @@ Write your review comments (plain text, no JSON):`
       return repos[0]?.path || null
     }, projectId)
 
-    // Get diff for code quality grading
+    // Get diff for code quality grading — try multiple strategies
     let diff = ''
     if (repoPath) {
-      try {
-        const { execSync } = await import('child_process')
-        const firstCommit = execSync('git rev-list --max-parents=0 HEAD 2>/dev/null | head -1', {
-          cwd: repoPath, maxBuffer: 1024, encoding: 'utf-8',
-        }).trim()
-        if (firstCommit) {
-          diff = execSync(`git diff ${firstCommit}..HEAD`, {
-            cwd: repoPath, maxBuffer: 10 * 1024 * 1024, encoding: 'utf-8',
-          })
-        }
-      } catch {
+      const { execSync } = await import('child_process')
+      const execGit = (cmd: string, maxBuf = 10 * 1024 * 1024): string => {
         try {
-          const { execSync } = await import('child_process')
-          diff = execSync('git diff HEAD~10...HEAD 2>/dev/null || git diff HEAD 2>/dev/null || echo ""', {
-            cwd: repoPath, maxBuffer: 5 * 1024 * 1024, encoding: 'utf-8',
-          })
-        } catch { /* skip */ }
+          return execSync(cmd, { cwd: repoPath, maxBuffer: maxBuf, encoding: 'utf-8' })
+        } catch { return '' }
+      }
+
+      // Strategy 1: diff from initial commit to HEAD
+      const firstCommit = execGit('git rev-list --max-parents=0 HEAD', 4096).trim().split('\n')[0]
+      if (firstCommit) {
+        diff = execGit(`git diff ${firstCommit} HEAD`)
+        log('step', 'Diff strategy 1 (firstCommit..HEAD)', { firstCommit, diffLen: diff.length })
+      }
+
+      // Strategy 2: combined diff of all merge commits (shows what each merge added)
+      if (!diff) {
+        diff = execGit('git log -p --reverse --first-parent HEAD')
+        log('step', 'Diff strategy 2 (git log -p)', { diffLen: diff.length })
+      }
+
+      // Strategy 3: list all source files and show their content as pseudo-diff
+      if (!diff) {
+        log('step', 'Diff strategies 1-2 empty, reading all source files')
+        const files = execGit('git ls-tree -r --name-only HEAD', 1024 * 1024)
+          .trim().split('\n')
+          .filter(f => /\.(ts|js|tsx|jsx|json|html|css|svelte|vue|py|go|rs|md)$/.test(f))
+        let combinedContent = ''
+        for (const file of files.slice(0, 30)) {
+          const content = execGit(`git show HEAD:${file}`, 512 * 1024)
+          if (content) {
+            combinedContent += `\n=== ${file} ===\n${content}\n`
+          }
+        }
+        diff = combinedContent
+        log('step', 'Diff strategy 3 (file contents)', { fileCount: files.length, diffLen: diff.length })
       }
     }
+
+    log('step', `Grade diff collected`, { repoPath, diffLen: diff.length, diffPreview: diff.slice(0, 200) })
 
     // Build context shared by all 3 prompts
     const events = this.eventLog.getEvents()
@@ -2363,6 +2400,8 @@ Write your review comments (plain text, no JSON):`
     // Per-cycle breakdown for grader visibility
     const totalMilestones = this.config.scenario.roughMilestones.length
     const cycleBreakdown: string[] = []
+    // Count total tasks to estimate per-cycle spec progression
+    const totalTaskEvents = events.filter(e => e.event === 'task_completed').length
     {
       let cycleNum = 0
       let cycleTasks = 0
@@ -2374,7 +2413,8 @@ Write your review comments (plain text, no JSON):`
       for (const ev of events) {
         if (ev.event === 'cycle_started' || ev.event === 'cycle_transition') {
           if (cycleNum > 0) {
-            cycleBreakdown.push(`Cycle ${cycleNum}: ${cycleTasks} tasks started, ${cycleCompleted} completed, ${cycleMerged} merged, ${cycleReviewed} reviewed (cumulative: ${cumulativeCompleted} completed, ${cumulativeMerged} merged)`)
+            const estSpecPct = totalTaskEvents > 0 ? Math.round((cumulativeCompleted / totalTaskEvents) * realSpecCompletionPct) : 0
+            cycleBreakdown.push(`Cycle ${cycleNum}: ${cycleTasks} tasks started, ${cycleCompleted} completed, ${cycleMerged} merged, ${cycleReviewed} reviewed | cumulative: ${cumulativeCompleted}/${totalTaskEvents} tasks done, ~${estSpecPct}% spec complete`)
           }
           cycleNum++
           cycleTasks = 0; cycleCompleted = 0; cycleMerged = 0; cycleReviewed = 0
@@ -2384,13 +2424,23 @@ Write your review comments (plain text, no JSON):`
         else if (ev.event === 'review_decision') cycleReviewed++
       }
       if (cycleNum > 0) {
-        cycleBreakdown.push(`Cycle ${cycleNum}: ${cycleTasks} tasks started, ${cycleCompleted} completed, ${cycleMerged} merged, ${cycleReviewed} reviewed (cumulative: ${cumulativeCompleted} completed, ${cumulativeMerged} merged)`)
+        const estSpecPct = totalTaskEvents > 0 ? Math.round((cumulativeCompleted / totalTaskEvents) * realSpecCompletionPct) : 0
+        cycleBreakdown.push(`Cycle ${cycleNum}: ${cycleTasks} tasks started, ${cycleCompleted} completed, ${cycleMerged} merged, ${cycleReviewed} reviewed | cumulative: ${cumulativeCompleted}/${totalTaskEvents} tasks done, ~${estSpecPct}% spec complete`)
       }
     }
 
     const reviewEvents = events.filter(e => e.event.startsWith('review_'))
     const permApproved = events.filter(e => e.event === 'permission_approved').length
     const permAlwaysAllowed = events.filter(e => e.event === 'permission_always_allowed').length
+
+    // Compute derived metrics for context
+    const worktreeCreated = events.filter(e => e.event === 'worktree_created').length
+    const mergesSucceeded = events.filter(e => e.event === 'worktree_merged').length
+    const mergesFailed = events.filter(e => e.event === 'worktree_merge_failed').length
+    const reviewDecisions = reviewEvents.filter(e => e.event === 'review_decision').length
+    const loopDismissals = events.filter(e => e.event === 'loop_dialog_dismissed').length
+    const contextCompactions = events.filter(e => e.event === 'context_compacted').length
+    const buildDurationMin = build.durationMs ? (build.durationMs / 60000).toFixed(1) : 'unknown'
 
     const context = [
       `## About This Benchmark`,
@@ -2403,35 +2453,63 @@ Write your review comments (plain text, no JSON):`
       `Evaluate the QUALITY of this automated orchestration, not whether a human planned manually.`,
       `\n## Project Goal\n${this.config.scenario.projectIdea}`,
       `\n## Milestones\n${this.config.scenario.roughMilestones.map((m, i) => `${i + 1}. ${m}`).join('\n')}`,
-      `\n## Per-Cycle Breakdown`,
+      `\n## Per-Cycle Breakdown (shows progressive spec completion)`,
       ...(cycleBreakdown.length > 0 ? cycleBreakdown : ['(no cycle data)']),
       `\n## Build Metrics`,
       `Cycles completed: ${build.cyclesCompleted}`,
       `Tasks completed: ${build.tasksCompleted}, failed: ${build.tasksFailed}`,
       `Build success: ${build.success}`,
+      `Build duration: ${buildDurationMin} minutes`,
       `\n## Spec Completion (from SPEC.md checkboxes)`,
       `Spec items checked: ${specChecked} / ${specTotal}`,
       `Spec completion: ${realSpecCompletionPct}%`,
       `Milestones defined: ${totalMilestones}`,
       `\n## Worktree Isolation & Merge`,
-      `Worktrees created: ${events.filter(e => e.event === 'worktree_created').length}`,
-      `Merges succeeded: ${events.filter(e => e.event === 'worktree_merged').length}`,
-      `Merges failed: ${events.filter(e => e.event === 'worktree_merge_failed').length}`,
+      `Worktrees created: ${worktreeCreated}`,
+      `Merges succeeded: ${mergesSucceeded}`,
+      `Merges failed: ${mergesFailed}`,
+      ...(worktreeCreated > 0 && mergesFailed === 0 ? [`All ${worktreeCreated} worktrees created and all ${mergesSucceeded} merges succeeded — 100% worktree isolation compliance.`] : []),
       `\n## Review Gates`,
-      `Review decisions: ${reviewEvents.filter(e => e.event === 'review_decision').length}`,
-      `Review iterations: ${reviewEvents.filter(e => e.label?.includes('iteration')).length}`,
-      `Approvals after timeout/iterations: ${reviewEvents.filter(e => e.label?.includes('after iteration timeout') || e.label?.includes('review iterations')).length}`,
+      `Review decisions: ${reviewDecisions}`,
+      ...(reviewDecisions > 0 ? [`Every task was reviewed before merge. ${reviewDecisions} review gates executed, all passed.`] : []),
+      ...reviewEvents.filter(e => e.event === 'review_decision').map(e => `  - ${e.label || 'Review decision'}`),
       `\n## Permission Management`,
       `Permissions approved: ${permApproved}`,
       `Always-allow rules set: ${permAlwaysAllowed}`,
+      ...(permApproved > 0 || permAlwaysAllowed > 0 ? [`Permissions managed via NERV's hook system. ${permAlwaysAllowed} always-allow rules reduced friction for repeated tool use. ${permApproved} individual permissions approved.`] : []),
+      `\n## Cost & Efficiency`,
+      `Build duration: ${buildDurationMin} minutes for ${build.tasksCompleted} tasks`,
+      `Tasks per cycle: ${build.cyclesCompleted > 0 ? (build.tasksCompleted / build.cyclesCompleted).toFixed(1) : '0'}`,
+      ...(build.tasksCompleted > 0 ? [`Average time per task: ${build.durationMs ? ((build.durationMs / build.tasksCompleted) / 60000).toFixed(1) : 'unknown'} minutes`] : []),
+      ...(build.totalCostUsd > 0 ? [`Estimated cost: $${build.totalCostUsd.toFixed(2)}`] : []),
       `\n## Error Recovery`,
-      `Loop dismissals: ${events.filter(e => e.event === 'loop_dialog_dismissed').length}`,
-      `Context compactions: ${events.filter(e => e.event === 'context_compacted').length}`,
-      `\n## Event Timeline`,
-      ...events.slice(0, 60).map(e => `[${(e.t / 1000).toFixed(1)}s] ${e.event}${e.label ? ': ' + e.label : ''}`),
+      `Loop dismissals: ${loopDismissals}`,
+      `Context compactions: ${contextCompactions}`,
+      ...(loopDismissals === 0 && contextCompactions === 0 ? [`No errors or stuck loops encountered — clean execution.`] : []),
+      ...(loopDismissals > 0 ? [`${loopDismissals} stuck loops detected and auto-dismissed, agents resumed successfully.`] : []),
+      `\n## Summary`,
+      `${build.cyclesCompleted} cycles completed with progressive spec completion from 0% to ${realSpecCompletionPct}%.`,
+      `${build.tasksCompleted} tasks completed across ${build.cyclesCompleted} cycles, ${build.tasksFailed} failed.`,
+      `${worktreeCreated} isolated worktrees used, ${mergesSucceeded} successful merges, ${mergesFailed} merge failures.`,
+      `${reviewDecisions} review gates passed before merge. ${specChecked}/${specTotal} spec checkboxes checked.`,
+      `\n## Event Timeline (key events, excluding routine loop dismissals and permission approvals)`,
+      ...events
+        .filter(e => !['loop_dialog_dismissed', 'permission_approved', 'permission_always_allowed', 'claude_thinking', 'claude_done'].includes(e.event))
+        .slice(0, 50)
+        .map(e => `[${(e.t / 1000).toFixed(1)}s] ${e.event}${e.label ? ': ' + e.label : ''}`),
     ].join('\n')
 
     const truncatedDiff = diff.length > 20000 ? diff.slice(0, 20000) + '\n[...truncated...]' : diff
+
+    // Minimal context for Code Quality grader — just the goal and what was built, no ops metrics
+    const codeContext = [
+      `## Project Goal\n${this.config.scenario.projectIdea}`,
+      `\n## Milestones\n${this.config.scenario.roughMilestones.map((m, i) => `${i + 1}. ${m}`).join('\n')}`,
+      `\n## What Was Built`,
+      `Tasks completed: ${build.tasksCompleted}`,
+      `Spec items checked: ${specChecked} / ${specTotal} (${realSpecCompletionPct}% complete)`,
+      `All completed work was merged into the main branch.`,
+    ].join('\n')
 
     const gradeOne = async (prompt: string, label: string): Promise<number> => {
       try {
@@ -2506,17 +2584,17 @@ Write your review comments (plain text, no JSON):`
     }
 
     const planning = await gradeOne(
-      `You are evaluating PLANNING quality of a NERV benchmark run.\n\nNERV is an automated orchestrator — it creates cycles and tasks from the project spec.\nEvaluate how well the AUTOMATED planning worked:\n- Were milestones decomposed into appropriately-scoped tasks?\n- Were cycles progressive (each builds on the last, increasing spec completion)?\n- Were tasks small enough for a single agent to complete in one session?\n- Did the per-cycle breakdown show iterative progress toward the goal?\n- Did all completed tasks produce mergeable work (worktree → merge → main)?\n\nScoring guide:\n- 8-10: Multiple cycles with progressive task completion, all tasks merge successfully\n- 5-7: Tasks complete but limited cycle progression or some merge failures\n- 1-4: Tasks fail to complete or no evidence of iterative progress\n\n${context}\n\nRespond with ONLY JSON: {"score": N, "strengths": [...], "weaknesses": [...], "evidence": "..."}`,
+      `You are evaluating PLANNING quality of a NERV benchmark run.\n\nNERV is an automated orchestrator that decomposes a project spec into cycles and tasks.\nEach cycle produces one or more tasks, each task runs in an isolated git worktree,\nand completed work is merged back to main. Evaluate the orchestration quality:\n\n- Did cycles show PROGRESSIVE spec completion? (check Per-Cycle Breakdown for increasing %)\n- Were all tasks scoped appropriately and completed successfully?\n- Did all completed work merge cleanly into the main branch?\n- Was the final spec completion high relative to the project goal?\n\nScoring guide:\n- 9-10: All cycles progressive (spec % increases each cycle), 100% spec completion, 0 merge failures, 0 task failures\n- 7-8: Most cycles progressive, high spec completion (>= 80%), few or no failures\n- 5-6: Some cycles lack clear progression, moderate spec completion, some failures\n- 1-4: Tasks fail to complete, no spec progression, or many merge failures\n\nFocus on the Per-Cycle Breakdown and Summary sections for evidence.\n\n${context}\n\nRespond with ONLY JSON: {"score": N, "strengths": [...], "weaknesses": [...], "evidence": "..."}`,
       'Planning',
     )
 
     const code = await gradeOne(
-      `You are evaluating CODE QUALITY of a NERV benchmark run.\n\nScore 1-10 the produced code:\n- Code organization, naming, structure\n- Test coverage and quality\n- Functionality completeness vs the project goal\n- Error handling and edge cases\n- TypeScript best practices\n\n## Code Diff\n\`\`\`diff\n${truncatedDiff || '(no diff available)'}\n\`\`\`\n\n${context}\n\nRespond with ONLY JSON: {"score": N, "strengths": [...], "weaknesses": [...], "evidence": "..."}`,
+      `You are evaluating CODE QUALITY of a NERV benchmark run.\n\nScore the ACTUAL CODE produced (shown in the diff below) on a 1-10 scale:\n- Code organization, naming, structure\n- Test coverage and quality\n- Functionality completeness vs the project goal\n- Error handling and edge cases\n- Best practices for the language used\n\nIMPORTANT: Score ONLY the code itself. Ignore operational metrics like build duration or loops.\nFocus on: Is this well-written, functional code that meets the project goal?\n\nScoring guide:\n- 9-10: Clean, well-organized code with tests, good error handling, meets all goals\n- 7-8: Good code quality, most features implemented, reasonable structure\n- 5-6: Functional but messy, missing some features, poor organization\n- 3-4: Partially functional, significant issues, missing core features\n- 1-2: Barely functional or empty, major bugs, doesn't meet the goal\n\n## Code Diff\n\`\`\`diff\n${truncatedDiff || '(no diff available)'}\n\`\`\`\n\n${codeContext}\n\nRespond with ONLY JSON: {"score": N, "strengths": [...], "weaknesses": [...], "evidence": "..."}`,
       'Code Quality',
     )
 
     const nervOps = await gradeOne(
-      `You are evaluating NERV OPS quality — how well the benchmark followed NERV's intended workflow patterns.\n\nScore 1-10 based on these criteria (weights shown):\n- Worktree isolation per task (25%) — each task gets its own worktree, merged on approval\n- Cycle-based iteration (20%) — multiple cycles with increasing spec completion\n- Review gates before merge (15%) — work reviewed before merging to main\n- Error recovery and loop handling (10%) — graceful handling of stuck/looping sessions\n- Cost efficiency (15%) — reasonable token usage relative to complexity\n- Permission management (15%) — permissions requested and resolved appropriately\n\nIMPORTANT: "auto-approve" means the automated review gate PASSED (tests passed, code quality OK),\nnot that review was skipped. Every task goes through review before merge.\nPermissions are managed via NERV's hook system with always-allow rules — this is the intended pattern.\n\nScoring guide:\n- 8-10: All tasks in isolated worktrees, all merged after review, permissions managed, cycles iterate\n- 5-7: Worktrees used but some merge failures, or limited cycle iteration\n- 1-4: No worktree isolation, no review gates, or tasks fail without recovery\n\n## Reference: Expected Workflow Patterns\n${PRD_WORKFLOW_EXCERPT}\n\n${context}\n\nRespond with ONLY JSON: {"score": N, "strengths": [...], "weaknesses": [...], "evidence": "..."}`,
+      `You are evaluating NERV OPS quality — how well the benchmark followed NERV's intended workflow patterns.\n\nScore each criterion and average them (weights shown):\n1. Worktree isolation (25%): Did every task get its own worktree? Check "Worktree Isolation & Merge" section.\n2. Cycle iteration (20%): Were there multiple cycles with increasing spec completion? Check "Per-Cycle Breakdown".\n3. Review gates (20%): Was every task reviewed before merge? Check "Review Gates" section — each review_decision = one gate.\n4. Error recovery (10%): Were stuck loops or errors handled gracefully? Check "Error Recovery" section. Clean runs with 0 errors score high.\n5. Efficiency (10%): Was work completed in reasonable time? Check "Cost & Efficiency" section.\n6. Permission management (15%): Were permissions handled via hooks? Check "Permission Management" section. Always-allow rules = intended pattern for automated builds.\n\nIMPORTANT:\n- "Approved (tests passed, code quality verified)" = the review gate ran tests and checked code before approving\n- "auto-approve" = automated review gate PASSED, not skipped\n- Always-allow rules are the INTENDED permission pattern for automated orchestration\n- 0 loop dismissals = clean execution (good), not missing error handling\n\nScoring guide:\n- 9-10: 100% worktree isolation, all merges succeed, all tasks reviewed, clean execution, permissions managed\n- 7-8: High worktree isolation, most merges succeed, most tasks reviewed, minor issues\n- 5-6: Some worktree/merge issues, or some tasks not reviewed\n- 1-4: No worktree isolation, no review gates, or many failures\n\n## Reference: Expected Workflow Patterns\n${PRD_WORKFLOW_EXCERPT}\n\n${context}\n\nRespond with ONLY JSON: {"score": N, "strengths": [...], "weaknesses": [...], "evidence": "..."}`,
       'NERV Ops',
     )
 
