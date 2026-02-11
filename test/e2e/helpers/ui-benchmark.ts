@@ -195,7 +195,13 @@ export class UIBenchmarkRunner {
 ## Project
 ${projectIdea.slice(0, 300)}
 
-## Workflow (repeat for each feature)
+## Your spec file: SPEC.md
+
+This file contains your requirements as a markdown checklist:
+- \`- [ ]\` = not yet implemented
+- \`- [x]\` = implemented and verified
+
+## Workflow (repeat for EVERY unchecked item)
 
 1. **Read** SPEC.md — find the FIRST unchecked item (\`- [ ]\`)
 2. **Implement** that feature (write code, create files)
@@ -207,12 +213,25 @@ ${projectIdea.slice(0, 300)}
 ## CRITICAL RULES
 
 - **First commit**: create a \`.gitignore\` excluding \`node_modules/\`, \`dist/\`, \`build/\`, \`.env\`, \`*.lock\`.
-- **Commit after each feature** so progress is saved even if time runs out.
-- **Never commit node_modules** — always add to .gitignore BEFORE \`git add -A\`.
-- **Update SPEC.md checkboxes** — progress is measured by counting \`[x]\` items.
-- Work through items in order.
+- **EVERY implemented feature MUST be checked off in SPEC.md.**
+  If you implement something but don't update the checkbox, it doesn't count.
+  The benchmark measures progress ONLY by counting \`[x]\` checkboxes.
+- **Implement ALL unchecked items**, not just the one in the task title.
+  The task title is a starting point — keep going until every \`- [ ]\` is \`- [x]\`.
+- Commit after each feature so progress is saved even if time runs out.
+- Never commit node_modules — always add to .gitignore BEFORE \`git add -A\`.
+- Do NOT check off items you haven't actually implemented and tested.
 
-Start by reading SPEC.md, create .gitignore, then implement and commit each feature.`
+## Quick start
+
+\`\`\`bash
+cat SPEC.md                    # See what needs to be done
+# ... implement a feature ...
+# Edit SPEC.md: change "- [ ]" to "- [x]" for completed item
+git add -A && git commit -m "feat: <what you built>"
+\`\`\`
+
+Now read SPEC.md and start implementing!`
   }
 
   /**
