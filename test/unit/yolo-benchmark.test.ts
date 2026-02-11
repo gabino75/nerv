@@ -63,7 +63,7 @@ vi.mock('../../src/main/utils', () => ({
 }))
 
 // Now import the functions to test
-import { calculateBenchmarkGrade, compareBenchmarks, calculateSpecCompletion } from '../../src/main/yolo-benchmark'
+import { calculateBenchmarkGrade, compareBenchmarks, calculateSpecCompletion, parseTestOutput } from '../../src/main/yolo-benchmark'
 import { databaseService } from '../../src/main/database'
 import * as fs from 'fs'
 import * as path from 'path'
@@ -457,6 +457,80 @@ Time:        2.5 s
       expect(mochaMatch).not.toBeNull()
       expect(parseInt(mochaMatch![1], 10)).toBe(66)
       expect(parseInt(mochaMatch![2], 10)).toBe(3)
+    })
+  })
+
+  describe('parseTestOutput', () => {
+    it('parses Jest/Vitest format with passed and failed', () => {
+      const result = parseTestOutput('Tests: 47 passed, 3 failed, 50 total')
+      expect(result).toEqual({ passed: 47, failed: 3 })
+    })
+
+    it('parses Jest/Vitest format with zero failures', () => {
+      const result = parseTestOutput('Tests: 10 passed, 0 failed')
+      expect(result).toEqual({ passed: 10, failed: 0 })
+    })
+
+    it('parses Mocha format: "X passing, Y failing"', () => {
+      const result = parseTestOutput('  42 passing (2s)\n  8 failing')
+      expect(result).toEqual({ passed: 42, failed: 8 })
+    })
+
+    it('parses Mocha format with only passing', () => {
+      const result = parseTestOutput('  66 passing (1s)')
+      expect(result).toEqual({ passed: 66, failed: 0 })
+    })
+
+    it('parses Node.js TAP format: "# pass N" / "# fail N"', () => {
+      const output = `TAP version 13
+# tests 12
+# pass 10
+# fail 2
+# ok`
+      const result = parseTestOutput(output)
+      expect(result).toEqual({ passed: 10, failed: 2 })
+    })
+
+    it('parses Node.js TAP format with only pass', () => {
+      const result = parseTestOutput('# tests 5\n# pass 5\n# ok')
+      expect(result).toEqual({ passed: 5, failed: 0 })
+    })
+
+    it('parses Node.js TAP format with only fail', () => {
+      const result = parseTestOutput('# tests 3\n# fail 3')
+      expect(result).toEqual({ passed: 0, failed: 3 })
+    })
+
+    it('parses multiline Jest output from non-zero exit', () => {
+      const output = `PASS src/test.spec.ts
+FAIL src/other.spec.ts
+
+Test Suites: 1 failed, 1 passed, 2 total
+Tests:       3 passed, 2 failed, 5 total
+Snapshots:   0 total
+Time:        2.5 s`
+      const result = parseTestOutput(output)
+      expect(result).toEqual({ passed: 3, failed: 2 })
+    })
+
+    it('parses Jest with only passed (no failed keyword)', () => {
+      const result = parseTestOutput('Tests: 15 passed, 15 total')
+      expect(result).toEqual({ passed: 15, failed: 0 })
+    })
+
+    it('returns null for unrecognized output', () => {
+      const result = parseTestOutput('Running 100 tests at port 8080')
+      expect(result).toBeNull()
+    })
+
+    it('returns null for empty string', () => {
+      const result = parseTestOutput('')
+      expect(result).toBeNull()
+    })
+
+    it('returns null for "no test specified" npm error', () => {
+      const result = parseTestOutput('Error: no test specified')
+      expect(result).toBeNull()
     })
   })
 

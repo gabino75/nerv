@@ -47,57 +47,101 @@ export function calculateSpecCompletion(specFilePath: string, cwd: string): numb
   }
 }
 
+/** Parse test output to extract pass/fail counts from various test runner formats */
+export function parseTestOutput(output: string): { passed: number; failed: number } | null {
+  // Jest/Vitest "Tests:" summary line (preferred — avoids matching "Test Suites:" line)
+  // Handle both orderings: "X passed, Y failed" and "X failed, Y passed"
+  const jestTestsLine = output.match(/^Tests:\s+.*?(\d+)\s*passed.*?(\d+)\s*failed/im)
+  if (jestTestsLine) {
+    return { passed: parseInt(jestTestsLine[1], 10), failed: parseInt(jestTestsLine[2], 10) }
+  }
+  const jestTestsLineReversed = output.match(/^Tests:\s+.*?(\d+)\s*failed.*?(\d+)\s*passed/im)
+  if (jestTestsLineReversed) {
+    return { passed: parseInt(jestTestsLineReversed[2], 10), failed: parseInt(jestTestsLineReversed[1], 10) }
+  }
+
+  // Generic Jest/Vitest format: "X passed, Y failed" (single line)
+  const jestMatch = output.match(/(\d+)\s*passed[,\s]+(\d+)\s*failed/i)
+  if (jestMatch) {
+    return { passed: parseInt(jestMatch[1], 10), failed: parseInt(jestMatch[2], 10) }
+  }
+
+  // Mocha format: "X passing, Y failing"
+  const mochaMatch = output.match(/(\d+)\s*passing.*?(\d+)\s*failing/is)
+  if (mochaMatch) {
+    return { passed: parseInt(mochaMatch[1], 10), failed: parseInt(mochaMatch[2], 10) }
+  }
+
+  // Node.js built-in test runner (TAP): "# pass N" / "# fail N"
+  const tapPassMatch = output.match(/# pass\s+(\d+)/i)
+  const tapFailMatch = output.match(/# fail\s+(\d+)/i)
+  if (tapPassMatch || tapFailMatch) {
+    return {
+      passed: tapPassMatch ? parseInt(tapPassMatch[1], 10) : 0,
+      failed: tapFailMatch ? parseInt(tapFailMatch[1], 10) : 0,
+    }
+  }
+
+  // Mocha format with only passing tests
+  const mochaPassOnlyMatch = output.match(/(\d+)\s*passing/i)
+  if (mochaPassOnlyMatch && !output.match(/failing/i)) {
+    return { passed: parseInt(mochaPassOnlyMatch[1], 10), failed: 0 }
+  }
+
+  // Jest/Vitest with only passing: "Tests: X passed"
+  const jestPassOnlyMatch = output.match(/(\d+)\s*passed/i)
+  if (jestPassOnlyMatch && !output.match(/failed/i)) {
+    return { passed: parseInt(jestPassOnlyMatch[1], 10), failed: 0 }
+  }
+
+  return null
+}
+
 /**
  * Run tests and parse results
  */
 export async function runTests(testCommand: string, cwd: string): Promise<TestResult> {
   const result: TestResult = { passed: 0, failed: 0 }
 
+  let output = ''
+  let exitedClean = false
+
   try {
     const { stdout, stderr } = await execAsync(testCommand, {
       cwd,
       timeout: 60000
     })
-
-    const output = stdout + stderr
-
-    // Jest/Vitest format: "Tests: X passed, Y failed"
-    const jestMatch = output.match(/(\d+)\s*passed.*?(\d+)\s*failed/is)
-    if (jestMatch) {
-      result.passed = parseInt(jestMatch[1], 10)
-      result.failed = parseInt(jestMatch[2], 10)
-      if (result.failed > 0) {
-        result.failureOutput = output.slice(-2000) // Capture last 2000 chars of output
-      }
-      return result
-    }
-
-    // Mocha format: "X passing, Y failing"
-    const mochaMatch = output.match(/(\d+)\s*passing.*?(\d+)\s*failing/is)
-    if (mochaMatch) {
-      result.passed = parseInt(mochaMatch[1], 10)
-      result.failed = parseInt(mochaMatch[2], 10)
-      if (result.failed > 0) {
-        result.failureOutput = output.slice(-2000)
-      }
-      return result
-    }
-
-    // Mocha format with only passing tests
-    const mochaPassOnlyMatch = output.match(/(\d+)\s*passing/i)
-    if (mochaPassOnlyMatch && !output.match(/failing/i)) {
-      result.passed = parseInt(mochaPassOnlyMatch[1], 10)
-      result.failed = 0
-      return result
-    }
-
-    result.passed = 1
+    output = stdout + stderr
+    exitedClean = true
   } catch (err) {
-    result.failed = 1
+    // Test runners commonly exit non-zero when tests fail.
+    // We still need to parse their stdout/stderr for actual results.
     const error = err as { stdout?: string; stderr?: string; message?: string }
-    // Capture error output for debug task
-    const errorOutput = (error.stdout || '') + (error.stderr || '') + (error.message || '')
-    result.failureOutput = errorOutput.slice(-2000)
+    output = (error.stdout || '') + (error.stderr || '')
+    if (!output) {
+      output = error.message || ''
+    }
+  }
+
+  // Parse test output regardless of exit code
+  const parsed = parseTestOutput(output)
+  if (parsed) {
+    result.passed = parsed.passed
+    result.failed = parsed.failed
+    if (result.failed > 0) {
+      result.failureOutput = output.slice(-2000)
+    }
+    return result
+  }
+
+  // No recognizable test output format
+  if (exitedClean) {
+    // Command succeeded but output wasn't parseable — assume tests passed
+    result.passed = 1
+  } else {
+    // Command failed and no parseable output — likely no test infrastructure
+    result.failed = 1
+    result.failureOutput = output.slice(-2000)
   }
 
   return result

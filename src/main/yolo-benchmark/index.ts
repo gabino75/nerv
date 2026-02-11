@@ -28,7 +28,7 @@ export {
 } from './grading'
 
 // Re-export utilities
-export { calculateSpecCompletion } from './utils'
+export { calculateSpecCompletion, parseTestOutput } from './utils'
 
 // Re-export review agent (PRD Section 4: Review agent integration)
 export { runReviewAgent } from './review-agent'
