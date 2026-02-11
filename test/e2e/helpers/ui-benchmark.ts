@@ -1511,6 +1511,34 @@ Start by reading SPEC.md, then implement and commit each feature.`
       if (!finalStatus) {
         this.eventLog.emit('task_timeout', { label: `Task ${taskId} timed out after ${Math.round((Date.now() - taskStart) / 1000)}s` })
         log('fail', 'Task timed out', { taskId, elapsed: `${Math.round((Date.now() - taskStart) / 1000)}s` })
+
+        // Kill the Claude PTY session and force-merge any partial work.
+        // Without this, the Claude process runs indefinitely and worktree
+        // commits are lost (they never get merged into the base repo).
+        try {
+          await this.window.evaluate(async () => {
+            const store = (window as unknown as { __nervStore?: { stopTask: () => Promise<void> } }).__nervStore
+            if (store?.stopTask) await store.stopTask()
+          })
+          // Give PTY a moment to exit and trigger server-side status update
+          await this.window.waitForTimeout(2000)
+
+          // Force task to 'review' then approve+merge to capture partial work
+          await this.window.evaluate(async (tid: string) => {
+            const api = (window as unknown as {
+              api: { db: { tasks: { updateStatus: (id: string, status: string) => Promise<unknown> } } }
+            }).api
+            await api.db.tasks.updateStatus(tid, 'review')
+          }, taskId)
+
+          this.eventLog.emit('review_started', { region: 'terminal-panel', label: 'Review started: timeout recovery (merging partial work)' })
+          this.eventLog.emit('review_decision', { region: 'terminal-panel', label: 'Review: Approved (partial work salvaged after timeout)' })
+          await this.approveTask(taskId)
+          log('step', 'Timeout recovery: killed session, merged partial work', { taskId })
+        } catch (err) {
+          log('step', 'Timeout recovery failed (no partial work to merge)', { taskId, error: err instanceof Error ? err.message : String(err) })
+        }
+
         return { success: false, costUsd: 0 }
       }
 
