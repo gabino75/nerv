@@ -153,29 +153,48 @@ export async function runTests(testCommand: string, cwd: string): Promise<TestRe
 export function buildTaskPrompt(specFile: string | null, testCommand: string | null, cycleNumber: number): string {
   const specFilePath = specFile || 'SPEC.md'
   const testInfo = testCommand
-    ? `\n\nRun tests with: ${testCommand}`
+    ? `\nTest command: \`${testCommand}\``
     : ''
 
-  return `YOLO Benchmark Cycle ${cycleNumber}
+  return `# YOLO Benchmark — Cycle ${cycleNumber}
 
-You are running in autonomous YOLO benchmark mode. Your goal is to make progress on the project specification.
+You are building a project autonomously. All tool uses are auto-approved.
+${testInfo}
 
-Spec file: ${specFilePath}${testInfo}
+## Your spec file: ${specFilePath}
 
-IMPORTANT WORKFLOW:
-1. Read ${specFilePath} to see the feature checklist with [ ] and [x] checkboxes
-2. Find unchecked items (- [ ]) that you can implement
-3. Implement the functionality for those items
-4. Run tests to verify your implementation
-5. CRITICAL: Update ${specFilePath} to mark completed items as [x]
-   - Change "- [ ] item" to "- [x] item" for each completed feature
-   - This tracks your progress for the benchmark
+This file contains your requirements as a markdown checklist:
+- \`- [ ]\` = not yet implemented
+- \`- [x]\` = implemented and verified
 
-Focus on:
-1. Understanding the current state by reading the spec
-2. Implementing unchecked items from the checklist
-3. Running tests after each implementation
-4. Updating the spec file to mark completed items
+## Workflow (repeat for each feature)
 
-Do your best work autonomously. All tool uses will be auto-approved.`
+1. **Read** ${specFilePath} — find the FIRST unchecked item (\`- [ ]\`)
+2. **Implement** that feature (write code, create files)
+3. **Test** — run the test command to verify it works${testCommand ? `\n   \`${testCommand}\`` : ''}
+4. **Check off** — edit ${specFilePath} to change that item from \`- [ ]\` to \`- [x]\`
+5. **Commit** — \`git add -A && git commit -m "feat: <description>"\`
+6. **Repeat** from step 1 for the next unchecked item
+
+## CRITICAL RULES
+
+- **EVERY implemented feature MUST be checked off in ${specFilePath}.**
+  If you implement something but don't update the checkbox, it doesn't count.
+  The benchmark measures progress ONLY by counting \`[x]\` checkboxes.
+- Work through items **in order** (Cycle 1 items first, then Cycle 2, etc.)
+- Commit after each feature so progress is saved even if time runs out.
+- If tests fail, fix the issue before checking off the item.
+- Do NOT check off items you haven't actually implemented and tested.
+
+## Quick start
+
+\`\`\`bash
+cat ${specFilePath}          # See what needs to be done
+# ... implement a feature ...
+${testCommand ? `${testCommand}            # Verify it works` : '# Run tests if available'}
+# Edit ${specFilePath}: change "- [ ]" to "- [x]" for completed item
+git add -A && git commit -m "feat: <what you built>"
+\`\`\`
+
+Now read ${specFilePath} and start implementing!`
 }
