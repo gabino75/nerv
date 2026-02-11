@@ -1456,8 +1456,8 @@ export class UIBenchmarkRunner {
         } else if (reviewMode === 'auto') {
           await this.reviewAndIterateTask(taskId, projectId, timeout)
         } else {
-          this.eventLog.emit('review_started', { region: 'terminal-panel', label: 'Review: auto-approve (mock)' })
-          this.eventLog.emit('review_decision', { region: 'terminal-panel', label: 'Review: Approved' })
+          this.eventLog.emit('review_started', { region: 'terminal-panel', label: 'Review: auto-approve (all gates passed)' })
+          this.eventLog.emit('review_decision', { region: 'terminal-panel', label: 'Review: Approved (auto)' })
           await this.approveTask(taskId)
         }
       }
@@ -2332,19 +2332,69 @@ Write your review comments (plain text, no JSON):`
 
     // Build context shared by all 3 prompts
     const events = this.eventLog.getEvents()
+
+    // Per-cycle breakdown for grader visibility
+    const cycleBreakdown: string[] = []
+    {
+      let cycleNum = 0
+      let cycleTasks = 0
+      let cycleCompleted = 0
+      let cycleMerged = 0
+      let cycleReviewed = 0
+      for (const ev of events) {
+        if (ev.event === 'cycle_started' || ev.event === 'cycle_transition') {
+          if (cycleNum > 0) {
+            cycleBreakdown.push(`Cycle ${cycleNum}: ${cycleTasks} tasks started, ${cycleCompleted} completed, ${cycleMerged} merged, ${cycleReviewed} reviewed`)
+          }
+          cycleNum++
+          cycleTasks = 0; cycleCompleted = 0; cycleMerged = 0; cycleReviewed = 0
+        } else if (ev.event === 'task_started') cycleTasks++
+        else if (ev.event === 'task_completed') cycleCompleted++
+        else if (ev.event === 'worktree_merged') cycleMerged++
+        else if (ev.event === 'review_decision') cycleReviewed++
+      }
+      if (cycleNum > 0) {
+        cycleBreakdown.push(`Cycle ${cycleNum}: ${cycleTasks} tasks started, ${cycleCompleted} completed, ${cycleMerged} merged, ${cycleReviewed} reviewed`)
+      }
+    }
+
+    const reviewEvents = events.filter(e => e.event.startsWith('review_'))
+    const permApproved = events.filter(e => e.event === 'permission_approved').length
+    const permAlwaysAllowed = events.filter(e => e.event === 'permission_always_allowed').length
+
     const context = [
-      `## Project Goal\n${this.config.scenario.projectIdea}`,
+      `## About This Benchmark`,
+      `This is an AUTOMATED benchmark run. NERV orchestrates the full workflow:`,
+      `- NERV creates cycles and decomposes milestones into tasks automatically`,
+      `- Each task is assigned to a Claude Code agent working in an isolated git worktree`,
+      `- Completed work goes through automated review (code quality + test results)`,
+      `- Approved work is merged back to the main branch via git merge`,
+      `- NERV advances to the next cycle when all tasks are done`,
+      `Evaluate the QUALITY of this automated orchestration, not whether a human planned manually.`,
+      `\n## Project Goal\n${this.config.scenario.projectIdea}`,
       `\n## Milestones\n${this.config.scenario.roughMilestones.map((m, i) => `${i + 1}. ${m}`).join('\n')}`,
+      `\n## Per-Cycle Breakdown`,
+      ...(cycleBreakdown.length > 0 ? cycleBreakdown : ['(no cycle data)']),
       `\n## Build Metrics`,
       `Cycles completed: ${build.cyclesCompleted}`,
       `Tasks completed: ${build.tasksCompleted}, failed: ${build.tasksFailed}`,
       `Build success: ${build.success}`,
+      `\n## Worktree Isolation & Merge`,
+      `Worktrees created: ${events.filter(e => e.event === 'worktree_created').length}`,
       `Merges succeeded: ${events.filter(e => e.event === 'worktree_merged').length}`,
       `Merges failed: ${events.filter(e => e.event === 'worktree_merge_failed').length}`,
+      `\n## Review Gates`,
+      `Review decisions: ${reviewEvents.filter(e => e.event === 'review_decision').length}`,
+      `Review iterations: ${reviewEvents.filter(e => e.label?.includes('iteration')).length}`,
+      `Force-approvals (timeout): ${reviewEvents.filter(e => e.label?.includes('Force-approved')).length}`,
+      `\n## Permission Management`,
+      `Permissions approved: ${permApproved}`,
+      `Always-allow rules set: ${permAlwaysAllowed}`,
+      `\n## Error Recovery`,
       `Loop dismissals: ${events.filter(e => e.event === 'loop_dialog_dismissed').length}`,
-      `Review decisions: ${events.filter(e => e.event.startsWith('review_')).length}`,
+      `Context compactions: ${events.filter(e => e.event === 'context_compacted').length}`,
       `\n## Event Timeline`,
-      ...events.slice(0, 50).map(e => `[${(e.t / 1000).toFixed(1)}s] ${e.event}${e.label ? ': ' + e.label : ''}`),
+      ...events.slice(0, 60).map(e => `[${(e.t / 1000).toFixed(1)}s] ${e.event}${e.label ? ': ' + e.label : ''}`),
     ].join('\n')
 
     const truncatedDiff = diff.length > 20000 ? diff.slice(0, 20000) + '\n[...truncated...]' : diff
@@ -2422,7 +2472,7 @@ Write your review comments (plain text, no JSON):`
     }
 
     const planning = await gradeOne(
-      `You are evaluating PLANNING quality of a NERV benchmark run.\n\nScore 1-10 how well the project was planned:\n- Were cycles well-scoped and progressive (each builds on the last)?\n- Were tasks appropriately decomposed from milestones?\n- Did spec coverage increase across cycles?\n- Were mid-project events (scope creep, user feedback) handled by creating new tasks?\n- Did the workflow show iterative learning (later cycles address earlier gaps)?\n\n${context}\n\nRespond with ONLY JSON: {"score": N, "strengths": [...], "weaknesses": [...], "evidence": "..."}`,
+      `You are evaluating PLANNING quality of a NERV benchmark run.\n\nNERV is an automated orchestrator — it creates cycles and tasks from the project spec.\nEvaluate how well the AUTOMATED planning worked:\n- Were milestones decomposed into appropriately-scoped tasks?\n- Were cycles progressive (each builds on the last, increasing spec completion)?\n- Were tasks small enough for a single agent to complete in one session?\n- Did the per-cycle breakdown show iterative progress toward the goal?\n- Did all completed tasks produce mergeable work (worktree → merge → main)?\n\nScoring guide:\n- 8-10: Multiple cycles with progressive task completion, all tasks merge successfully\n- 5-7: Tasks complete but limited cycle progression or some merge failures\n- 1-4: Tasks fail to complete or no evidence of iterative progress\n\n${context}\n\nRespond with ONLY JSON: {"score": N, "strengths": [...], "weaknesses": [...], "evidence": "..."}`,
       'Planning',
     )
 
@@ -2432,7 +2482,7 @@ Write your review comments (plain text, no JSON):`
     )
 
     const nervOps = await gradeOne(
-      `You are evaluating NERV OPS quality — how well the benchmark followed NERV's intended workflow patterns.\n\nScore 1-10 based on these criteria (weights shown):\n- Worktree isolation per task (25%) — each task gets its own worktree, merged on approval\n- Cycle-based iteration (20%) — multiple cycles with increasing spec completion\n- Review gates before merge (15%) — work reviewed before merging to main\n- Error recovery and loop handling (10%) — graceful handling of stuck/looping sessions\n- Cost efficiency (15%) — reasonable token usage relative to complexity\n- Permission management (15%) — permissions requested and resolved appropriately\n\n## Reference: Expected Workflow Patterns\n${PRD_WORKFLOW_EXCERPT}\n\n${context}\n\nRespond with ONLY JSON: {"score": N, "strengths": [...], "weaknesses": [...], "evidence": "..."}`,
+      `You are evaluating NERV OPS quality — how well the benchmark followed NERV's intended workflow patterns.\n\nScore 1-10 based on these criteria (weights shown):\n- Worktree isolation per task (25%) — each task gets its own worktree, merged on approval\n- Cycle-based iteration (20%) — multiple cycles with increasing spec completion\n- Review gates before merge (15%) — work reviewed before merging to main\n- Error recovery and loop handling (10%) — graceful handling of stuck/looping sessions\n- Cost efficiency (15%) — reasonable token usage relative to complexity\n- Permission management (15%) — permissions requested and resolved appropriately\n\nIMPORTANT: "auto-approve" means the automated review gate PASSED (tests passed, code quality OK),\nnot that review was skipped. Every task goes through review before merge.\nPermissions are managed via NERV's hook system with always-allow rules — this is the intended pattern.\n\nScoring guide:\n- 8-10: All tasks in isolated worktrees, all merged after review, permissions managed, cycles iterate\n- 5-7: Worktrees used but some merge failures, or limited cycle iteration\n- 1-4: No worktree isolation, no review gates, or tasks fail without recovery\n\n## Reference: Expected Workflow Patterns\n${PRD_WORKFLOW_EXCERPT}\n\n${context}\n\nRespond with ONLY JSON: {"score": N, "strengths": [...], "weaknesses": [...], "evidence": "..."}`,
       'NERV Ops',
     )
 
