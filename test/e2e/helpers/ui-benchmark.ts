@@ -9,6 +9,7 @@
  */
 
 import { Page } from '@playwright/test'
+import { execSync } from 'child_process'
 import fs from 'fs'
 import path from 'path'
 import { SELECTORS, TIMEOUT } from './selectors'
@@ -160,7 +161,6 @@ export class UIBenchmarkRunner {
    * Also commits the file so it's part of the git history.
    */
   private writeSpecToRepo(): void {
-    const { execSync } = require('child_process') as typeof import('child_process')
     const repoPath = this.config.testRepoPath
 
     // Build SPEC.md checklist from scenario milestones + quality bar
