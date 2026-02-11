@@ -2338,6 +2338,28 @@ Write your review comments (plain text, no JSON):`
     // Build context shared by all 3 prompts
     const events = this.eventLog.getEvents()
 
+    // Calculate REAL spec completion from SPEC.md checkboxes in the merged repo
+    let realSpecCompletionPct = 0
+    let specChecked = 0
+    let specTotal = 0
+    if (repoPath) {
+      try {
+        const { readFileSync, existsSync } = await import('fs')
+        const { join } = await import('path')
+        const specMdPath = join(repoPath, 'SPEC.md')
+        if (existsSync(specMdPath)) {
+          const specContent = readFileSync(specMdPath, 'utf-8')
+          const unchecked = (specContent.match(/- \[ \]/g) || []).length
+          const checked = (specContent.match(/- \[x\]/gi) || []).length
+          specTotal = unchecked + checked
+          specChecked = checked
+          if (specTotal > 0) {
+            realSpecCompletionPct = Math.round((checked / specTotal) * 100)
+          }
+        }
+      } catch { /* non-critical */ }
+    }
+
     // Per-cycle breakdown for grader visibility
     const totalMilestones = this.config.scenario.roughMilestones.length
     const cycleBreakdown: string[] = []
@@ -2347,22 +2369,22 @@ Write your review comments (plain text, no JSON):`
       let cycleCompleted = 0
       let cycleMerged = 0
       let cycleReviewed = 0
+      let cumulativeCompleted = 0
+      let cumulativeMerged = 0
       for (const ev of events) {
         if (ev.event === 'cycle_started' || ev.event === 'cycle_transition') {
           if (cycleNum > 0) {
-            const specPct = totalMilestones > 0 ? Math.round((cycleNum / totalMilestones) * 100) : 0
-            cycleBreakdown.push(`Cycle ${cycleNum}: ${cycleTasks} tasks started, ${cycleCompleted} completed, ${cycleMerged} merged, ${cycleReviewed} reviewed — spec ${Math.min(specPct, 100)}% complete`)
+            cycleBreakdown.push(`Cycle ${cycleNum}: ${cycleTasks} tasks started, ${cycleCompleted} completed, ${cycleMerged} merged, ${cycleReviewed} reviewed (cumulative: ${cumulativeCompleted} completed, ${cumulativeMerged} merged)`)
           }
           cycleNum++
           cycleTasks = 0; cycleCompleted = 0; cycleMerged = 0; cycleReviewed = 0
         } else if (ev.event === 'task_started') cycleTasks++
-        else if (ev.event === 'task_completed') cycleCompleted++
-        else if (ev.event === 'worktree_merged') cycleMerged++
+        else if (ev.event === 'task_completed') { cycleCompleted++; cumulativeCompleted++ }
+        else if (ev.event === 'worktree_merged') { cycleMerged++; cumulativeMerged++ }
         else if (ev.event === 'review_decision') cycleReviewed++
       }
       if (cycleNum > 0) {
-        const specPct = totalMilestones > 0 ? Math.round((cycleNum / totalMilestones) * 100) : 0
-        cycleBreakdown.push(`Cycle ${cycleNum}: ${cycleTasks} tasks started, ${cycleCompleted} completed, ${cycleMerged} merged, ${cycleReviewed} reviewed — spec ${Math.min(specPct, 100)}% complete`)
+        cycleBreakdown.push(`Cycle ${cycleNum}: ${cycleTasks} tasks started, ${cycleCompleted} completed, ${cycleMerged} merged, ${cycleReviewed} reviewed (cumulative: ${cumulativeCompleted} completed, ${cumulativeMerged} merged)`)
       }
     }
 
@@ -2387,10 +2409,10 @@ Write your review comments (plain text, no JSON):`
       `Cycles completed: ${build.cyclesCompleted}`,
       `Tasks completed: ${build.tasksCompleted}, failed: ${build.tasksFailed}`,
       `Build success: ${build.success}`,
-      `\n## Spec Completion`,
-      `Total milestones: ${totalMilestones}`,
-      `Cycles towards milestones: ${build.cyclesCompleted}`,
-      `Spec completion: ${totalMilestones > 0 ? Math.min(100, Math.round((build.cyclesCompleted / totalMilestones) * 100)) : 0}%`,
+      `\n## Spec Completion (from SPEC.md checkboxes)`,
+      `Spec items checked: ${specChecked} / ${specTotal}`,
+      `Spec completion: ${realSpecCompletionPct}%`,
+      `Milestones defined: ${totalMilestones}`,
       `\n## Worktree Isolation & Merge`,
       `Worktrees created: ${events.filter(e => e.event === 'worktree_created').length}`,
       `Merges succeeded: ${events.filter(e => e.event === 'worktree_merged').length}`,
