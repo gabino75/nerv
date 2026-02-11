@@ -96,23 +96,30 @@ log "Sync complete"
 # ============================================================
 log_section "Initializing Test Fixtures"
 
-# Initialize git repos in test fixtures for worktree creation
+# Always reinitialize git repos — host .git dirs have Windows paths and stale worktree refs
 init_fixture_git() {
     local fixture_path="$1"
     if [ -d "$fixture_path" ]; then
-        if [ ! -d "$fixture_path/.git" ]; then
-            log "Initializing git repo in $fixture_path"
-            cd "$fixture_path"
-            git init -b main
-            git config user.email "test@nerv.local"
-            git config user.name "NERV Test"
-            git add .
-            git commit -m "Initial commit for E2E tests"
-            cd /app
-            log "Git repo initialized: $fixture_path"
-        else
-            log "Git repo already exists in $fixture_path"
+        # Remove stale .git dir (may have Windows paths from host)
+        if [ -d "$fixture_path/.git" ]; then
+            rm -rf "$fixture_path/.git"
+            log "Removed stale .git from $fixture_path"
         fi
+        # Remove stale worktree directories (created by previous runs with Windows paths)
+        local worktrees_dir="${fixture_path}-worktrees"
+        if [ -d "$worktrees_dir" ]; then
+            rm -rf "$worktrees_dir"
+            log "Removed stale worktrees dir: $worktrees_dir"
+        fi
+        log "Initializing git repo in $fixture_path"
+        cd "$fixture_path"
+        git init -b main
+        git config user.email "test@nerv.local"
+        git config user.name "NERV Test"
+        git add .
+        git commit -m "Initial commit for E2E tests"
+        cd /app
+        log "Git repo initialized: $fixture_path"
     fi
 }
 
