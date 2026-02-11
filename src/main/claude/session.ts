@@ -3,6 +3,9 @@
  */
 
 import { spawn, IPty } from 'node-pty'
+import { existsSync, mkdirSync, copyFileSync, accessSync, constants as fsConstants } from 'fs'
+import { join } from 'path'
+import { tmpdir, homedir } from 'os'
 import { TERMINAL_DEFAULTS } from '../../shared/constants'
 import type { ClaudeSpawnConfig, ClaudeSpawnResult } from '../../shared/types'
 import { broadcastToRenderers } from '../utils'
@@ -13,6 +16,38 @@ import { generateSessionId, getClaudeCommand, buildClaudeArgs } from './utils'
 import { processStreamOutput, streamJsonToTerminal } from './stream-parser'
 import { startSessionMonitor, stopSessionMonitor, recordSessionOutput } from '../recovery'
 import { onSessionExitAutoIterate } from '../verification/auto-iterate'
+
+/**
+ * Build environment for Claude CLI, handling read-only ~/.claude in Docker.
+ * Claude CLI needs writable dirs for session files, todos, debug logs.
+ * In Docker, ~/.claude may be mounted read-only to protect credentials.
+ */
+function buildClaudeEnv(extraEnv: Record<string, string>): Record<string, string> {
+  const env: Record<string, string> = { ...process.env as Record<string, string>, ...extraEnv }
+
+  if (USE_MOCK_CLAUDE) return env
+
+  const claudeDir = join(homedir(), '.claude')
+  const credFile = join(claudeDir, '.credentials.json')
+  if (existsSync(credFile)) {
+    try {
+      accessSync(claudeDir, fsConstants.W_OK)
+    } catch {
+      // Read-only mount — create writable Claude home
+      const tmpHome = join(tmpdir(), 'nerv-claude-home')
+      const tmpClaudeDir = join(tmpHome, '.claude')
+      mkdirSync(tmpClaudeDir, { recursive: true })
+      mkdirSync(join(tmpClaudeDir, 'projects'), { recursive: true })
+      mkdirSync(join(tmpClaudeDir, 'todos'), { recursive: true })
+      mkdirSync(join(tmpClaudeDir, 'debug'), { recursive: true })
+      copyFileSync(credFile, join(tmpClaudeDir, '.credentials.json'))
+      env.HOME = tmpHome
+      console.log('[NERV] Using writable Claude home for PTY session:', tmpHome)
+    }
+  }
+
+  return env
+}
 
 // Spawn Claude Code for a task
 export function spawnClaude(config: ClaudeSpawnConfig): ClaudeSpawnResult {
@@ -42,19 +77,20 @@ export function spawnClaude(config: ClaudeSpawnConfig): ClaudeSpawnResult {
 
   let pty: IPty
   try {
+    const spawnEnv = buildClaudeEnv({
+      ...(config.taskId ? { NERV_TASK_ID: config.taskId } : {}),
+      ...(config.agentTeams ? { CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS: '1' } : {}),
+      NERV_PROJECT_ID: config.projectId,
+      FORCE_COLOR: '1',
+      TERM: 'xterm-256color'
+    })
+
     pty = spawn(command, args, {
       name: 'xterm-256color',
       cols: TERMINAL_DEFAULTS.cols,
       rows: TERMINAL_DEFAULTS.rows,
       cwd: config.cwd,
-      env: {
-        ...process.env,
-        ...(config.taskId ? { NERV_TASK_ID: config.taskId } : {}),
-        ...(config.agentTeams ? { CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS: '1' } : {}),
-        NERV_PROJECT_ID: config.projectId,
-        FORCE_COLOR: '1',
-        TERM: 'xterm-256color'
-      } as { [key: string]: string }
+      env: spawnEnv
     })
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error)
@@ -225,19 +261,20 @@ export function resumeClaude(config: ClaudeSpawnConfig, claudeSessionId: string)
 
   let pty: IPty
   try {
+    const spawnEnv = buildClaudeEnv({
+      ...(config.taskId ? { NERV_TASK_ID: config.taskId } : {}),
+      ...(config.agentTeams ? { CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS: '1' } : {}),
+      NERV_PROJECT_ID: config.projectId,
+      FORCE_COLOR: '1',
+      TERM: 'xterm-256color'
+    })
+
     pty = spawn(command, args, {
       name: 'xterm-256color',
       cols: TERMINAL_DEFAULTS.cols,
       rows: TERMINAL_DEFAULTS.rows,
       cwd: config.cwd,
-      env: {
-        ...process.env,
-        ...(config.taskId ? { NERV_TASK_ID: config.taskId } : {}),
-        ...(config.agentTeams ? { CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS: '1' } : {}),
-        NERV_PROJECT_ID: config.projectId,
-        FORCE_COLOR: '1',
-        TERM: 'xterm-256color'
-      } as { [key: string]: string }
+      env: spawnEnv
     })
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error)
