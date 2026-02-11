@@ -206,11 +206,13 @@ ${projectIdea.slice(0, 300)}
 
 ## CRITICAL RULES
 
+- **First commit**: create a \`.gitignore\` excluding \`node_modules/\`, \`dist/\`, \`build/\`, \`.env\`, \`*.lock\`.
 - **Commit after each feature** so progress is saved even if time runs out.
+- **Never commit node_modules** — always add to .gitignore BEFORE \`git add -A\`.
 - **Update SPEC.md checkboxes** — progress is measured by counting \`[x]\` items.
 - Work through items in order.
 
-Start by reading SPEC.md, then implement and commit each feature.`
+Start by reading SPEC.md, create .gitignore, then implement and commit each feature.`
   }
 
   /**
@@ -2429,16 +2431,20 @@ Write your review comments (plain text, no JSON):`
         } catch { return '' }
       }
 
-      // Strategy 1: diff from initial commit to HEAD
+      // Exclude non-source directories from diffs — Claude often commits
+      // node_modules which can produce 80MB+ diffs that exceed maxBuffer.
+      const diffExclude = '-- . ":(exclude)node_modules" ":(exclude)dist" ":(exclude)build" ":(exclude).next" ":(exclude)coverage" ":(exclude)*.lock"'
+
+      // Strategy 1: diff from initial commit to HEAD (excluding non-source files)
       const firstCommit = execGit('git rev-list --max-parents=0 HEAD', 4096).trim().split('\n')[0]
       if (firstCommit) {
-        diff = execGit(`git diff ${firstCommit} HEAD`)
+        diff = execGit(`git diff ${firstCommit} HEAD ${diffExclude}`)
         log('step', 'Diff strategy 1 (firstCommit..HEAD)', { firstCommit, diffLen: diff.length })
       }
 
       // Strategy 2: combined diff of all merge commits (shows what each merge added)
       if (!diff) {
-        diff = execGit('git log -p --reverse --first-parent HEAD')
+        diff = execGit(`git log -p --reverse --first-parent HEAD ${diffExclude}`)
         log('step', 'Diff strategy 2 (git log -p)', { diffLen: diff.length })
       }
 
@@ -2744,19 +2750,21 @@ Write your review comments (plain text, no JSON):`
 
       // Generate git-diff.patch and git-log.txt for scoring script context
       // score-benchmark.js reads these to give Claude visibility into actual code changes
+      // Exclude node_modules/dist/build to avoid 80MB+ diffs that exceed maxBuffer
+      const patchExclude = '-- . ":(exclude)node_modules" ":(exclude)dist" ":(exclude)build" ":(exclude).next" ":(exclude)coverage" ":(exclude)*.lock"'
       try {
         const firstCommit = execSync('git rev-list --max-parents=0 HEAD 2>/dev/null | head -1', {
           cwd: repoOutputDir, maxBuffer: 1024, encoding: 'utf-8',
         }).trim()
         if (firstCommit) {
-          const diff = execSync(`git diff ${firstCommit}..HEAD`, {
+          const diff = execSync(`git diff ${firstCommit}..HEAD ${patchExclude}`, {
             cwd: repoOutputDir, maxBuffer: 10 * 1024 * 1024, encoding: 'utf-8',
           })
           fs.writeFileSync(path.join(this.config.outputDir, 'git-diff.patch'), diff)
         }
       } catch {
         try {
-          const diff = execSync('git diff HEAD~10...HEAD 2>/dev/null || git diff HEAD 2>/dev/null || echo ""', {
+          const diff = execSync(`git diff HEAD~10...HEAD ${patchExclude} 2>/dev/null || git diff HEAD ${patchExclude} 2>/dev/null || echo ""`, {
             cwd: repoOutputDir, maxBuffer: 5 * 1024 * 1024, encoding: 'utf-8',
           })
           fs.writeFileSync(path.join(this.config.outputDir, 'git-diff.patch'), diff)

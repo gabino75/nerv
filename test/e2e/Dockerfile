@@ -67,8 +67,10 @@ ENV NERV_MOCK_CLAUDE=true
 # Volume mount points
 # - /root/.nerv: NERV database and config
 # - /root/.anthropic: Anthropic API credentials
-# - /root/.claude: Claude CLI authentication (OAuth tokens)
-VOLUME ["/app/test-results", "/root/.nerv", "/root/.anthropic", "/root/.claude", "/app/host"]
+# Note: /root/.claude is NOT declared as VOLUME — the VOLUME instruction
+# creates an anonymous volume that shadows bind mounts (-v host:container),
+# preventing Claude CLI credentials from being mounted read-only at runtime.
+VOLUME ["/app/test-results", "/root/.nerv", "/root/.anthropic", "/app/host"]
 
 # Entry point that syncs from mounted host and runs tests
 COPY test/e2e/docker-entrypoint.sh /docker-entrypoint.sh
