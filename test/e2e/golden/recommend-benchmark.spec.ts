@@ -87,7 +87,7 @@ test('recommend-driven workflow completes project lifecycle', async () => {
       NODE_ENV: 'test',
       NERV_TEST_MODE: '1',
       ELECTRON_IS_DEV: '0',
-      ...(USE_REAL_CLAUDE ? {} : { NERV_MOCK_CLAUDE: '1' }),
+      ...(USE_REAL_CLAUDE ? { NERV_MOCK_CLAUDE: '0' } : { NERV_MOCK_CLAUDE: '1' }),
     },
   })
 
@@ -181,7 +181,7 @@ test('recommend panel shows direction input and multiple cards', async () => {
       NODE_ENV: 'test',
       NERV_TEST_MODE: '1',
       ELECTRON_IS_DEV: '0',
-      ...(USE_REAL_CLAUDE ? {} : { NERV_MOCK_CLAUDE: '1' }),
+      ...(USE_REAL_CLAUDE ? { NERV_MOCK_CLAUDE: '0' } : { NERV_MOCK_CLAUDE: '1' }),
     },
   })
 

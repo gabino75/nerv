@@ -7,6 +7,9 @@
  */
 
 import { execSync } from 'child_process'
+import { existsSync, mkdirSync, copyFileSync, accessSync, constants as fsConstants } from 'fs'
+import { join } from 'path'
+import { tmpdir, homedir } from 'os'
 import { databaseService } from '../database'
 import { safeHandle } from './safe-handle'
 import {
@@ -133,16 +136,45 @@ function callClaude(prompt: string, ctx?: RecommendContext): string {
     ])
   }
 
-  return execSync(
+  console.log('[NERV] Calling real Claude for recommendations...')
+
+  // Claude CLI needs a writable ~/.claude directory for session files.
+  // In Docker, ~/.claude may be mounted read-only to protect credentials.
+  // Create a writable temp dir with credentials copied from the ro mount.
+  const env = { ...process.env }
+  const claudeDir = join(homedir(), '.claude')
+  const credFile = join(claudeDir, '.credentials.json')
+  if (existsSync(credFile)) {
+    try {
+      accessSync(claudeDir, fsConstants.W_OK)
+    } catch {
+      // Read-only — set up writable Claude home
+      const tmpHome = join(tmpdir(), 'nerv-claude-home')
+      const tmpClaudeDir = join(tmpHome, '.claude')
+      mkdirSync(tmpClaudeDir, { recursive: true })
+      mkdirSync(join(tmpClaudeDir, 'projects'), { recursive: true })
+      mkdirSync(join(tmpClaudeDir, 'todos'), { recursive: true })
+      mkdirSync(join(tmpClaudeDir, 'debug'), { recursive: true })
+      copyFileSync(credFile, join(tmpClaudeDir, '.credentials.json'))
+      env.HOME = tmpHome
+      console.log('[NERV] Using writable Claude home:', tmpHome)
+    }
+  }
+
+  const result = execSync(
     'claude --print --model sonnet --max-turns 1',
     {
       input: prompt,
       encoding: 'utf-8',
-      timeout: 30_000,
+      timeout: 60_000,
       maxBuffer: 1024 * 1024,
       stdio: ['pipe', 'pipe', 'pipe'],
+      env,
     }
   ).trim()
+  console.log('[NERV] Claude response length:', result.length, 'chars')
+  console.log('[NERV] Claude response preview:', result.slice(0, 500))
+  return result
 }
 
 export function registerRecommendHandlers(): void {
@@ -163,11 +195,20 @@ export function registerRecommendHandlers(): void {
   // Get multiple recommendations with optional user direction
   safeHandle('recommend:getNextWithDirection', async (_event, projectId: string, direction?: string): Promise<Recommendation[]> => {
     const ctx = gatherContext(projectId, direction)
-    if (!ctx) return []
+    if (!ctx) {
+      console.error('[NERV] No context for project:', projectId)
+      return []
+    }
 
     try {
       const result = callClaude(buildRecommendPrompt(ctx), ctx)
-      return parseRecommendations(result)
+      const recommendations = parseRecommendations(result)
+      if (recommendations.length === 0) {
+        console.error('[NERV] parseRecommendations returned empty. Raw response:', result.slice(0, 1000))
+      } else {
+        console.log('[NERV] Parsed', recommendations.length, 'recommendations:', recommendations.map(r => r.action))
+      }
+      return recommendations
     } catch (err) {
       console.error('[NERV] Recommendation failed:', err instanceof Error ? err.message : err)
       return []
