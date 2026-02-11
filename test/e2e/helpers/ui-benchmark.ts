@@ -2423,6 +2423,7 @@ Write your review comments (plain text, no JSON):`
 
     // Get diff for code quality grading — try multiple strategies
     let diff = ''
+    let fileTreeSummary = ''
     if (repoPath) {
       const { execSync } = await import('child_process')
       const execGit = (cmd: string, maxBuf = 10 * 1024 * 1024): string => {
@@ -2464,6 +2465,26 @@ Write your review comments (plain text, no JSON):`
         diff = combinedContent
         log('step', 'Diff strategy 3 (file contents)', { fileCount: files.length, diffLen: diff.length })
       }
+
+      // Build a file tree summary showing what source files exist with line counts.
+      // This gives the grader a high-level view of the codebase scope beyond the truncated diff.
+      const allSourceFiles = execGit('git ls-tree -r --name-only HEAD', 1024 * 1024)
+        .trim().split('\n')
+        .filter(f => f && !/node_modules|dist|build|\.next|coverage|\.lock/.test(f))
+        .filter(f => /\.(ts|js|tsx|jsx|json|html|css|svelte|vue|py|go|rs|md|yaml|yml|toml)$/.test(f))
+      const fileTree: string[] = []
+      let totalLines = 0
+      for (const file of allSourceFiles.slice(0, 50)) {
+        const content = execGit(`git show HEAD:${file}`, 256 * 1024)
+        const lines = content ? content.split('\n').length : 0
+        totalLines += lines
+        fileTree.push(`  ${file} (${lines} lines)`)
+      }
+      if (allSourceFiles.length > 50) {
+        fileTree.push(`  ... and ${allSourceFiles.length - 50} more files`)
+      }
+      fileTreeSummary = `${allSourceFiles.length} source files, ${totalLines}+ total lines:\n${fileTree.join('\n')}`
+      log('step', 'File tree summary', { fileCount: allSourceFiles.length, totalLines })
     }
 
     log('step', `Grade diff collected`, { repoPath, diffLen: diff.length, diffPreview: diff.slice(0, 200) })
@@ -2595,9 +2616,9 @@ Write your review comments (plain text, no JSON):`
         .map(e => `[${(e.t / 1000).toFixed(1)}s] ${e.event}${e.label ? ': ' + e.label : ''}`),
     ].join('\n')
 
-    const truncatedDiff = diff.length > 20000 ? diff.slice(0, 20000) + '\n[...truncated...]' : diff
+    const truncatedDiff = diff.length > 50000 ? diff.slice(0, 50000) + '\n[...truncated...]' : diff
 
-    // Minimal context for Code Quality grader — just the goal and what was built, no ops metrics
+    // Context for Code Quality grader — goal, what was built, and file tree for scope
     const codeContext = [
       `## Project Goal\n${this.config.scenario.projectIdea}`,
       `\n## Milestones\n${this.config.scenario.roughMilestones.map((m, i) => `${i + 1}. ${m}`).join('\n')}`,
@@ -2605,6 +2626,7 @@ Write your review comments (plain text, no JSON):`
       `Tasks completed: ${build.tasksCompleted}`,
       `Spec items checked: ${specChecked} / ${specTotal} (${realSpecCompletionPct}% complete)`,
       `All completed work was merged into the main branch.`,
+      ...(fileTreeSummary ? [`\n## Source File Tree (all files in repo)\n${fileTreeSummary}`] : []),
     ].join('\n')
 
     const gradeOne = async (prompt: string, label: string): Promise<number> => {
@@ -2680,12 +2702,12 @@ Write your review comments (plain text, no JSON):`
     }
 
     const planning = await gradeOne(
-      `You are evaluating PLANNING quality of a NERV benchmark run.\n\nNERV is an automated orchestrator that decomposes a project spec into cycles and tasks.\nEach cycle produces one or more tasks, each task runs in an isolated git worktree,\nand completed work is merged back to main. Evaluate the orchestration quality:\n\n- Did cycles show PROGRESSIVE spec completion? (check Per-Cycle Breakdown for increasing %)\n- Were all tasks scoped appropriately and completed successfully?\n- Did all completed work merge cleanly into the main branch?\n- Was the final spec completion high relative to the project goal?\n\nScoring guide:\n- 9-10: All cycles progressive (spec % increases each cycle), 100% spec completion, 0 merge failures, 0 task failures\n- 7-8: Most cycles progressive, high spec completion (>= 80%), few or no failures\n- 5-6: Some cycles lack clear progression, moderate spec completion, some failures\n- 1-4: Tasks fail to complete, no spec progression, or many merge failures\n\nFocus on the Per-Cycle Breakdown and Summary sections for evidence.\n\n${context}\n\nRespond with ONLY JSON: {"score": N, "strengths": [...], "weaknesses": [...], "evidence": "..."}`,
+      `You are evaluating PLANNING quality of a NERV benchmark run.\n\nNERV is an automated orchestrator that decomposes a project spec into cycles and tasks.\nEach cycle produces one or more tasks, each task runs in an isolated git worktree,\nand completed work is merged back to main.\n\nEvaluate based on these criteria (in order of importance):\n1. FINAL SPEC COMPLETION (most important): What percentage of SPEC.md checkboxes were checked?\n   - 100% = excellent, 80%+ = good, 50-79% = moderate, <50% = poor\n2. PROGRESSIVE DELIVERY: Did spec completion increase across cycles? (check Per-Cycle Breakdown)\n   - Each cycle should show cumulative progress toward 100%\n3. TASK SUCCESS RATE: What fraction of tasks completed vs failed?\n4. MERGE SUCCESS: Did all completed work merge cleanly?\n\nIMPORTANT context for scoring:\n- Multiple worktrees per task is NORMAL — NERV uses worktrees for isolation, not 1:1 with tasks\n- Retries and re-attempts are GOOD orchestration — the system recovered and delivered\n- Focus on OUTCOMES (spec completion, features delivered) not process overhead\n\nScoring guide:\n- 9-10: >= 90% spec completion, every cycle shows progress, 0 task failures, all merges succeed\n- 7-8: >= 70% spec completion, most cycles progressive, few or no failures\n- 5-6: 40-69% spec completion, some cycles without progress, some failures\n- 3-4: 20-39% spec completion, little progression across cycles\n- 1-2: < 20% spec completion, tasks mostly fail\n\n${context}\n\nRespond with ONLY JSON: {"score": N, "strengths": [...], "weaknesses": [...], "evidence": "..."}`,
       'Planning',
     )
 
     const code = await gradeOne(
-      `You are evaluating CODE QUALITY of a NERV benchmark run.\n\nScore the ACTUAL CODE produced (shown in the diff below) on a 1-10 scale:\n- Code organization, naming, structure\n- Test coverage and quality\n- Functionality completeness vs the project goal\n- Error handling and edge cases\n- Best practices for the language used\n\nIMPORTANT: Score ONLY the code itself. Ignore operational metrics like build duration or loops.\nFocus on: Is this well-written, functional code that meets the project goal?\n\nScoring guide:\n- 9-10: Clean, well-organized code with tests, good error handling, meets all goals\n- 7-8: Good code quality, most features implemented, reasonable structure\n- 5-6: Functional but messy, missing some features, poor organization\n- 3-4: Partially functional, significant issues, missing core features\n- 1-2: Barely functional or empty, major bugs, doesn't meet the goal\n\n## Code Diff\n\`\`\`diff\n${truncatedDiff || '(no diff available)'}\n\`\`\`\n\n${codeContext}\n\nRespond with ONLY JSON: {"score": N, "strengths": [...], "weaknesses": [...], "evidence": "..."}`,
+      `You are evaluating CODE QUALITY of a NERV benchmark run.\n\nScore the ACTUAL CODE produced (shown in the diff and file tree below) on a 1-10 scale.\n\nEvaluation criteria (in order of importance):\n1. FUNCTIONALITY (40%): Does the code implement the features described in the project goal?\n   - Check spec completion: ${specChecked}/${specTotal} items checked (${realSpecCompletionPct}%)\n   - If spec completion is high, the code WORKS — score functionality accordingly\n2. CODE STRUCTURE (25%): Organization, naming, separation of concerns\n3. BEST PRACTICES (20%): Error handling, edge cases, language idioms\n4. TEST COVERAGE (15%): Are there tests? Do they cover key functionality?\n\nIMPORTANT:\n- Score ONLY the code itself, not operational metrics (build time, cycles, etc.)\n- The diff may be truncated — check the File Tree section to understand full scope\n- A complete, working application with ${specChecked}/${specTotal} spec items done deserves at minimum 7/10\n- Auto-generated code that actually works and passes tests is still GOOD code\n\nScoring guide:\n- 9-10: Complete implementation, clean code, tests present, good error handling\n- 7-8: Most features work, reasonable structure, some tests or error handling\n- 5-6: Partial implementation, messy but functional, few tests\n- 3-4: Missing core features, significant bugs, poor structure\n- 1-2: Barely functional or empty\n\n## Code Diff\n\`\`\`diff\n${truncatedDiff || '(no diff available)'}\n\`\`\`\n\n${codeContext}\n\nRespond with ONLY JSON: {"score": N, "strengths": [...], "weaknesses": [...], "evidence": "..."}`,
       'Code Quality',
     )
 
