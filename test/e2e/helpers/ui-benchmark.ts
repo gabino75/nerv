@@ -605,7 +605,8 @@ Now read SPEC.md and start implementing!`
       }
     }
 
-    // Build cycles from events
+    // Build cycles from events — use real spec_completion events for accurate per-cycle %
+    let lastSpecPctForCycle = 0
     for (const ev of events) {
       if (ev.event === 'cycle_started' || ev.event === 'cycle_transition') {
         cycleStartT = ev.t
@@ -613,19 +614,18 @@ Now read SPEC.md and start implementing!`
       } else if (ev.event === 'task_started' && ev.label) {
         const taskId = ev.label.replace('Task ', '')
         currentTasks.push(taskId)
+      } else if (ev.event === 'spec_completion' && typeof ev.pct === 'number') {
+        lastSpecPctForCycle = ev.pct
       } else if (ev.event === 'cycle_completed' && cycleStartT !== null) {
         const durationMs = ev.t - cycleStartT
         const milestoneTitle = this.config.scenario.roughMilestones[cycleNum] || `Cycle ${cycleNum}`
-        const specPct = this.config.scenario.roughMilestones.length > 0
-          ? Math.round(((cycleNum + 1) / this.config.scenario.roughMilestones.length) * 100)
-          : 0
 
         cycles.push({
           cycleNumber: cycleNum,
           title: milestoneTitle,
           durationMs,
           costUsd: 0, // Aggregated from per-task costs below
-          specCompletionPercent: specPct,
+          specCompletionPercent: lastSpecPctForCycle,
           tasks: currentTasks.map(tid => ({
             taskId: tid,
             merged: taskMerged.has(tid),
@@ -2214,16 +2214,29 @@ Write your review comments (plain text, no JSON):`
 
       if (mergeResult?.merged) {
         this.eventLog.emit('worktree_merged', { label: `Task ${taskId} merged` })
-        // Verify merge by checking git log in base repo (derive from worktree path)
+        // Verify merge and read SPEC.md for real spec completion tracking
         try {
           const { execSync } = await import('child_process')
+          const { readFileSync, existsSync } = await import('fs')
           const wtPath = (mergeResult as { worktreePath?: string })?.worktreePath
           if (wtPath) {
             const gitCommonDir = execSync('git rev-parse --git-common-dir', { cwd: wtPath, encoding: 'utf-8', maxBuffer: 4096 }).trim()
-            const { dirname } = await import('path')
+            const { dirname, join } = await import('path')
             const repoPath = dirname(gitCommonDir)
             const gitLog = execSync('git log --oneline -5', { cwd: repoPath, encoding: 'utf-8', maxBuffer: 4096 })
             log('step', 'Post-merge git log', { repoPath, gitLog: gitLog.trim() })
+
+            // Read SPEC.md from merged base repo to track real spec completion per merge
+            const specMdPath = join(repoPath, 'SPEC.md')
+            if (existsSync(specMdPath)) {
+              const specContent = readFileSync(specMdPath, 'utf-8')
+              const unchecked = (specContent.match(/- \[ \]/g) || []).length
+              const checked = (specContent.match(/- \[x\]/gi) || []).length
+              const total = unchecked + checked
+              const pct = total > 0 ? Math.round((checked / total) * 100) : 0
+              this.eventLog.emit('spec_completion', { label: `${checked}/${total} (${pct}%)`, checked, total, pct })
+              log('step', 'Post-merge spec completion', { checked, total, pct })
+            }
           }
         } catch (e) {
           log('step', 'Post-merge git log failed', { error: String(e) })
@@ -2533,11 +2546,9 @@ Write your review comments (plain text, no JSON):`
       } catch { /* non-critical */ }
     }
 
-    // Per-cycle breakdown for grader visibility
+    // Per-cycle breakdown for grader visibility — uses real spec_completion events from post-merge reads
     const totalMilestones = this.config.scenario.roughMilestones.length
     const cycleBreakdown: string[] = []
-    // Count total tasks to estimate per-cycle spec progression
-    const totalTaskEvents = events.filter(e => e.event === 'task_completed').length
     {
       let cycleNum = 0
       let cycleTasks = 0
@@ -2545,23 +2556,24 @@ Write your review comments (plain text, no JSON):`
       let cycleMerged = 0
       let cycleReviewed = 0
       let cumulativeCompleted = 0
-      let cumulativeMerged = 0
+      let lastSpecPct = 0
       for (const ev of events) {
         if (ev.event === 'cycle_started' || ev.event === 'cycle_transition') {
           if (cycleNum > 0) {
-            const estSpecPct = totalTaskEvents > 0 ? Math.round((cumulativeCompleted / totalTaskEvents) * realSpecCompletionPct) : 0
-            cycleBreakdown.push(`Cycle ${cycleNum}: ${cycleTasks} tasks started, ${cycleCompleted} completed, ${cycleMerged} merged, ${cycleReviewed} reviewed | cumulative: ${cumulativeCompleted}/${totalTaskEvents} tasks done, ~${estSpecPct}% spec complete`)
+            cycleBreakdown.push(`Cycle ${cycleNum}: ${cycleTasks} tasks started, ${cycleCompleted} completed, ${cycleMerged} merged, ${cycleReviewed} reviewed | spec completion: ${lastSpecPct}%`)
           }
           cycleNum++
           cycleTasks = 0; cycleCompleted = 0; cycleMerged = 0; cycleReviewed = 0
         } else if (ev.event === 'task_started') cycleTasks++
         else if (ev.event === 'task_completed') { cycleCompleted++; cumulativeCompleted++ }
-        else if (ev.event === 'worktree_merged') { cycleMerged++; cumulativeMerged++ }
+        else if (ev.event === 'worktree_merged') cycleMerged++
         else if (ev.event === 'review_decision') cycleReviewed++
+        else if (ev.event === 'spec_completion' && typeof ev.pct === 'number') {
+          lastSpecPct = ev.pct
+        }
       }
       if (cycleNum > 0) {
-        const estSpecPct = totalTaskEvents > 0 ? Math.round((cumulativeCompleted / totalTaskEvents) * realSpecCompletionPct) : 0
-        cycleBreakdown.push(`Cycle ${cycleNum}: ${cycleTasks} tasks started, ${cycleCompleted} completed, ${cycleMerged} merged, ${cycleReviewed} reviewed | cumulative: ${cumulativeCompleted}/${totalTaskEvents} tasks done, ~${estSpecPct}% spec complete`)
+        cycleBreakdown.push(`Cycle ${cycleNum}: ${cycleTasks} tasks started, ${cycleCompleted} completed, ${cycleMerged} merged, ${cycleReviewed} reviewed | spec completion: ${lastSpecPct}%`)
       }
     }
 

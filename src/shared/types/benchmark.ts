@@ -296,6 +296,10 @@ export interface UIBenchmarkEventLog {
   label?: string
   action?: string
   factor?: number
+  /** Spec completion fields (emitted by spec_completion events after merges) */
+  checked?: number
+  total?: number
+  pct?: number
 }
 
 // ============================================================================
