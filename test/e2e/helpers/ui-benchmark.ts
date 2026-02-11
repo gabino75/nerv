@@ -2352,20 +2352,53 @@ Write your review comments (plain text, no JSON):`
     const gradeOne = async (prompt: string, label: string): Promise<number> => {
       try {
         const { spawn } = await import('child_process')
+        const { homedir, tmpdir: osTmpdir } = await import('os')
+        const { existsSync, accessSync, mkdirSync, copyFileSync, constants: fsConst } = await import('fs')
+        const { join } = await import('path')
+
+        // Build env with writable ~/.claude workaround for Docker ro mounts
+        const spawnEnv: Record<string, string | undefined> = { ...process.env }
+        const claudeDir = join(homedir(), '.claude')
+        const credFile = join(claudeDir, '.credentials.json')
+        if (existsSync(credFile)) {
+          try {
+            accessSync(claudeDir, fsConst.W_OK)
+          } catch {
+            const tmpHome = join(osTmpdir(), 'nerv-claude-grade')
+            const tmpClaudeDir = join(tmpHome, '.claude')
+            mkdirSync(tmpClaudeDir, { recursive: true })
+            mkdirSync(join(tmpClaudeDir, 'projects'), { recursive: true })
+            mkdirSync(join(tmpClaudeDir, 'todos'), { recursive: true })
+            mkdirSync(join(tmpClaudeDir, 'debug'), { recursive: true })
+            copyFileSync(credFile, join(tmpClaudeDir, '.credentials.json'))
+            spawnEnv.HOME = tmpHome
+            log('step', `${label}: using writable Claude home`, { path: tmpHome })
+          }
+        }
+
         return new Promise<number>((resolve) => {
           const proc = spawn('claude', [
             '--print', '--output-format', 'text', '--model', 'sonnet', '--max-turns', '1',
-          ], { stdio: ['pipe', 'pipe', 'pipe'] })
+          ], { stdio: ['pipe', 'pipe', 'pipe'], env: spawnEnv })
 
           let stdout = ''
+          let stderr = ''
           proc.stdout.on('data', (chunk: Buffer) => { stdout += chunk.toString() })
+          proc.stderr.on('data', (chunk: Buffer) => { stderr += chunk.toString() })
           proc.stdin.write(prompt)
           proc.stdin.end()
 
-          const timer = setTimeout(() => { proc.kill(); resolve(5) }, 120000)
+          const timer = setTimeout(() => {
+            log('step', `${label} grading timed out (120s)`)
+            proc.kill()
+            resolve(5)
+          }, 120000)
 
-          proc.on('close', () => {
+          proc.on('close', (code) => {
             clearTimeout(timer)
+            if (code !== 0) {
+              log('step', `${label} claude exited with code ${code}`, { stderr: stderr.slice(0, 500) })
+            }
             try {
               const match = stdout.match(/\{[\s\S]*"score"[\s\S]*\}/)
               if (match) {
@@ -2374,6 +2407,7 @@ Write your review comments (plain text, no JSON):`
                 log('step', `${label} graded`, { score: s })
                 resolve(Math.max(1, Math.min(10, s)))
               } else {
+                log('step', `${label} no score in output`, { stdoutLen: stdout.length, stdout: stdout.slice(0, 200) })
                 resolve(5)
               }
             } catch {
