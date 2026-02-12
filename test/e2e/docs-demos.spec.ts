@@ -1088,11 +1088,12 @@ test('demo_code_review', async () => {
   console.log('[Demo] Step 2: Opening review modal')
   await showStepLabel(window, 2, 'Open task to review code changes')
 
-  const taskCard = window.locator('.task-item').first()
+  const taskCard = window.locator('[data-testid="task-item"]').first()
   if (await taskCard.isVisible({ timeout: 3000 }).catch(() => false)) {
-    await glideToElement(window, '.task-item')
+    await glideToElement(window, '[data-testid="task-item"]')
     await demoWait(window, 'Opening task for review', 600)
-    await taskCard.click()
+    // Use dispatchEvent — flex-wrap header overlap intercepts Playwright .click()
+    await taskCard.dispatchEvent('click')
     await window.waitForTimeout(1000)
   }
 
@@ -1179,11 +1180,12 @@ test('demo_code_review', async () => {
   console.log('[Demo] Step 6: Approving the updated work')
   await showStepLabel(window, 6, 'Approve the updated code')
 
-  const taskCard2 = window.locator('.task-item').first()
+  const taskCard2 = window.locator('[data-testid="task-item"]').first()
   if (await taskCard2.isVisible({ timeout: 3000 }).catch(() => false)) {
-    await glideToElement(window, '.task-item')
+    await glideToElement(window, '[data-testid="task-item"]')
     await demoWait(window, 'Reviewing updated code', 600)
-    await taskCard2.click()
+    // Use dispatchEvent — flex-wrap header overlap intercepts Playwright .click()
+    await taskCard2.dispatchEvent('click')
     await window.waitForTimeout(1000)
   }
 
