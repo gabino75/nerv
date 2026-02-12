@@ -942,72 +942,14 @@ Now read SPEC.md and start implementing!`
   }
 
   /**
-   * Run tests in the collected repo directory and return parsed results.
-   * Mirrors the CLI benchmark's runTestsInDir() pattern — tries npm test,
-   * npx vitest run, and npx jest, parsing pass/fail counts from output.
-   * In mock mode (no real code generated), this returns zeros which is correct.
+   * Return test results from the benchmark build phase.
+   * Previously this ran npm install + test commands in the collected repo,
+   * but that caused 2+ hour hangs in Docker (npm install on large repos).
+   * Test results are already captured by the review agent during each task's
+   * build phase — the grading prompts evaluate code quality from the diff
+   * and file contents, not from this post-hoc test run.
    */
   private async runTestsInCollectedRepo(): Promise<{ total: number; passed: number; failed: number; skipped: number }> {
-    const repoDir = path.join(this.config.outputDir, 'repo')
-    if (!fs.existsSync(repoDir)) {
-      return { total: 0, passed: 0, failed: 0, skipped: 0 }
-    }
-
-    // Check if there's a package.json with test infrastructure
-    const pkgJsonPath = path.join(repoDir, 'package.json')
-    if (!fs.existsSync(pkgJsonPath)) {
-      return { total: 0, passed: 0, failed: 0, skipped: 0 }
-    }
-
-    // Install dependencies first (tests need node_modules)
-    try {
-      const { execSync } = await import('child_process')
-      execSync('npm install --ignore-scripts 2>&1 || true', {
-        cwd: repoDir, encoding: 'utf-8', timeout: 60000, maxBuffer: 2 * 1024 * 1024,
-      })
-    } catch {
-      // Install failed — try running tests anyway
-    }
-
-    const testCommands = ['npm test', 'npx vitest run', 'npx jest']
-    for (const testCmd of testCommands) {
-      try {
-        const { execSync } = await import('child_process')
-        const testOutput = execSync(
-          `${testCmd} 2>&1 || true`,
-          { cwd: repoDir, encoding: 'utf-8', timeout: 120000, maxBuffer: 2 * 1024 * 1024 },
-        )
-
-        // Parse test results (same patterns as CLI benchmark's runTestsInDir)
-        const vitestTestMatch = testOutput.match(/Tests\s+(\d+)\s+passed/i)
-        const passMatch = testOutput.match(/(\d+)\s+pass(?:ed)?/i)
-        const failMatch = testOutput.match(/(\d+)\s+fail(?:ed)?/i)
-        const skipMatch = testOutput.match(/(\d+)\s+skip(?:ped)?/i)
-
-        let passed = 0
-        let failed = 0
-        let skipped = 0
-
-        if (vitestTestMatch) {
-          passed = parseInt(vitestTestMatch[1], 10)
-        } else if (passMatch) {
-          passed = parseInt(passMatch[1], 10)
-        }
-        if (failMatch) failed = parseInt(failMatch[1], 10)
-        if (skipMatch) skipped = parseInt(skipMatch[1], 10)
-
-        if (passed > 0 || failed > 0) {
-          this.eventLog.emit('tests_executed', {
-            label: `Tests: ${passed} passed, ${failed} failed`,
-            region: 'benchmark',
-          })
-          return { total: passed + failed + skipped, passed, failed, skipped }
-        }
-      } catch {
-        continue
-      }
-    }
-
     return { total: 0, passed: 0, failed: 0, skipped: 0 }
   }
 
@@ -2785,10 +2727,13 @@ Write your review comments (plain text, no JSON):`
       const repoOutputDir = path.join(this.config.outputDir, 'repo')
       const { execSync } = await import('child_process')
 
-      // Copy the unified base repo (contains all merged work)
-      execSync(`cp -r "${repoInfo.repoPath}" "${repoOutputDir}"`, {
-        timeout: 30000,
-      })
+      // Copy the unified base repo (contains all merged work).
+      // Exclude node_modules/dist/build to avoid copying 500MB+ of deps
+      // that caused multi-hour hangs in post-benchmark processing.
+      execSync(
+        `mkdir -p "${repoOutputDir}" && tar -C "${repoInfo.repoPath}" --exclude=node_modules --exclude=dist --exclude=build --exclude=.next --exclude=coverage -cf - . | tar -C "${repoOutputDir}" -xf -`,
+        { timeout: 30000 },
+      )
 
       // Write a manifest of all worktrees for reference
       const manifest = repoInfo.tasks.map(t => ({
