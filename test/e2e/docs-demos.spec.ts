@@ -1025,37 +1025,17 @@ test('demo_code_review', async () => {
     return task.id
   }, { projectId })
 
-  // Set worktree_path on task so review modal finds git diffs
-  await electronApp.evaluate(async ({ app: _app }, { taskId, repoPath }) => {
-    try {
-      const Database = require('better-sqlite3')
-      const path = require('path')
-      const os = require('os')
-      const dbPath = path.join(os.homedir(), '.nerv', 'state.db')
-      const db = new Database(dbPath)
-      db.prepare('UPDATE tasks SET worktree_path = ? WHERE id = ?').run(repoPath, taskId)
-      db.close()
-    } catch (e) {
-      console.error('Failed to set worktree_path:', e)
-    }
+  // Set worktree_path on task so review modal shows the Code Changes section
+  await window.evaluate(async ({ taskId, repoPath }) => {
+    await window.api.db.tasks.updateWorktree(taskId, repoPath)
   }, { taskId, repoPath: testRepoPath })
 
   // Store Claude's summary on the review record so the review modal displays it
-  await electronApp.evaluate(async ({ app: _app }, { taskId }) => {
-    try {
-      const Database = require('better-sqlite3')
-      const path = require('path')
-      const os = require('os')
-      const dbPath = path.join(os.homedir(), '.nerv', 'state.db')
-      const db = new Database(dbPath)
-      db.prepare('UPDATE task_reviews SET claude_summary = ? WHERE task_id = ?').run(
-        'Added JWT authentication middleware in src/auth.ts with token validation. Applied requireAuth guard to all user routes in src/routes/users.ts. The middleware checks for Authorization header and returns 401 if missing. Added POST /users endpoint for creating new users.',
-        taskId
-      )
-      db.close()
-    } catch (e) {
-      console.error('Failed to set claude_summary:', e)
-    }
+  await window.evaluate(async ({ taskId }) => {
+    await window.api.reviews.setClaudeSummary(
+      taskId,
+      'Added JWT authentication middleware in src/auth.ts with token validation. Applied requireAuth guard to all user routes in src/routes/users.ts. The middleware checks for Authorization header and returns 401 if missing. Added POST /users endpoint for creating new users.'
+    )
   }, { taskId })
 
   // Reload tasks in the Svelte store so task.worktree_path is available to the modal
@@ -1103,9 +1083,28 @@ test('demo_code_review', async () => {
   console.log('[Demo] Step 3: Showing code changes')
   await showStepLabel(window, 3, 'Review the code diff and AI summary')
 
+  // Wait for review context to load: the Svelte $effect runs async, so wait for loading
+  // indicator to appear first (confirms the effect triggered), then wait for it to disappear.
+  const loadingIndicator = window.locator('.loading-indicator:has-text("Loading")')
+  const contextLoaded = window.locator('[data-testid="toggle-diff-btn"], [data-testid="claude-summary"], .error-indicator')
+  try {
+    // Wait for loading to appear (effect triggered)
+    await loadingIndicator.waitFor({ state: 'visible', timeout: 5000 })
+    console.log('[Demo] Review context loading started')
+    // Now wait for it to finish
+    await loadingIndicator.waitFor({ state: 'hidden', timeout: 20000 })
+    console.log('[Demo] Review context loading finished')
+  } catch {
+    // Loading may have completed before we checked, or never started — check for content
+    const hasContent = await contextLoaded.first().isVisible({ timeout: 3000 }).catch(() => false)
+    console.log('[Demo] Review context fallback — content visible:', hasContent)
+  }
+
   // Toggle diff if the button exists
   const toggleDiffBtn = window.locator('[data-testid="toggle-diff-btn"]').first()
-  if (await toggleDiffBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
+  const toggleVisible = await toggleDiffBtn.isVisible({ timeout: 3000 }).catch(() => false)
+  console.log('[Demo] Toggle diff button visible:', toggleVisible)
+  if (toggleVisible) {
     await glideToElement(window, '[data-testid="toggle-diff-btn"]')
     await demoWait(window, 'Showing code diff', 600)
     await toggleDiffBtn.click()
@@ -1113,21 +1112,31 @@ test('demo_code_review', async () => {
 
     // Spotlight diff stats
     const diffStats = window.locator('[data-testid="diff-stats"]').first()
-    if (await diffStats.isVisible({ timeout: 2000 }).catch(() => false)) {
+    const statsVisible = await diffStats.isVisible({ timeout: 2000 }).catch(() => false)
+    console.log('[Demo] Diff stats visible:', statsVisible)
+    if (statsVisible) {
       await spotlight(window, '[data-testid="diff-stats"]', 2000)
     }
 
     // Spotlight diff content
     const diffContent = window.locator('[data-testid="diff-content"]').first()
-    if (await diffContent.isVisible({ timeout: 2000 }).catch(() => false)) {
+    const diffVisible = await diffContent.isVisible({ timeout: 2000 }).catch(() => false)
+    console.log('[Demo] Diff content visible:', diffVisible)
+    if (diffVisible) {
       await spotlight(window, '[data-testid="diff-content"]', 2500)
       await showCaption(window, 'Git diff shows exactly what Claude changed — new auth middleware added', 'bottom', 3000)
     }
+  } else {
+    // Log review context state for debugging
+    const contextHtml = await window.locator('[data-testid="review-context"]').first().innerHTML().catch(() => 'NOT FOUND')
+    console.log('[Demo] Review context HTML:', contextHtml.substring(0, 500))
   }
 
   // Spotlight Claude's summary
   const claudeSummary = window.locator('[data-testid="claude-summary"]').first()
-  if (await claudeSummary.isVisible({ timeout: 2000 }).catch(() => false)) {
+  const summaryVisible = await claudeSummary.isVisible({ timeout: 2000 }).catch(() => false)
+  console.log('[Demo] Claude summary visible:', summaryVisible)
+  if (summaryVisible) {
     await spotlight(window, '[data-testid="claude-summary"]', 2000)
     await showCaption(window, "Claude explains its changes — why auth was added and how it works", 'bottom', 3000)
   }

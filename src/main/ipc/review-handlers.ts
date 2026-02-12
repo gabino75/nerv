@@ -103,19 +103,22 @@ export function registerReviewHandlers(): void {
     let gitDiff = ''
     let gitDiffStats = ''
 
+    const execOpts = { cwd: worktreePath, maxBuffer: 10 * 1024 * 1024, timeout: 10000 }
+
     try {
       // Get base branch for comparison
+      // Try upstream tracking, origin/HEAD, then local main/master before falling back to HEAD~10
       const { stdout: baseBranch } = await execAsync(
-        'git rev-parse --abbrev-ref HEAD@{upstream} 2>/dev/null || git rev-parse --abbrev-ref origin/HEAD 2>/dev/null || echo "HEAD~10"',
-        { cwd: worktreePath, maxBuffer: 10 * 1024 * 1024 }
+        'git rev-parse --abbrev-ref HEAD@{upstream} 2>/dev/null || (git rev-parse --verify main >/dev/null 2>&1 && echo main) || (git rev-parse --verify master >/dev/null 2>&1 && echo master) || echo "HEAD~1"',
+        execOpts
       )
-      const base = baseBranch.trim().replace('origin/', '')
+      const base = baseBranch.trim()
 
       // Get diff stats
       try {
         const { stdout: stats } = await execAsync(
           `git diff ${base}...HEAD --stat`,
-          { cwd: worktreePath, maxBuffer: 10 * 1024 * 1024 }
+          execOpts
         )
         gitDiffStats = stats
       } catch {
@@ -126,7 +129,7 @@ export function registerReviewHandlers(): void {
       try {
         const { stdout: diff } = await execAsync(
           `git diff ${base}...HEAD`,
-          { cwd: worktreePath, maxBuffer: 10 * 1024 * 1024 }
+          execOpts
         )
         // Limit diff size
         const maxDiffLength = 100000
@@ -142,14 +145,14 @@ export function registerReviewHandlers(): void {
       // Fallback: show recent changes
       try {
         const { stdout: stats } = await execAsync(
-          'git diff HEAD~5...HEAD --stat',
-          { cwd: worktreePath, maxBuffer: 10 * 1024 * 1024 }
+          'git diff HEAD~1...HEAD --stat',
+          execOpts
         )
         gitDiffStats = stats
 
         const { stdout: diff } = await execAsync(
-          'git diff HEAD~5...HEAD',
-          { cwd: worktreePath, maxBuffer: 10 * 1024 * 1024 }
+          'git diff HEAD~1...HEAD',
+          execOpts
         )
         const maxDiffLength = 100000
         if (diff.length > maxDiffLength) {
@@ -186,5 +189,9 @@ export function registerReviewHandlers(): void {
       testsPass: null,
       claudeSummary
     }
+  })
+
+  safeHandle('db:reviews:setClaudeSummary', (_event, taskId: string, summary: string): void => {
+    databaseService.setReviewClaudeSummary(taskId, summary)
   })
 }

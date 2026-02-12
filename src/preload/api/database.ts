@@ -382,7 +382,9 @@ export const reviews = {
     ipcRenderer.invoke('db:reviews:reject', taskId, notes),
   /** Get review context (diff, test results, summary) for Normal mode review (PRD Review Modes section) */
   getContext: (taskId: string): Promise<ReviewContext> =>
-    ipcRenderer.invoke('db:reviews:getContext', taskId)
+    ipcRenderer.invoke('db:reviews:getContext', taskId),
+  setClaudeSummary: (taskId: string, summary: string): Promise<void> =>
+    ipcRenderer.invoke('db:reviews:setClaudeSummary', taskId, summary)
 }
 
 // Debug Findings API (for suggested fixes without code changes)

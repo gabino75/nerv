@@ -39,9 +39,11 @@
   let isLoadingContext = $state(false)
   let showDiff = $state(false)
 
-  // Load review context when modal opens
+  // Load review context when modal opens (once per open)
+  let lastFetchedTaskId = ''
   $effect(() => {
-    if (isOpen && task.worktree_path) {
+    if (isOpen && task.worktree_path && task.id !== lastFetchedTaskId) {
+      lastFetchedTaskId = task.id
       loadReviewContext()
     }
   })
