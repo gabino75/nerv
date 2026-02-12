@@ -25,6 +25,7 @@ import os from 'os'
 import { fileURLToPath } from 'url'
 import { SELECTORS } from './helpers/selectors'
 import { waitForRecommendDismissed } from './helpers/recommend-actions'
+import { showCaption, showStepLabel } from './helpers/recording-utils'
 
 // ES module compatible __dirname
 const __filename = fileURLToPath(import.meta.url)
@@ -635,11 +636,13 @@ test('demo_quick_start', async () => {
   window = result.page
 
   await demoWait(window, 'App launched - showing empty NERV dashboard', 3000)
+  await showCaption(window, 'Welcome to NERV — AI-orchestrated development', 'center', 2500)
 
   // ========================================
   // Step 1: Create a new project with slow typing
   // ========================================
   console.log('[Demo] Step 1: Creating new project')
+  await showStepLabel(window, 1, 'Create a project', 3000)
   const newProjectBtn = window.locator(SELECTORS.newProject).first()
   await expect(newProjectBtn).toBeVisible({ timeout: 5000 })
   await glideToElement(window, SELECTORS.newProject)
@@ -687,6 +690,7 @@ test('demo_quick_start', async () => {
   // Step 2: "What's Next?" round 1 — create a cycle
   // ========================================
   console.log('[Demo] Step 2: What\'s Next? → Create cycle')
+  await showStepLabel(window, 2, 'Ask "What\'s Next?"', 3000)
 
   await glideToElement(window, SELECTORS.recommendBtn)
   await demoWait(window, 'About to ask "What\'s Next?"', 1200)
@@ -706,6 +710,7 @@ test('demo_quick_start', async () => {
   const card0 = window.locator(SELECTORS.recommendCard(0))
   await card0.waitFor({ timeout: 15000 })
   await demoWait(window, 'Recommendations received — Claude suggests creating a cycle', 1500)
+  await showCaption(window, 'Claude analyzes your project and suggests next steps', 'bottom', 2500)
 
   // Spotlight the recommendation cards
   await spotlight(window, SELECTORS.recommendPanel, 2500)
@@ -735,6 +740,7 @@ test('demo_quick_start', async () => {
   // Step 3: Show the cycle panel in detail
   // ========================================
   console.log('[Demo] Step 3: Showing created cycle')
+  await showStepLabel(window, 3, 'View the cycle', 3000)
 
   const cyclesBtn = window.locator(SELECTORS.cyclesBtn).first()
   if (await cyclesBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
@@ -745,6 +751,7 @@ test('demo_quick_start', async () => {
     const cyclePanel = window.locator(SELECTORS.cyclePanel).first()
     if (await cyclePanel.isVisible({ timeout: 3000 }).catch(() => false)) {
       await demoWait(window, 'Cycle #0 — active cycle with MVP goal', 1200)
+      await showCaption(window, 'NERV creates development cycles to organize work', 'bottom', 2500)
       await spotlight(window, SELECTORS.cyclePanel, 3000)
 
       // Close cycle panel
@@ -760,6 +767,7 @@ test('demo_quick_start', async () => {
   // Step 4: "What's Next?" round 2 — create a task
   // ========================================
   console.log('[Demo] Step 4: What\'s Next? → Create task')
+  await showStepLabel(window, 4, 'Get task suggestions', 3000)
 
   await waitForRecommendDismissed(window)
   await glideToElement(window, SELECTORS.recommendBtn)
@@ -800,6 +808,7 @@ test('demo_quick_start', async () => {
   // Step 5: Show task on the board
   // ========================================
   console.log('[Demo] Step 5: Showing task on kanban board')
+  await showStepLabel(window, 5, 'Kanban board', 3000)
 
   const taskList = window.locator(SELECTORS.taskList).first()
   if (await taskList.isVisible({ timeout: 3000 }).catch(() => false)) {
@@ -812,6 +821,7 @@ test('demo_quick_start', async () => {
   // Step 6: Add a second task manually via + Add Task
   // ========================================
   console.log('[Demo] Step 6: Adding a second task manually')
+  await showStepLabel(window, 6, 'Add a task manually', 3000)
 
   const addTaskBtn = window.locator(SELECTORS.addTaskBtn).first()
   if (await addTaskBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
@@ -872,6 +882,7 @@ test('demo_quick_start', async () => {
   // Step 7: Start a task — Claude works in terminal
   // ========================================
   console.log('[Demo] Step 7: Starting task — Claude in terminal')
+  await showStepLabel(window, 7, 'Start the task', 3000)
 
   const startBtn = window.locator('[data-testid="start-task-btn"]').first()
   if (await startBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
@@ -893,6 +904,7 @@ test('demo_quick_start', async () => {
   const terminal = window.locator(SELECTORS.terminal).first()
   if (await terminal.isVisible({ timeout: 8000 }).catch(() => false)) {
     console.log('[Demo] Step 8: Claude working in terminal')
+    await showCaption(window, 'Claude writes code in an isolated git worktree', 'bottom', 2500)
     await demoWait(window, 'Terminal showing Claude session output', 1500)
     await spotlight(window, SELECTORS.terminalPanel, 4000)
   }
@@ -904,6 +916,7 @@ test('demo_quick_start', async () => {
   // Step 8: Task completes — show status change
   // ========================================
   console.log('[Demo] Step 9: Task status update')
+  await showStepLabel(window, 8, 'Track progress', 3000)
 
   // Check for task in review or in_progress (mock may complete quickly)
   const taskBoard = window.locator(SELECTORS.taskList).first()
@@ -916,6 +929,7 @@ test('demo_quick_start', async () => {
   // Step 9: "What's Next?" round 3 — evolved recommendations
   // ========================================
   console.log('[Demo] Step 10: What\'s Next? — evolved recommendations')
+  await showStepLabel(window, 9, 'Recommendations evolve', 3000)
 
   await waitForRecommendDismissed(window)
   const recommendBtn = window.locator(SELECTORS.recommendBtn).first()
@@ -935,6 +949,7 @@ test('demo_quick_start', async () => {
       const card = window.locator(SELECTORS.recommendCard(0))
       if (await card.isVisible({ timeout: 10000 }).catch(() => false)) {
         await demoWait(window, 'New recommendations based on current progress', 1500)
+        await showCaption(window, 'Recommendations adapt as your project progresses', 'bottom', 2500)
         await spotlight(window, SELECTORS.recommendPanel, 3000)
       }
     }
@@ -952,7 +967,8 @@ test('demo_quick_start', async () => {
   // Step 10: Final panoramic view
   // ========================================
   console.log('[Demo] Step 11: Final panoramic')
-  await demoWait(window, 'NERV — AI-orchestrated development with cycles, tasks, and recommendations', 3500)
+  await showCaption(window, 'NERV orchestrates AI agents so you can focus on building', 'center', 3000)
+  await demoWait(window, 'NERV — AI-orchestrated development with cycles, tasks, and recommendations', 2000)
 
   await saveVideoAndClose(electronApp, window, 'quick-start')
 })
