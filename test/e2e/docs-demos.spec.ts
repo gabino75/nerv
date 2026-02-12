@@ -1427,11 +1427,12 @@ test('demo_yolo_mode', async () => {
  *
  * Shows multi-repo management and knowledge base:
  * 1. Launch + create project
- * 2. Seed repos via API
- * 3. Open Repos panel (visible click) → show connected repos
- * 4. Open Knowledge panel → show CLAUDE.md content
- * 5. Open Worktree panel → show worktree info
- * 6. Final panoramic
+ * 2. Seed repos + tasks via API
+ * 3. Show Kanban board with tasks across repos
+ * 4. Open Repos panel (visible click) → show connected repos
+ * 5. Open Knowledge panel → show CLAUDE.md content
+ * 6. Open Worktree panel → show worktree info
+ * 7. Final panoramic
  */
 test('demo_multi_repo', async () => {
   test.setTimeout(180000)
@@ -1516,11 +1517,48 @@ test('demo_multi_repo', async () => {
   }, { projectId, repoPath1: testRepoPath, repoPath2: testRepoPath2 })
   await window.waitForTimeout(500)
 
+  // Seed tasks across both repos so the Kanban board is populated
+  await window.evaluate(async (pid: string) => {
+    const cycle = await window.api.db.cycles.create(pid, 1, 'Cross-Repo Sprint')
+    const t1 = await window.api.db.tasks.create(pid, 'Shared type definitions', 'Define User and Todo interfaces in shared-types', cycle.id)
+    await window.api.db.tasks.updateStatus(t1.id, 'done')
+    const t2 = await window.api.db.tasks.create(pid, 'API validation layer', 'Add input validation using shared types', cycle.id)
+    await window.api.db.tasks.updateStatus(t2.id, 'in_progress')
+    await window.api.db.tasks.create(pid, 'Integration tests', 'Write cross-repo integration tests', cycle.id)
+  }, projectId)
+
+  // Refresh Svelte store so TaskBoard renders the seeded tasks
+  await window.evaluate(async (pid: string) => {
+    const store = (window as any).__nervStore
+    if (store?.loadTasks) await store.loadTasks(pid)
+  }, projectId)
+  await window.waitForTimeout(500)
+
   // ========================================
-  // Step 3: Open Repos panel → show connected repos
+  // Step 3: Show Kanban board with tasks across repos
   // ========================================
-  console.log('[Demo] Step 3: Opening Repos panel')
-  await showStepLabel(window, 3, 'View connected repositories', 3000)
+  console.log('[Demo] Step 3: Showing Kanban board')
+  await showStepLabel(window, 3, 'View tasks across repos', 3000)
+
+  const kanbanTab = window.locator(SELECTORS.tabKanban)
+  if (await kanbanTab.isVisible({ timeout: 3000 }).catch(() => false)) {
+    await glideToElement(window, SELECTORS.tabKanban)
+    await kanbanTab.click()
+    await window.waitForTimeout(500)
+  }
+
+  const taskList = window.locator(SELECTORS.taskList).first()
+  if (await taskList.isVisible({ timeout: 3000 }).catch(() => false)) {
+    await demoWait(window, 'Kanban board — tasks across both repos', 1000)
+    await spotlight(window, SELECTORS.taskList, 2500)
+    await showCaption(window, 'Tasks span both repos — done, in-progress, and queued', 'bottom', 2500)
+  }
+
+  // ========================================
+  // Step 4: Open Repos panel → show connected repos
+  // ========================================
+  console.log('[Demo] Step 4: Opening Repos panel')
+  await showStepLabel(window, 4, 'View connected repositories', 3000)
 
   await clickDropdownItemDemo(window, SELECTORS.knowledgeDropdown, '[data-testid="repos-btn"]')
 
@@ -1542,10 +1580,10 @@ test('demo_multi_repo', async () => {
   }
 
   // ========================================
-  // Step 4: Open Knowledge panel → show CLAUDE.md
+  // Step 5: Open Knowledge panel → show CLAUDE.md
   // ========================================
-  console.log('[Demo] Step 4: Opening Knowledge panel')
-  await showStepLabel(window, 4, 'Browse the knowledge base', 3000)
+  console.log('[Demo] Step 5: Opening Knowledge panel')
+  await showStepLabel(window, 5, 'Browse the knowledge base', 3000)
 
   await clickDropdownItemDemo(window, SELECTORS.knowledgeDropdown, '[data-testid="knowledge-btn"]')
 
@@ -1573,10 +1611,10 @@ test('demo_multi_repo', async () => {
   }
 
   // ========================================
-  // Step 5: Open Worktree panel
+  // Step 6: Open Worktree panel
   // ========================================
-  console.log('[Demo] Step 5: Opening Worktree panel')
-  await showStepLabel(window, 5, 'Inspect git worktrees', 3000)
+  console.log('[Demo] Step 6: Opening Worktree panel')
+  await showStepLabel(window, 6, 'Inspect git worktrees', 3000)
 
   await clickDropdownItemDemo(window, SELECTORS.workflowDropdown, '[data-testid="worktrees-btn"]')
 
