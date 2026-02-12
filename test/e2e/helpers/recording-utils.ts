@@ -196,6 +196,179 @@ export function cleanupTestRepo(repoPath: string): void {
 }
 
 /**
+ * Show a text caption overlay with fade in/out.
+ * Used for narrating demo videos — appears as a semi-transparent bar
+ * at the specified position with styled text.
+ *
+ * @param position - 'top' | 'center' | 'bottom' (default: 'bottom')
+ * @param durationMs - how long to display before fading out (default: 3000ms)
+ */
+export async function showCaption(
+  page: Page,
+  text: string,
+  position: 'top' | 'center' | 'bottom' = 'bottom',
+  durationMs = 3000
+): Promise<void> {
+  const positionStyles: Record<string, string> = {
+    top: 'top: 40px; bottom: auto;',
+    center: 'top: 50%; bottom: auto; transform: translate(-50%, -50%);',
+    bottom: 'bottom: 40px; top: auto;',
+  }
+
+  await page.evaluate(({ text, posStyle, durationMs }) => {
+    const caption = document.createElement('div')
+    caption.className = 'nerv-demo-caption'
+    caption.textContent = text
+    caption.style.cssText = `
+      position: fixed;
+      left: 50%;
+      transform: translateX(-50%);
+      ${posStyle}
+      padding: 12px 28px;
+      background: rgba(0, 0, 0, 0.8);
+      color: #fff;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      font-size: 18px;
+      font-weight: 500;
+      letter-spacing: 0.3px;
+      border-radius: 8px;
+      z-index: 999998;
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 0.4s ease;
+      max-width: 80%;
+      text-align: center;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    `
+    document.body.appendChild(caption)
+
+    // Fade in
+    requestAnimationFrame(() => {
+      caption.style.opacity = '1'
+    })
+
+    // Fade out and remove
+    setTimeout(() => {
+      caption.style.opacity = '0'
+      setTimeout(() => caption.remove(), 500)
+    }, durationMs)
+  }, { text, posStyle: positionStyles[position], durationMs })
+
+  // Wait for the caption to be visible plus a small buffer
+  await page.waitForTimeout(durationMs + 600)
+}
+
+/**
+ * Show a speed indicator badge (e.g. "2x", "4x") during fast-forwarded segments.
+ * Appears as a small pill in the top-right corner. Call with speed=null or 0 to remove.
+ *
+ * @param speed - multiplier to display (e.g. 2 for "2x"), or null/0 to remove
+ */
+export async function showSpeedIndicator(page: Page, speed: number | null): Promise<void> {
+  await page.evaluate((speed) => {
+    // Remove existing indicator
+    document.getElementById('nerv-speed-indicator')?.remove()
+
+    if (!speed) return
+
+    const badge = document.createElement('div')
+    badge.id = 'nerv-speed-indicator'
+    badge.textContent = `${speed}x`
+    badge.style.cssText = `
+      position: fixed;
+      top: 16px;
+      right: 16px;
+      padding: 4px 12px;
+      background: rgba(255, 160, 0, 0.9);
+      color: #000;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      font-size: 14px;
+      font-weight: 700;
+      border-radius: 12px;
+      z-index: 999998;
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 0.3s ease;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+    `
+    document.body.appendChild(badge)
+
+    requestAnimationFrame(() => {
+      badge.style.opacity = '1'
+    })
+  }, speed)
+}
+
+/**
+ * Show a numbered step label (e.g. "Step 1: Create project").
+ * Appears as a prominent label in the top-left area. Auto-removes after duration.
+ *
+ * @param stepNum - step number to display
+ * @param text - description of the step
+ * @param durationMs - how long to display (default: 4000ms)
+ */
+export async function showStepLabel(
+  page: Page,
+  stepNum: number,
+  text: string,
+  durationMs = 4000
+): Promise<void> {
+  await page.evaluate(({ stepNum, text, durationMs }) => {
+    // Remove any existing step label
+    document.getElementById('nerv-step-label')?.remove()
+
+    const label = document.createElement('div')
+    label.id = 'nerv-step-label'
+    label.innerHTML = `<span style="
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      background: #6366f1;
+      color: #fff;
+      font-size: 14px;
+      font-weight: 700;
+      margin-right: 10px;
+      flex-shrink: 0;
+    ">${stepNum}</span><span>${text}</span>`
+    label.style.cssText = `
+      position: fixed;
+      top: 20px;
+      left: 20px;
+      display: flex;
+      align-items: center;
+      padding: 10px 20px;
+      background: rgba(0, 0, 0, 0.85);
+      color: #fff;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      font-size: 16px;
+      font-weight: 500;
+      border-radius: 8px;
+      z-index: 999998;
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 0.4s ease;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    `
+    document.body.appendChild(label)
+
+    requestAnimationFrame(() => {
+      label.style.opacity = '1'
+    })
+
+    setTimeout(() => {
+      label.style.opacity = '0'
+      setTimeout(() => label.remove(), 500)
+    }, durationMs)
+  }, { stepNum, text, durationMs })
+
+  // Wait for the label to be visible plus buffer
+  await page.waitForTimeout(durationMs + 600)
+}
+
+/**
  * Ensure recording directories exist
  */
 export function ensureRecordingDirs(...dirs: string[]): void {
