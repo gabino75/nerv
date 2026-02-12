@@ -106,6 +106,7 @@ nerv recommend
 
 ## Next Steps
 
+- [Dashboard & UI](/guide/dashboard) — the 3-tab interface and core workflow loop
 - [Core Concepts](/guide/concepts) — projects, tasks, cycles, and worktrees
 - [What's Next? Feature](/features/recommend) — the recommendation system in depth
 - [YOLO Mode](/features/yolo-mode) — fully autonomous development
