@@ -1010,6 +1010,7 @@ test('demo_code_review', async () => {
   window = result.page
 
   await demoWait(window, 'NERV Dashboard — code review workflow', 2000)
+  await showCaption(window, 'Code Review — human-in-the-loop quality gate for AI-generated code', 'top', 3000)
 
   // Quick project setup
   const projectId = await quickCreateProject(window, 'Auth API', 'Add authentication to REST API')
@@ -1045,6 +1046,7 @@ test('demo_code_review', async () => {
   // Step 1: Show dashboard with task in Review column
   // ========================================
   console.log('[Demo] Step 1: Dashboard with task in Review column')
+  await showStepLabel(window, 1, 'Task awaiting review on Kanban board')
   await demoWait(window, 'Task in Review column — ready for code review', 2000)
 
   // Try to spotlight the review column
@@ -1052,11 +1054,13 @@ test('demo_code_review', async () => {
   if (await reviewColumn.isVisible({ timeout: 3000 }).catch(() => false)) {
     await spotlight(window, '[data-testid="column-review"], .column-review, .board-column:has-text("Review")', 2000)
   }
+  await showCaption(window, 'Claude finished coding — task moves to Review for human approval', 'bottom', 3000)
 
   // ========================================
   // Step 2: Click task card → open review modal
   // ========================================
   console.log('[Demo] Step 2: Opening review modal')
+  await showStepLabel(window, 2, 'Open task to review code changes')
 
   const taskCard = window.locator('.task-item').first()
   if (await taskCard.isVisible({ timeout: 3000 }).catch(() => false)) {
@@ -1070,6 +1074,7 @@ test('demo_code_review', async () => {
   // Step 3: Show diff and Claude's summary
   // ========================================
   console.log('[Demo] Step 3: Showing code changes')
+  await showStepLabel(window, 3, 'Review the code diff and AI summary')
 
   // Toggle diff if the button exists
   const toggleDiffBtn = window.locator('[data-testid="toggle-diff-btn"]').first()
@@ -1089,6 +1094,7 @@ test('demo_code_review', async () => {
     const diffContent = window.locator('[data-testid="diff-content"]').first()
     if (await diffContent.isVisible({ timeout: 2000 }).catch(() => false)) {
       await spotlight(window, '[data-testid="diff-content"]', 2500)
+      await showCaption(window, 'Git diff shows exactly what Claude changed — new auth middleware added', 'bottom', 3000)
     }
   }
 
@@ -1096,12 +1102,14 @@ test('demo_code_review', async () => {
   const claudeSummary = window.locator('[data-testid="claude-summary"]').first()
   if (await claudeSummary.isVisible({ timeout: 2000 }).catch(() => false)) {
     await spotlight(window, '[data-testid="claude-summary"]', 2000)
+    await showCaption(window, "Claude explains its changes — why auth was added and how it works", 'bottom', 3000)
   }
 
   // ========================================
   // Step 4: Type feedback and request changes
   // ========================================
   console.log('[Demo] Step 4: Requesting changes')
+  await showStepLabel(window, 4, 'Request changes — send feedback to Claude')
 
   const reviewNotes = window.locator('[data-testid="review-notes-input"]').first()
   if (await reviewNotes.isVisible({ timeout: 2000 }).catch(() => false)) {
@@ -1118,23 +1126,27 @@ test('demo_code_review', async () => {
     await window.waitForTimeout(1000)
   }
 
+  await showCaption(window, 'Task returns to Claude with your feedback — it will address the issues', 'bottom', 3000)
   await demoWait(window, 'Task moved back to in_progress for Claude to address feedback', 2000)
 
   // ========================================
   // Step 5: Re-seed task back to review (simulating Claude applied feedback)
   // ========================================
   console.log('[Demo] Step 5: Task re-enters review after Claude applies feedback')
+  await showStepLabel(window, 5, 'Claude addresses feedback and resubmits')
 
   await window.evaluate(async ({ taskId }) => {
     await window.api.db.tasks.updateStatus(taskId, 'review')
     await window.api.reviews.create(taskId)
   }, { taskId })
   await window.waitForTimeout(1000)
+  await showCaption(window, 'Claude applied the requested changes — task is back for review', 'bottom', 2500)
 
   // ========================================
   // Step 6: Open review modal again and approve
   // ========================================
   console.log('[Demo] Step 6: Approving the updated work')
+  await showStepLabel(window, 6, 'Approve the updated code')
 
   const taskCard2 = window.locator('.task-item').first()
   if (await taskCard2.isVisible({ timeout: 3000 }).catch(() => false)) {
@@ -1160,6 +1172,7 @@ test('demo_code_review', async () => {
     await window.waitForTimeout(1500)
   }
 
+  await showCaption(window, 'Task approved! Code merges automatically into the main branch', 'bottom', 3000)
   await demoWait(window, 'Task approved and moved to Done!', 2000)
 
   // Spotlight the Done column
@@ -1172,6 +1185,7 @@ test('demo_code_review', async () => {
   // Final panoramic
   // ========================================
   console.log('[Demo] Final panoramic')
+  await showCaption(window, 'NERV Code Review — every AI change gets human approval before merge', 'center', 3500)
   await demoWait(window, 'NERV Code Review — human-in-the-loop quality gate', 2500)
 
   await saveVideoAndClose(electronApp, window, 'code-review')
