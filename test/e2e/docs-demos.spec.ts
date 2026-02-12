@@ -1599,11 +1599,13 @@ test('demo_audit_health', async () => {
   window = result.page
 
   await demoWait(window, 'NERV Dashboard — audit & code health', 2000)
+  await showCaption(window, 'Audit & Health — continuous code quality monitoring', 'center', 3000)
 
   // ========================================
   // Step 1: Quick project setup + seed data
   // ========================================
   console.log('[Demo] Step 1: Quick project setup + seed data')
+  await showStepLabel(window, 1, 'Set up project with tasks and audit data', 3000)
 
   const projectId = await quickCreateProject(window, 'Code Health Demo', 'Demonstrate audit and code health features')
 
@@ -1629,11 +1631,13 @@ test('demo_audit_health', async () => {
   await seedAuditData(window, taskIds)
 
   await demoWait(window, 'Data seeded: cycle, tasks, audit logs', 1000)
+  await showCaption(window, '3 tasks seeded — one backdated 14 days to trigger stale detection', 'bottom', 2500)
 
   // ========================================
   // Step 2: Open Audit panel (visible click)
   // ========================================
   console.log('[Demo] Step 2: Opening Audit panel')
+  await showStepLabel(window, 2, 'Open the Audit panel', 3000)
 
   // Use visible dropdown click to show the workflow
   await clickDropdownItemDemo(window, SELECTORS.workflowDropdown, '[data-testid="audit-btn"]')
@@ -1647,11 +1651,13 @@ test('demo_audit_health', async () => {
   }
   await auditPanel.waitFor({ timeout: 5000 })
   await demoWait(window, 'Audit panel opened', 1500)
+  await showCaption(window, 'Audit panel — three tabs for health, drift, and logs', 'bottom', 2500)
 
   // ========================================
   // Step 3: Code Health tab
   // ========================================
   console.log('[Demo] Step 3: Showing Code Health tab')
+  await showStepLabel(window, 3, 'Run a code health check', 3000)
 
   const healthTab = window.locator('[data-testid="audit-tab-health"]')
   if (await healthTab.isVisible({ timeout: 2000 }).catch(() => false)) {
@@ -1672,10 +1678,12 @@ test('demo_audit_health', async () => {
   const healthMetrics = window.locator('[data-testid="health-metrics"]')
   if (await healthMetrics.isVisible({ timeout: 3000 }).catch(() => false)) {
     await spotlight(window, '[data-testid="health-metrics"]', 2500)
+    await showCaption(window, 'Health metrics — build status, test coverage, code quality scores', 'bottom', 2500)
   } else {
     const healthContent = window.locator('[data-testid="audit-health-content"]')
     if (await healthContent.isVisible({ timeout: 2000 }).catch(() => false)) {
       await spotlight(window, '[data-testid="audit-health-content"]', 2500)
+      await showCaption(window, 'Health metrics — build status, test coverage, code quality scores', 'bottom', 2500)
     }
   }
 
@@ -1683,6 +1691,7 @@ test('demo_audit_health', async () => {
   // Step 4: Spec Drift tab
   // ========================================
   console.log('[Demo] Step 4: Showing Spec Drift tab')
+  await showStepLabel(window, 4, 'Check for spec drift', 3000)
 
   const driftTab = window.locator('[data-testid="audit-tab-drift"]')
   if (await driftTab.isVisible({ timeout: 2000 }).catch(() => false)) {
@@ -1702,6 +1711,7 @@ test('demo_audit_health', async () => {
     const driftContent = window.locator('[data-testid="audit-drift-content"]')
     if (await driftContent.isVisible({ timeout: 2000 }).catch(() => false)) {
       await spotlight(window, '[data-testid="audit-drift-content"]', 2500)
+      await showCaption(window, 'Spec drift — detects stale tasks and implementation gaps', 'bottom', 2500)
     }
   }
 
@@ -1709,6 +1719,7 @@ test('demo_audit_health', async () => {
   // Step 5: Logs tab
   // ========================================
   console.log('[Demo] Step 5: Showing Logs tab')
+  await showStepLabel(window, 5, 'Browse the audit log', 3000)
 
   const logsTab = window.locator('[data-testid="audit-tab-logs"]')
   if (await logsTab.isVisible({ timeout: 2000 }).catch(() => false)) {
@@ -1732,6 +1743,7 @@ test('demo_audit_health', async () => {
 
     // Spotlight the entire audit panel to show populated logs
     await spotlight(window, SELECTORS.auditPanel, 2500)
+    await showCaption(window, 'Full audit trail — every agent action, tool call, and file change', 'bottom', 2500)
   }
 
   // ========================================
@@ -1746,6 +1758,7 @@ test('demo_audit_health', async () => {
   }
 
   await demoWait(window, 'NERV Audit — code health, spec drift detection, and audit logging', 2500)
+  await showCaption(window, 'NERV Audit — continuous monitoring keeps your codebase healthy', 'center', 3000)
 
   await saveVideoAndClose(electronApp, window, 'audit-health')
 })
