@@ -1430,11 +1430,13 @@ test('demo_multi_repo', async () => {
   window = result.page
 
   await demoWait(window, 'NERV Dashboard — multi-repo + knowledge', 2500)
+  await showCaption(window, 'Multi-Repo — manage multiple repositories with shared context', 'center', 3000)
 
   // ========================================
   // Step 1: Create project with slow typing
   // ========================================
   console.log('[Demo] Step 1: Creating multi-repo project')
+  await showStepLabel(window, 1, 'Create a multi-repo project', 3000)
   const newProjectBtn = window.locator(SELECTORS.newProject).first()
   await expect(newProjectBtn).toBeVisible({ timeout: 5000 })
   await glideToElement(window, SELECTORS.newProject)
@@ -1461,6 +1463,7 @@ test('demo_multi_repo', async () => {
     await createBtn2.click()
     await demoWait(window, 'Project created', 1500)
   }
+  await showCaption(window, 'Project links multiple repos — shared types and API backend', 'bottom', 2500)
 
   // Get project ID
   const projectId = await window.evaluate(async () => {
@@ -1472,6 +1475,7 @@ test('demo_multi_repo', async () => {
   // Step 2: Seed repos via API
   // ========================================
   console.log('[Demo] Step 2: Seeding repos')
+  await showStepLabel(window, 2, 'Connect repositories to project', 3000)
 
   await window.evaluate(async ({ projectId, repoPath1, repoPath2 }) => {
     await window.api.db.repos.create(projectId, 'shared-types', repoPath1, { stack: 'TypeScript, Node.js' })
@@ -1483,6 +1487,7 @@ test('demo_multi_repo', async () => {
   // Step 3: Open Repos panel → show connected repos
   // ========================================
   console.log('[Demo] Step 3: Opening Repos panel')
+  await showStepLabel(window, 3, 'View connected repositories', 3000)
 
   await clickDropdownItemDemo(window, SELECTORS.knowledgeDropdown, '[data-testid="repos-btn"]')
 
@@ -1490,6 +1495,7 @@ test('demo_multi_repo', async () => {
   const reposPanel = window.locator('.panel-container, .panel-overlay, [data-testid="repos-panel"]').first()
   if (await reposPanel.isVisible({ timeout: 3000 }).catch(() => false)) {
     await demoWait(window, 'Repos panel — connected repositories', 1500)
+    await showCaption(window, 'Two repos connected — NERV coordinates changes across both', 'bottom', 2500)
     await spotlight(window, '.panel-container, .panel-overlay, [data-testid="repos-panel"]', 2500)
 
     // Close repos panel
@@ -1506,12 +1512,14 @@ test('demo_multi_repo', async () => {
   // Step 4: Open Knowledge panel → show CLAUDE.md
   // ========================================
   console.log('[Demo] Step 4: Opening Knowledge panel')
+  await showStepLabel(window, 4, 'Browse the knowledge base', 3000)
 
   await clickDropdownItemDemo(window, SELECTORS.knowledgeDropdown, '[data-testid="knowledge-btn"]')
 
   const knowledgePanel = window.locator('.panel, [data-testid="knowledge-panel"]').first()
   if (await knowledgePanel.isVisible({ timeout: 3000 }).catch(() => false)) {
     await demoWait(window, 'Knowledge Base — CLAUDE.md and project context', 1500)
+    await showCaption(window, 'CLAUDE.md from each repo — Claude understands every codebase', 'bottom', 2500)
     await spotlight(window, '.panel, [data-testid="knowledge-panel"]', 2500)
 
     // Close knowledge panel
@@ -1535,12 +1543,14 @@ test('demo_multi_repo', async () => {
   // Step 5: Open Worktree panel
   // ========================================
   console.log('[Demo] Step 5: Opening Worktree panel')
+  await showStepLabel(window, 5, 'Inspect git worktrees', 3000)
 
   await clickDropdownItemDemo(window, SELECTORS.workflowDropdown, '[data-testid="worktrees-btn"]')
 
   const worktreePanel = window.locator('[data-testid="worktree-panel"]')
   if (await worktreePanel.isVisible({ timeout: 3000 }).catch(() => false)) {
     await demoWait(window, 'Worktree panel — manage git worktrees', 1500)
+    await showCaption(window, 'Isolated worktrees per task — agents work without conflicts', 'bottom', 2500)
     await spotlight(window, '[data-testid="worktree-panel"]', 2000)
 
     const closeBtn = window.locator('[data-testid="worktree-panel"] .close-btn, [data-testid="worktree-panel"] button:has-text("Close")').first()
@@ -1557,6 +1567,7 @@ test('demo_multi_repo', async () => {
   // ========================================
   console.log('[Demo] Final panoramic')
   await demoWait(window, 'NERV — Multi-repo management with knowledge base and worktrees', 2500)
+  await showCaption(window, 'NERV Multi-Repo — shared context across all your repositories', 'center', 3000)
 
   await saveVideoAndClose(electronApp, window, 'multi-repo')
 })
