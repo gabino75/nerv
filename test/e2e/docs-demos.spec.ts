@@ -1220,11 +1220,13 @@ test('demo_yolo_mode', async () => {
   window = result.page
 
   await demoWait(window, 'NERV Dashboard — ready for YOLO benchmark', 2500)
+  await showCaption(window, 'YOLO Mode — fully autonomous development from spec to results', 'center', 3000)
 
   // ========================================
   // Step 1: Create project with slow typing
   // ========================================
   console.log('[Demo] Step 1: Creating YOLO benchmark project')
+  await showStepLabel(window, 1, 'Create a project with a spec')
   const newProjectBtn = window.locator(SELECTORS.newProject).first()
   await expect(newProjectBtn).toBeVisible({ timeout: 5000 })
   await glideToElement(window, SELECTORS.newProject)
@@ -1251,22 +1253,26 @@ test('demo_yolo_mode', async () => {
     await createBtn.click()
     await demoWait(window, 'Project created for YOLO benchmark', 1500)
   }
+  await showCaption(window, 'Project created with a todo app spec — 4 requirements to implement', 'bottom', 2500)
 
   // ========================================
   // Step 2: Open YOLO panel via Workflow dropdown (visible click)
   // ========================================
   console.log('[Demo] Step 2: Opening YOLO panel')
+  await showStepLabel(window, 2, 'Open YOLO mode panel')
 
   await clickDropdownItemDemo(window, SELECTORS.workflowDropdown, '[data-testid="yolo-btn"]')
 
   const yoloPanel = window.locator(SELECTORS.yoloPanel)
   await yoloPanel.waitFor({ timeout: 5000 })
   await demoWait(window, 'YOLO Benchmark panel opened', 1500)
+  await showCaption(window, 'YOLO panel — configure autonomous build settings', 'bottom', 2500)
 
   // ========================================
   // Step 3: Configure benchmark settings
   // ========================================
   console.log('[Demo] Step 3: Configuring YOLO benchmark')
+  await showStepLabel(window, 3, 'Configure build settings')
 
   const specFileInput = window.locator('[data-testid="yolo-spec-file"]')
   if (await specFileInput.isVisible({ timeout: 2000 }).catch(() => false)) {
@@ -1296,12 +1302,14 @@ test('demo_yolo_mode', async () => {
   }
 
   // Spotlight the configure form
+  await showCaption(window, 'Spec file, test command, max cycles — NERV handles the rest', 'bottom', 2500)
   await spotlight(window, SELECTORS.yoloPanel, 2000)
 
   // ========================================
   // Step 4: Save configuration
   // ========================================
   console.log('[Demo] Step 4: Saving YOLO config')
+  await showStepLabel(window, 4, 'Save configuration')
 
   const saveConfigBtn = window.locator('[data-testid="yolo-save-config-btn"]')
   if (await saveConfigBtn.isVisible({ timeout: 2000 }).catch(() => false)) {
@@ -1321,6 +1329,7 @@ test('demo_yolo_mode', async () => {
   // Step 5: Start YOLO benchmark
   // ========================================
   console.log('[Demo] Step 5: Starting YOLO benchmark')
+  await showStepLabel(window, 5, 'Launch autonomous build')
 
   const startBtn = window.locator('[data-testid="yolo-start-btn"]').first()
   if (await startBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
@@ -1329,11 +1338,13 @@ test('demo_yolo_mode', async () => {
     await startBtn.click()
     await demoWait(window, 'YOLO benchmark started!', 1500)
   }
+  await showCaption(window, 'NERV runs autonomously — creating cycles, spawning Claude, merging code', 'bottom', 3000)
 
   // ========================================
   // Step 6: Show Running tab
   // ========================================
   console.log('[Demo] Step 6: Showing Running tab')
+  await showStepLabel(window, 6, 'Monitor live progress')
 
   const runningTab = window.locator('[data-testid="yolo-tab-running"]')
   if (await runningTab.isVisible({ timeout: 2000 }).catch(() => false)) {
@@ -1351,6 +1362,7 @@ test('demo_yolo_mode', async () => {
   // Step 7: Wait for completion and show Results tab
   // ========================================
   console.log('[Demo] Step 7: Results tab')
+  await showStepLabel(window, 7, 'View benchmark results')
 
   // Wait a bit for mock to complete
   await window.waitForTimeout(5000)
@@ -1371,6 +1383,7 @@ test('demo_yolo_mode', async () => {
   // Final panoramic
   // ========================================
   console.log('[Demo] Final panoramic')
+  await showCaption(window, 'NERV YOLO Mode — from spec to working app, fully autonomous', 'center', 3000)
   await demoWait(window, 'NERV YOLO Mode — autonomous benchmarking from spec to results', 2500)
 
   await saveVideoAndClose(electronApp, window, 'yolo-mode')
