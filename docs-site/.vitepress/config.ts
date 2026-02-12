@@ -38,7 +38,8 @@ export default withMermaid(defineConfig({
           items: [
             { text: 'Introduction', link: '/guide/getting-started' },
             { text: 'Installation', link: '/guide/installation' },
-            { text: 'Core Concepts', link: '/guide/concepts' }
+            { text: 'Core Concepts', link: '/guide/concepts' },
+            { text: 'Troubleshooting & FAQ', link: '/guide/troubleshooting' }
           ]
         }
       ],
