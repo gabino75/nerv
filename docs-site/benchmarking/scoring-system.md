@@ -1,6 +1,6 @@
 # Scoring System
 
-Benchmark scoring has two dimensions: deterministic NERV operations metrics and Claude-graded code quality.
+All benchmark scoring is **Claude-graded** — a separate Claude Code session evaluates the benchmark output across three categories.
 
 ## Score Command
 
@@ -14,92 +14,97 @@ You can also use the standalone scoring script:
 node scripts/score-benchmark.js test-results/benchmark-20260101/ --spec specs/todo-app.md
 ```
 
-## NERV Operations Score (Deterministic)
+## Scoring Categories
 
-Scored automatically from `summary.json` metrics:
-
-| Category | Weight | What's Evaluated |
-|----------|--------|------------------|
-| Worktree Usage | 25% | Worktrees created, merged, per-task isolation |
-| Parallelism | 15% | Parallel tasks run, coverage ratio |
-| Cycle Management | 20% | Cycles completed, spec completion %, tasks done |
-| Review Process | 15% | Reviews run and approved, coverage |
-| Error Handling | 10% | Tool errors, loops detected, stuck states |
-| Cost Efficiency | 15% | Total cost, cost per spec item, duration |
-
-## Code Quality Score (Claude-Graded)
-
-A separate Claude Code session evaluates the produced code:
+All three categories are evaluated by Claude (no deterministic scoring):
 
 | Category | Weight | What's Evaluated |
 |----------|--------|------------------|
-| Implementation | 35% | Code organization, naming, tests, type safety, DRY |
-| Functionality | 35% | Spec requirements met, API correctness, edge cases |
-| User Experience | 30% | App works, intuitive UI, proper feedback, matches README |
+| Planning | 15% | Cycle progression, task decomposition, spec coverage, progressive delivery |
+| Code Quality | 50% | Implementation quality, functionality, UX, test coverage, code organization |
+| NERV Ops | 35% | Workflow patterns compared against PRD — worktree isolation, cycle management, review process, error handling |
+
+Each category is scored 1-10 by Claude, with per-criterion scoring guides to ensure consistency.
+
+### Planning (15%)
+
+Claude evaluates how well the benchmark run planned and decomposed work:
+
+- Did spec completion increase across cycles?
+- Were tasks well-scoped and achievable?
+- Was there progressive delivery (each cycle adds value)?
+- Did task descriptions align with spec requirements?
+
+### Code Quality (50%)
+
+Claude evaluates the produced code directly:
+
+- Code organization, naming, type safety
+- Spec requirements met, API correctness
+- Tests present and passing
+- User experience (if applicable)
+- DRY principles, no dead code
+
+### NERV Ops (35%)
+
+Claude compares the workflow against the PRD's expected patterns:
+
+- Worktree isolation (each task in its own worktree)
+- Cycle management (proper cycle progression)
+- Review process (reviews run before merges)
+- Merge compliance (clean merges back to main)
+- Permission handling (hooks respected)
 
 ## Score Output
 
 ```
 ============================================================
-  NERV Benchmark Scores
+  NERV Benchmark Scores (All Claude Graded)
 ============================================================
 
-  --- NERV Operations (Deterministic) ---
-  NERV Ops Total           78/100
-
-    Worktree Usage (25%)   8/10
-    Parallelism (15%)      6/10
-    Cycle Mgmt (20%)       9/10
-    Review Process (15%)   8/10
-    Error Handling (10%)   10/10
-    Cost Efficiency (15%)  7/10
-
-  --- Code Quality (Claude Graded) ---
-
-    Implementation (35%)   9/10
-    Functionality (35%)    8/10
-    User Experience (30%)  10/10
+  Planning Score           8/10
+  Code Quality Score       8/10
+  NERV Ops Score           9/10
+  Overall Score            ████████░░ 8.5/10
 
 ------------------------------------------------------------
-  NERV Ops Score             7.8/10
-  Code Quality Score         8.9/10
-  Overall Score              8.4/10
+  Pass threshold: 7/10
+  Result: PASS
 ============================================================
 ```
+
+The overall score is a weighted average: `Planning × 0.15 + Code × 0.50 + NERV Ops × 0.35`.
 
 Exit code is 0 if overall score >= 7, or 1 if below.
 
-## Grading with Claude
+## Mock Mode
 
-The `-GradeClaude` flag on the test runner triggers automatic Claude scoring after successful test runs:
+When `NERV_MOCK_CLAUDE=1` or `NERV_TEST_MODE=1`, the scoring script returns fixed scores (8/10 for all categories) without calling Claude. This validates test infrastructure only — mock scores prove nothing about code quality.
 
-```bash
-# Via test runner
-powershell -File test/scripts/run-e2e.ps1 -Suite benchmark -RealClaude -GradeClaude
-```
+## How Grading Works
 
-This only runs if all tests pass and benchmark output exists with the required files.
+The scoring script (`scripts/score-benchmark.js`) makes 3 separate `claude --print` calls:
+
+1. **Planning call** — receives the event log (`event-log.jsonl`) and spec file, evaluates planning quality
+2. **Code Quality call** — receives the git diff of all changes, evaluates implementation
+3. **NERV Ops call** — receives the event log and a PRD excerpt, evaluates workflow compliance
+
+Each call returns a JSON object with `score` (1-10), `strengths`, `weaknesses`, and `evidence`.
 
 ## Required Files for Grading
 
-The scoring script requires specific files in the benchmark results directory:
+The scoring script reads from the benchmark results directory:
 
 | File | Required | Purpose |
 |------|----------|---------|
-| `summary.json` | Yes | Overall metrics, updated with scores |
+| `event-log.jsonl` | Yes | Timeline of all benchmark events |
 | `spec.md` | Yes | Original spec for context |
-| `timeline.jsonl` | Yes | Event log for workflow analysis |
-| `tasks/*/metrics.json` | Yes | Per-task metrics |
-| `tasks/*/tools.jsonl` | Yes | Tool usage for efficiency analysis |
-| `tasks/*/git-diff.patch` | No | Code changes for implementation analysis |
-| `tasks/*/errors.json` | No | Error analysis |
-
-If required files are missing, the scorer outputs warnings but still attempts partial scoring.
+| `score-report.json` | Output | Scores written here after grading |
 
 ## Manual Scoring
 
 ```bash
-node scripts/score-benchmark.js test-results/benchmark-20260202-143052/
+node scripts/score-benchmark.js test-results/benchmark-20260202-143052/ --spec specs/todo-app.md
 ```
 
-Results are saved to `summary.json` in the benchmark directory and appended to `~/.nerv/benchmarks/history.jsonl`.
+Results are saved to `score-report.json` in the benchmark directory and appended to `~/.nerv/benchmarks/history.jsonl`.

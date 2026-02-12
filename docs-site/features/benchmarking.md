@@ -76,7 +76,7 @@ Build a simple todo application with CRUD operations.
 
 ## Scoring
 
-Scoring has two components: deterministic NERV operations metrics and Claude-graded code quality.
+All scoring is **Claude-graded** — a separate Claude instance evaluates the benchmark output across three categories.
 
 ### Score Command
 
@@ -90,60 +90,39 @@ You can also use the standalone scoring script:
 node scripts/score-benchmark.js test-results/benchmark-20260101/ --spec specs/todo-app.md
 ```
 
-### NERV Operations Score (Deterministic)
-
-Scored automatically from `summary.json` metrics:
+### Scoring Categories
 
 | Category | Weight | What's Evaluated |
 |----------|--------|------------------|
-| Worktree Usage | 25% | Worktrees created, merged, per-task isolation |
-| Parallelism | 15% | Parallel tasks run, coverage ratio |
-| Cycle Management | 20% | Cycles completed, spec completion %, tasks done |
-| Review Process | 15% | Reviews run and approved, coverage |
-| Error Handling | 10% | Tool errors, loops detected, stuck states |
-| Cost Efficiency | 15% | Total cost, cost per spec item, duration |
+| Planning | 15% | Cycle progression, task decomposition, spec coverage |
+| Code Quality | 50% | Implementation, functionality, UX, test coverage |
+| NERV Ops | 35% | Workflow patterns vs PRD — worktree isolation, cycle management, review process |
 
-### Code Quality Score (Claude-Graded)
-
-A separate Claude Code session evaluates the produced code:
-
-| Category | Weight | What's Evaluated |
-|----------|--------|------------------|
-| Implementation | 35% | Code organization, naming, tests, type safety, DRY |
-| Functionality | 35% | Spec requirements met, API correctness, edge cases |
-| User Experience | 30% | App works, intuitive UI, proper feedback, matches README |
+Each category is scored 1-10 by Claude. The overall score is the weighted average.
 
 ### Score Output
 
 ```
 ============================================================
-  NERV Benchmark Scores
+  NERV Benchmark Scores (All Claude Graded)
 ============================================================
 
-  --- NERV Operations (Deterministic) ---
-  NERV Ops Total           ████████░░ 78/100
-
-    Worktree Usage (25%)   ████████░░ 8/10
-    Parallelism (15%)      ██████░░░░ 6/10
-    Cycle Mgmt (20%)       █████████░ 9/10
-    Review Process (15%)   ████████░░ 8/10
-    Error Handling (10%)   ██████████ 10/10
-    Cost Efficiency (15%)  ███████░░░ 7/10
-
-  --- Code Quality (Claude Graded) ---
-
-    Implementation (35%)   █████████░ 9/10
-    Functionality (35%)    ████████░░ 8/10
-    User Experience (30%)  ██████████ 10/10
+  Planning Score           8/10
+  Code Quality Score       8/10
+  NERV Ops Score           9/10
+  Overall Score            ████████░░ 8.5/10
 
 ------------------------------------------------------------
-  NERV Ops Score             7.8/10
-  Code Quality Score         8.9/10
-  Overall Score              ████████░░ 8.4/10
+  Pass threshold: 7/10
+  Result: PASS
 ============================================================
 ```
 
 Exit code is 0 if overall score >= 7, or 1 if below.
+
+::: tip Mock Mode
+When `NERV_MOCK_CLAUDE=1`, scoring returns fixed 8/10 for all categories. Mock scores validate test infrastructure only.
+:::
 
 ## History Tracking
 

@@ -105,28 +105,21 @@ Benchmark specs define what to build:
 
 ### Scoring
 
-Benchmarks are scored in two parts:
+All three scoring categories are **Claude-graded** — a separate Claude instance evaluates the benchmark output:
 
-**NERV Operations (Deterministic)** - scored from `summary.json` metrics:
+| Category | Weight | What's Evaluated |
+|----------|--------|------------------|
+| Planning | 15% | Cycle progression, task decomposition, spec coverage |
+| Code Quality | 50% | Implementation, functionality, UX |
+| NERV Ops | 35% | Workflow patterns compared against PRD (worktree usage, cycle management, review process) |
 
-| Category | Weight |
-|----------|--------|
-| Worktree Usage | 25% |
-| Parallelism | 15% |
-| Cycle Management | 20% |
-| Review Process | 15% |
-| Error Handling | 10% |
-| Cost Efficiency | 15% |
+Each category is scored 1-10. The overall score is the weighted average.
 
-**Code Quality (Claude-Graded)** - a separate Claude instance evaluates the output:
+Exit code is 0 if overall score >= 7, or 1 if below.
 
-| Category | Weight |
-|----------|--------|
-| Implementation | 35% |
-| Functionality | 35% |
-| User Experience | 30% |
-
-The overall score is the average of NERV Ops (normalized to 10) and Code Quality (weighted average of the three categories).
+::: tip Mock Mode
+When `NERV_MOCK_CLAUDE=1` or `NERV_TEST_MODE=1`, scoring returns fixed 8/10 for all categories without calling Claude. Mock scores validate test infrastructure only — they prove nothing about code quality.
+:::
 
 ## Safety Features
 

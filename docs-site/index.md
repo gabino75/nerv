@@ -82,4 +82,4 @@ nerv benchmark specs/todo-app.md --cycles 5
 nerv benchmark score test-results/benchmark/
 ```
 
-Scoring combines deterministic NERV operations metrics with Claude-graded code quality.
+All scoring is Claude-graded across three categories: Planning (15%), Code Quality (50%), and NERV Ops (35%).

@@ -6,7 +6,7 @@ NERV benchmarks measure how well Claude can build software from specifications. 
 
 1. **Create a spec** - Define what to build in a markdown file
 2. **Run benchmark** - Claude builds it autonomously in an isolated worktree
-3. **Score results** - Evaluate with deterministic metrics and Claude-graded code quality
+3. **Score results** - Claude grades Planning, Code Quality, and NERV Ops
 4. **Track history** - Compare scores over time
 
 ## Benchmark Flow
