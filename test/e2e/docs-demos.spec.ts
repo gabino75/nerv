@@ -1790,11 +1790,13 @@ test('demo_cost_context', async () => {
   window = result.page
 
   await demoWait(window, 'NERV Dashboard — cost & context monitoring', 2000)
+  await showCaption(window, 'Cost & Context — track spend, tokens, and budgets across projects', 'center', 3000)
 
   // ========================================
   // Step 1: Quick project setup + seed cost data
   // ========================================
   console.log('[Demo] Step 1: Quick project setup + seed cost data')
+  await showStepLabel(window, 1, 'Seed project with realistic cost data', 3000)
 
   const projectId = await quickCreateProject(window, 'Cost Tracking Demo', 'Demonstrate cost and context monitoring')
 
@@ -1826,25 +1828,30 @@ test('demo_cost_context', async () => {
   ])
 
   await demoWait(window, 'Cost data seeded: 3 tasks, 2 models, $3.85 total', 1000)
+  await showCaption(window, '3 tasks across Sonnet + Opus — $3.85 total spend seeded', 'bottom', 2500)
 
   // ========================================
   // Step 2: Show Context Monitor (if visible)
   // ========================================
   console.log('[Demo] Step 2: Showing Context Monitor')
+  await showStepLabel(window, 2, 'View the Context Monitor', 3000)
 
   const contextMonitor = window.locator(SELECTORS.contextMonitor).first()
   if (await contextMonitor.isVisible({ timeout: 3000 }).catch(() => false)) {
     await glideToElement(window, SELECTORS.contextMonitor)
     await demoWait(window, 'Context Monitor — token usage, model, compaction count', 1200)
     await spotlight(window, SELECTORS.contextMonitor, 2500)
+    await showCaption(window, 'Context Monitor — live token count, model, and compaction status', 'bottom', 2500)
   } else {
     await demoWait(window, 'Context Monitor appears when a Claude session is active', 1500)
+    await showCaption(window, 'Context Monitor appears during active Claude sessions', 'bottom', 2000)
   }
 
   // ========================================
   // Step 3: Open Cost Dashboard via Settings dropdown (visible click)
   // ========================================
   console.log('[Demo] Step 3: Opening Cost Dashboard')
+  await showStepLabel(window, 3, 'Open the Cost Dashboard', 3000)
 
   await clickDropdownItemDemo(window, SELECTORS.settingsDropdown, '[data-testid="cost-btn"]')
 
@@ -1853,10 +1860,13 @@ test('demo_cost_context', async () => {
   if (await costModal.isVisible({ timeout: 3000 }).catch(() => false)) {
     await demoWait(window, 'Cost Dashboard opened', 1500)
 
+    await showCaption(window, 'Cost Dashboard — total spend, budget, and per-model breakdown', 'bottom', 2500)
+
     // Spotlight summary cards
     const summaryCards = window.locator('[data-testid="cost-summary"]')
     if (await summaryCards.isVisible({ timeout: 2000 }).catch(() => false)) {
       await spotlight(window, '[data-testid="cost-summary"]', 2500)
+      await showCaption(window, 'Summary cards — total cost, token counts, and session stats', 'bottom', 2500)
     }
 
     // Spotlight budget progress
@@ -1865,6 +1875,7 @@ test('demo_cost_context', async () => {
       await glideToElement(window, '[data-testid="budget-progress"]')
       await demoWait(window, 'Budget usage and remaining', 800)
       await spotlight(window, '[data-testid="budget-progress"]', 2000)
+      await showCaption(window, 'Budget progress — set limits and track remaining spend', 'bottom', 2500)
     }
 
     // Spotlight cost by model
@@ -1873,24 +1884,28 @@ test('demo_cost_context', async () => {
       await glideToElement(window, '[data-testid="cost-by-model"]')
       await demoWait(window, 'Cost breakdown by model', 800)
       await spotlight(window, '[data-testid="cost-by-model"]', 2500)
+      await showCaption(window, 'Per-model breakdown — compare Opus vs Sonnet spend', 'bottom', 2500)
     }
 
     // ========================================
     // Step 4: Show By Project tab
     // ========================================
     console.log('[Demo] Step 4: Cost by project')
+    await showStepLabel(window, 4, 'View cost by project', 3000)
 
     const costByProject = window.locator('[data-testid="cost-by-project"]')
     if (await costByProject.isVisible({ timeout: 2000 }).catch(() => false)) {
       await glideToElement(window, '[data-testid="cost-by-project"]')
       await demoWait(window, 'Cost per project', 800)
       await spotlight(window, '[data-testid="cost-by-project"]', 2000)
+      await showCaption(window, 'Per-project costs — identify which projects consume the most', 'bottom', 2500)
     }
 
     // ========================================
     // Step 5: Show Recent Tasks tab (if tab-based)
     // ========================================
     console.log('[Demo] Step 5: Recent tasks')
+    await showStepLabel(window, 5, 'Browse recent task costs', 3000)
 
     // Look for tab buttons within the cost modal
     const recentTasksTab = window.locator('button:has-text("Recent Tasks"), [data-testid="cost-tab-tasks"]').first()
@@ -1898,6 +1913,7 @@ test('demo_cost_context', async () => {
       await glideToElement(window, 'button:has-text("Recent Tasks"), [data-testid="cost-tab-tasks"]')
       await recentTasksTab.click()
       await window.waitForTimeout(500)
+      await showCaption(window, 'Recent tasks — cost and token usage per individual task', 'bottom', 2500)
     }
 
     // Close cost dashboard
@@ -1913,6 +1929,7 @@ test('demo_cost_context', async () => {
   // ========================================
   console.log('[Demo] Final panoramic')
   await demoWait(window, 'NERV — Cost tracking, context monitoring, and budget management', 2500)
+  await showCaption(window, 'NERV Cost & Context — full visibility into AI spend and token usage', 'center', 3000)
 
   await saveVideoAndClose(electronApp, window, 'cost-context')
 })
