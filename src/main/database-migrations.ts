@@ -582,5 +582,13 @@ export const migrations: Migration[] = [
       -- Stored as JSON string matching IterationSettings interface
       ALTER TABLE tasks ADD COLUMN iteration_settings TEXT;
     `
+  },
+  {
+    version: 23,
+    name: 'add_review_claude_summary',
+    up: `
+      -- Store Claude's summary on the review record so it persists across restarts
+      ALTER TABLE task_reviews ADD COLUMN claude_summary TEXT;
+    `
   }
 ]

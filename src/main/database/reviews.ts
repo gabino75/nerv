@@ -59,6 +59,18 @@ export class ReviewOperations {
   }
 
   /**
+   * Store Claude's summary on a review record for persistence across restarts
+   */
+  setClaudeSummary(taskId: string, summary: string): void {
+    const review = this.getReviewForTask(taskId)
+    if (review) {
+      this.getDb().prepare(
+        'UPDATE task_reviews SET claude_summary = ? WHERE id = ?'
+      ).run(summary, review.id)
+    }
+  }
+
+  /**
    * Reject a review - task needs more work
    */
   rejectReview(taskId: string, notes: string): TaskReview | undefined {

@@ -1040,6 +1040,32 @@ test('demo_code_review', async () => {
     }
   }, { taskId, repoPath: testRepoPath })
 
+  // Store Claude's summary on the review record so the review modal displays it
+  await electronApp.evaluate(async ({ app: _app }, { taskId }) => {
+    try {
+      const Database = require('better-sqlite3')
+      const path = require('path')
+      const os = require('os')
+      const dbPath = path.join(os.homedir(), '.nerv', 'state.db')
+      const db = new Database(dbPath)
+      db.prepare('UPDATE task_reviews SET claude_summary = ? WHERE task_id = ?').run(
+        'Added JWT authentication middleware in src/auth.ts with token validation. Applied requireAuth guard to all user routes in src/routes/users.ts. The middleware checks for Authorization header and returns 401 if missing. Added POST /users endpoint for creating new users.',
+        taskId
+      )
+      db.close()
+    } catch (e) {
+      console.error('Failed to set claude_summary:', e)
+    }
+  }, { taskId })
+
+  // Reload tasks in the Svelte store so task.worktree_path is available to the modal
+  await window.evaluate(async ({ projectId: pid }) => {
+    const store = (window as any).__nervStore
+    if (store?.loadTasks) {
+      await store.loadTasks(pid)
+    }
+  }, { projectId })
+
   await window.waitForTimeout(1000)
 
   // ========================================
@@ -1139,6 +1165,11 @@ test('demo_code_review', async () => {
     await window.api.db.tasks.updateStatus(taskId, 'review')
     await window.api.reviews.create(taskId)
   }, { taskId })
+  // Reload tasks so the Kanban board updates
+  await window.evaluate(async ({ projectId: pid }) => {
+    const store = (window as any).__nervStore
+    if (store?.loadTasks) await store.loadTasks(pid)
+  }, { projectId })
   await window.waitForTimeout(1000)
   await showCaption(window, 'Claude applied the requested changes — task is back for review', 'bottom', 2500)
 

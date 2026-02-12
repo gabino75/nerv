@@ -155,6 +155,7 @@ export interface TaskReview {
   task_id: string
   status: TaskReviewStatus
   reviewer_notes: string | null
+  claude_summary: string | null
   created_at: string
   decided_at: string | null
 }

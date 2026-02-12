@@ -163,12 +163,19 @@ export function registerReviewHandlers(): void {
       }
     }
 
-    // Populate Claude summary from finished session data (PRD Review Modes section)
+    // Populate Claude summary: check in-memory sessions first, then DB review record
     let claudeSummary: string | null = null
     for (const finished of finishedSessions.values()) {
       if (finished.taskId === taskId && finished.lastAssistantText) {
         claudeSummary = finished.lastAssistantText
         break
+      }
+    }
+    // Fallback: check the review record's stored claude_summary (persists across restarts)
+    if (!claudeSummary) {
+      const review = databaseService.getReviewForTask(taskId)
+      if (review?.claude_summary) {
+        claudeSummary = review.claude_summary
       }
     }
 

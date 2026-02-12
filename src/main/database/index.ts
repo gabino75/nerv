@@ -290,6 +290,7 @@ class DatabaseService extends DatabaseCore {
   createReview = (taskId: string) => this._reviews.createReview(taskId)
   approveReview = (taskId: string, notes?: string) => this._reviews.approveReview(taskId, notes)
   rejectReview = (taskId: string, notes: string) => this._reviews.rejectReview(taskId, notes)
+  setReviewClaudeSummary = (taskId: string, summary: string) => this._reviews.setClaudeSummary(taskId, summary)
 
   // =====================
   // Debug Findings Operations

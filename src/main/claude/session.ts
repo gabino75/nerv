@@ -172,6 +172,15 @@ export function spawnClaude(config: ClaudeSpawnConfig): ClaudeSpawnResult {
       lastAssistantText: session.lastAssistantText
     })
 
+    // Persist Claude summary to review record so it survives app restarts
+    if (session.taskId && session.lastAssistantText) {
+      try {
+        databaseService.setReviewClaudeSummary(session.taskId, session.lastAssistantText)
+      } catch {
+        // Non-critical: summary is also available from finishedSessions in memory
+      }
+    }
+
     // Clean up old finished sessions
     const now = Date.now()
     for (const [oldId, info] of finishedSessions.entries()) {
@@ -344,6 +353,15 @@ export function resumeClaude(config: ClaudeSpawnConfig, claudeSessionId: string)
       finishedAt: Date.now(),
       lastAssistantText: session.lastAssistantText
     })
+
+    // Persist Claude summary to review record so it survives app restarts
+    if (session.taskId && session.lastAssistantText) {
+      try {
+        databaseService.setReviewClaudeSummary(session.taskId, session.lastAssistantText)
+      } catch {
+        // Non-critical: summary is also available from finishedSessions in memory
+      }
+    }
 
     claudeSessions.delete(id)
 
