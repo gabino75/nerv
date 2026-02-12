@@ -241,6 +241,13 @@ log_section "Saving Results"
 cp -r /app/test-results/* /app/host/test-results/docker/ 2>/dev/null || true
 cp "$TEST_LOG" /app/host/test-results/docker/test-output.log
 
+# Copy demo videos to docs-site on host (when recording demos)
+if [ -d "/app/docs-site/public/demos" ] && ls /app/docs-site/public/demos/*.webm >/dev/null 2>&1; then
+    mkdir -p /app/host/docs-site/public/demos
+    cp /app/docs-site/public/demos/*.webm /app/host/docs-site/public/demos/
+    log "Demos: docs-site/public/demos/"
+fi
+
 if [ -f "$VIDEO_FILE" ]; then
     cp "$VIDEO_FILE" /app/host/test-results/docker/
     log "Video: test-results/docker/recording.mp4"
