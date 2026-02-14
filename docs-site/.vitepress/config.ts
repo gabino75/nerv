@@ -20,7 +20,7 @@ export default withMermaid(defineConfig({
       { text: 'CLI', link: '/cli/' },
       { text: 'Architecture', link: '/architecture/' },
       { text: 'Benchmarking', link: '/benchmarking/overview' },
-      { text: 'Demos', link: '/demos' },
+      { text: 'Demos', link: '/demos/index' },
       { text: 'Contributing', link: '/contributing/' },
       {
         text: 'v1.0.0',
@@ -91,6 +91,20 @@ export default withMermaid(defineConfig({
             { text: 'Database', link: '/architecture/database' },
             { text: 'Claude Integration', link: '/architecture/claude-integration' },
             { text: 'Permission Hooks', link: '/architecture/hooks' }
+          ]
+        }
+      ],
+      '/demos/': [
+        {
+          text: 'Demos',
+          items: [
+            { text: 'Overview', link: '/demos/index' },
+            { text: 'Quick Start', link: '/demos/quick-start' },
+            { text: 'Code Review', link: '/demos/code-review' },
+            { text: 'YOLO Mode', link: '/demos/yolo-mode' },
+            { text: 'Multi-Repo', link: '/demos/multi-repo' },
+            { text: 'Audit & Health', link: '/demos/audit-health' },
+            { text: 'Cost & Context', link: '/demos/cost-context' }
           ]
         }
       ],

@@ -1,200 +1,43 @@
-<script setup>
-import { withBase } from 'vitepress'
-</script>
+# Feature Demos
 
-# Demo Videos
+Step-by-step visual guides for NERV's key features. Each guide walks through a workflow with annotated screenshots.
 
-Video walkthroughs demonstrating NERV features in action.
+## Getting Started
 
-::: tip Recording Demos
-All demos are recorded using Playwright's built-in video capture inside Docker. See [Recording Demos](#recording-demos) below.
-:::
-
-## Quick Start
-
-A comprehensive walkthrough of the NERV development workflow: project creation with a spec-like goal, cycle planning, task management, and Claude working in the terminal.
-
-**What you'll see:**
-- Launching NERV and the **clean empty dashboard**
-- Creating a new project with name and **detailed goal** (spec-like description)
-- **"What's Next?" round 1** — Claude recommends starting a cycle → approve → **Cycle #0 created**
-- Opening the **Cycle Panel** to view the active cycle with its MVP goal
-- **"What's Next?" round 2** — Claude recommends creating a task → approve → task on board
-- **Manually adding a second task** via + Add Task — selecting task type (Research → Implementation), typing title and description
-- **Kanban board** showing 2 tasks in the TODO column
-- Clicking **Start Task** — Claude spawns in the terminal and begins working
-- **Terminal output** showing Claude reading files, editing code, running tests
-- **"What's Next?" round 3** — recommendations evolve based on current context
-
-<video controls width="100%" preload="metadata">
-  <source :src="withBase('/demos/quick-start.webm')" type="video/webm">
-  Your browser does not support WebM video.
-</video>
+### [Quick Start Guide](./demos/quick-start)
+Create a project, get AI-powered recommendations, and run your first Claude session.
 
 ---
 
-## Code Review
+## Core Features
 
-The human-in-the-loop review workflow — NERV's core quality gate. A task completed by Claude enters the Review column, the user reviews code changes, requests improvements, and ultimately approves.
+### [Code Review](./demos/code-review)
+Human-in-the-loop review for AI-generated code. Review diffs, provide feedback, and approve changes.
 
-**What you'll see:**
-- A task in the **Review column** on the kanban board
-- Clicking the task card to open the **Review Modal**
-- **Code diff** showing actual git changes (new files, modified code)
-- **Claude's summary** of work done
-- Typing feedback and clicking **"Request Changes"** — task returns to in_progress
-- Claude applies feedback, task re-enters Review
-- Typing approval notes and clicking **"Approve & Complete"** — task moves to Done
+### [YOLO Mode](./demos/yolo-mode)
+Fully autonomous development from a spec file. Configure, launch, and track results.
 
-<video controls width="100%" preload="metadata">
-  <source :src="withBase('/demos/code-review.webm')" type="video/webm">
-  Your browser does not support WebM video.
-</video>
+### [Multi-Repo](./demos/multi-repo)
+Manage multiple repositories with shared context, knowledge bases, and isolated worktrees.
 
 ---
 
-## YOLO Mode
+## Monitoring
 
-Run autonomous benchmarks from a spec file. NERV configures the YOLO loop, launches Claude, and tracks cycles, cost, and test results in real time.
+### [Audit & Health](./demos/audit-health)
+Continuous code quality monitoring with health checks, spec drift detection, and audit logs.
 
-**What you'll see:**
-- Creating a project and opening the YOLO panel from the Workflow menu
-- Configuring a benchmark: spec file, test command, max cycles, auto-approve
-- Saving the configuration and starting the benchmark
-- **Running tab** — live progress showing cycles completed, tasks, cost, and duration
-- **Results tab** — final metrics including spec completion and test pass rate
-
-<video controls width="100%" preload="metadata">
-  <source :src="withBase('/demos/yolo-mode.webm')" type="video/webm">
-  Your browser does not support WebM video.
-</video>
+### [Cost & Context](./demos/cost-context)
+Track token usage, session costs, and budget across all projects and models.
 
 ---
 
-## Multi-Repo + Knowledge
+## Regenerating Screenshots
 
-Manage multiple repositories and knowledge bases within a single NERV project. Connected repos, CLAUDE.md files, and worktrees are all accessible from the dashboard.
-
-**What you'll see:**
-- Creating a multi-repo project (shared-types + API backend)
-- Pre-seeded **connected repositories** visible in the Repos panel
-- Opening the **Knowledge Base** to view CLAUDE.md and project context
-- Opening the **Worktree panel** from the Workflow menu to manage git worktrees
-
-<video controls width="100%" preload="metadata">
-  <source :src="withBase('/demos/multi-repo.webm')" type="video/webm">
-  Your browser does not support WebM video.
-</video>
-
----
-
-## Audit & Code Health
-
-Monitor code quality, detect spec drift, and review audit logs — all from the Audit panel. Pre-seeded with realistic data: completed tasks, health checks, and audit events.
-
-**What you'll see:**
-- Opening the Audit panel from the Workflow menu
-- **Code Health tab** — running a health check, viewing metric cards (test coverage, DRY violations, type errors, dead code, complexity)
-- **Spec Drift tab** — detecting stale tasks that have been in_progress for 14+ days
-- **Logs tab** — filtered audit events showing task lifecycle, approval requests, and cycle events
-
-<video controls width="100%" preload="metadata">
-  <source :src="withBase('/demos/audit-health.webm')" type="video/webm">
-  Your browser does not support WebM video.
-</video>
-
----
-
-## Cost & Context
-
-Track token usage, session costs, and budget across all projects. Pre-seeded with realistic session metrics across multiple models and tasks.
-
-**What you'll see:**
-- Opening the **Cost Dashboard** from the Settings menu
-- **Summary cards** showing total cost ($3.85), task count, and token usage
-- **Budget progress bar** showing spend vs. monthly limit
-- **Cost breakdown by model** — Sonnet vs. Opus usage comparison
-- **Cost by project** — per-project cost allocation
-
-<video controls width="100%" preload="metadata">
-  <source :src="withBase('/demos/cost-context.webm')" type="video/webm">
-  Your browser does not support WebM video.
-</video>
-
----
-
-## Recording Demos
-
-NERV uses Playwright's built-in video recording inside Docker with a virtual display (Xvfb).
-
-### Quick Record
+Screenshots are captured using Playwright with the Electron app:
 
 ```bash
-# Record all demos
-./test/scripts/record-demos.sh
-
-# Record a specific demo
-./test/scripts/record-demos.sh --demo quick-start
-
-# Record + generate GIFs for README
-./test/scripts/record-demos.sh --gif
+npx playwright test test/e2e/screenshot-demos.spec.ts
 ```
 
-### How It Works
-
-1. **Docker + Xvfb** — Electron runs in a headless virtual display at 1920x1080
-2. **Playwright video** — Built-in `recordVideo` option captures at 1280x720
-3. **Cursor overlay** — CSS-injected cursor dot follows mouse movements with click animations
-4. **Slow typing** — Text entered character-by-character for natural pacing
-5. **Spotlight effect** — Dark overlay with cutout highlights target elements
-6. **Data seeding** — Pre-populated DB with realistic tasks, costs, and audit logs
-7. **Post-processing** — Optional ffmpeg conversion to GIF for README
-
-### Custom Demos
-
-Create a Playwright test file that uses the demo helpers:
-
-```typescript
-import { test } from '@playwright/test'
-
-// Slowly type text character-by-character
-async function slowType(page, selector, text) {
-  const element = page.locator(selector)
-  await element.click()
-  for (const char of text) {
-    await element.press(char === ' ' ? 'Space' : char)
-    await page.waitForTimeout(50)
-  }
-}
-
-// Labeled pause for demo pacing
-async function demoWait(page, label, ms = 800) {
-  console.log(`[Demo] ${label}`)
-  await page.waitForTimeout(ms)
-}
-
-test('demo_my_feature', async () => {
-  // Launch Electron with recordVideo option
-  // Use slowType() for text input
-  // Use demoWait() between steps
-  // Use glideToElement() for smooth cursor movement
-  // Use spotlight() to highlight UI elements
-  // Use clickDropdownItemDemo() for visible dropdown clicks
-})
-```
-
-Run with:
-```bash
-./test/scripts/record-demos.sh --demo my_feature
-```
-
-::: tip Recording Tips
-- Use `slowType()` for text input to show characters appearing naturally
-- Use `glideToElement()` before clicks for smooth cursor movement
-- Use `spotlight()` to highlight important UI elements with a dark overlay cutout
-- Use `clickDropdownItemDemo()` for dropdown items — visible cursor + fallback to dispatchEvent
-- Use `demoWait()` between actions with descriptive labels
-- Seed data before opening panels so they show real content
-- Keep demos under 3 minutes for optimal engagement
-- 1280x720 resolution balances quality and file size
-:::
+Screenshots are saved to `docs-site/public/screenshots/demos/` organized by feature.
