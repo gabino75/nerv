@@ -8,7 +8,8 @@
   let isRunning = false
   let activeSubagents: ActiveSubagent[] = []
 
-  appStore.subscribe(state => {
+  let unsubStore: (() => void) | null = null
+  unsubStore = appStore.subscribe(state => {
     metrics = state.sessionMetrics
     isRunning = state.isTaskRunning
     activeSubagents = state.activeSubagents
@@ -39,7 +40,7 @@
   })
 
   onDestroy(() => {
-    // Cleanup handled by parent's removeAllListeners calls
+    unsubStore?.()
   })
 
   function getContextSize(model: string): number {

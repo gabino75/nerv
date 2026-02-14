@@ -660,12 +660,9 @@ test.describe('NERV Real Claude Benchmark', () => {
       expect(durationMs).toBeGreaterThanOrEqual(minDurationMs)
       log('check', `Duration: ${Math.round(durationMs / 1000 / 60)} minutes (>= 1 minute)`)
 
-      // Log outcome for tracking (but don't fail if no completed tasks)
-      if (completedCount > 0 || cyclesCompleted > 0) {
-        log('pass', `YOLO completed ${completedCount} tasks in ${cyclesCompleted} cycles`)
-      } else {
-        log('info', `YOLO ran but tasks need more cycles (blocked: ${yoloStatus})`)
-      }
+      // Require at least some progress — don't claim PASSED with zero work done
+      expect(completedCount + cyclesCompleted).toBeGreaterThan(0)
+      log('pass', `YOLO completed ${completedCount} tasks in ${cyclesCompleted} cycles`)
 
       log('pass', '=== REAL CLAUDE BENCHMARK PASSED ===')
 

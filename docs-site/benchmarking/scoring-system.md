@@ -1,6 +1,6 @@
 # Scoring System
 
-All benchmark scoring is **Claude-graded** — a separate Claude Code session evaluates the benchmark output across three categories.
+Default scoring is **rule-based**. Use `--grade-claude` for AI-graded evaluation. Scores are computed across four categories.
 
 ## Score Command
 
@@ -16,41 +16,48 @@ node scripts/score-benchmark.js test-results/benchmark-20260101/ --spec specs/to
 
 ## Scoring Categories
 
-All three categories are evaluated by Claude (no deterministic scoring):
-
 | Category | Weight | What's Evaluated |
 |----------|--------|------------------|
-| Planning | 15% | Cycle progression, task decomposition, spec coverage, progressive delivery |
-| Code Quality | 50% | Implementation quality, functionality, UX, test coverage, code organization |
-| NERV Ops | 35% | Workflow patterns compared against PRD — worktree isolation, cycle management, review process, error handling |
+| Implementation Quality | 30% | Code organization, functionality, type safety, test coverage, DRY principles |
+| Workflow Quality | 20% | Cycle progression, task decomposition, spec coverage, progressive delivery |
+| Efficiency | 20% | Token usage, compaction frequency, cost efficiency, task completion speed |
+| User Experience | 30% | UX quality, documentation, review process, merge compliance |
 
-Each category is scored 1-10 by Claude, with per-criterion scoring guides to ensure consistency.
+Each category is scored 1-10, with per-criterion scoring guides to ensure consistency.
 
-### Planning (15%)
+### Implementation Quality (30%)
 
-Claude evaluates how well the benchmark run planned and decomposed work:
+Evaluates the produced code directly:
+
+- Code organization, naming, type safety
+- Spec requirements met, API correctness
+- Tests present and passing
+- DRY principles, no dead code
+
+### Workflow Quality (20%)
+
+Evaluates how well the benchmark run planned and decomposed work:
 
 - Did spec completion increase across cycles?
 - Were tasks well-scoped and achievable?
 - Was there progressive delivery (each cycle adds value)?
 - Did task descriptions align with spec requirements?
 
-### Code Quality (50%)
+### Efficiency (20%)
 
-Claude evaluates the produced code directly:
+Evaluates resource usage and speed:
 
-- Code organization, naming, type safety
-- Spec requirements met, API correctness
-- Tests present and passing
-- User experience (if applicable)
-- DRY principles, no dead code
+- Token usage relative to task complexity
+- Compaction frequency (lower is better)
+- Cost efficiency (cost per completed task)
+- Task completion speed
 
-### NERV Ops (35%)
+### User Experience (30%)
 
-Claude compares the workflow against the PRD's expected patterns:
+Evaluates the end-user impact:
 
+- UX quality (if applicable)
 - Worktree isolation (each task in its own worktree)
-- Cycle management (proper cycle progression)
 - Review process (reviews run before merges)
 - Merge compliance (clean merges back to main)
 - Permission handling (hooks respected)
@@ -59,13 +66,14 @@ Claude compares the workflow against the PRD's expected patterns:
 
 ```
 ============================================================
-  NERV Benchmark Scores (All Claude Graded)
+  NERV Benchmark Scores
 ============================================================
 
-  Planning Score           8/10
-  Code Quality Score       8/10
-  NERV Ops Score           9/10
-  Overall Score            ████████░░ 8.5/10
+  Implementation Quality   8/10  (30%)
+  Workflow Quality         8/10  (20%)
+  Efficiency               7/10  (20%)
+  User Experience          9/10  (30%)
+  Overall Score            ████████░░ 8.1/10
 
 ------------------------------------------------------------
   Pass threshold: 7/10
@@ -73,7 +81,7 @@ Claude compares the workflow against the PRD's expected patterns:
 ============================================================
 ```
 
-The overall score is a weighted average: `Planning × 0.15 + Code × 0.50 + NERV Ops × 0.35`.
+The overall score is a weighted average: `Implementation × 0.30 + Workflow × 0.20 + Efficiency × 0.20 + UX × 0.30`.
 
 Exit code is 0 if overall score >= 7, or 1 if below.
 
@@ -83,11 +91,12 @@ When `NERV_MOCK_CLAUDE=1` or `NERV_TEST_MODE=1`, the scoring script returns fixe
 
 ## How Grading Works
 
-The scoring script (`scripts/score-benchmark.js`) makes 3 separate `claude --print` calls:
+By default, scoring is **rule-based** (deterministic). With `--grade-claude`, the scoring script (`scripts/score-benchmark.js`) makes 4 separate `claude --print` calls:
 
-1. **Planning call** — receives the event log (`event-log.jsonl`) and spec file, evaluates planning quality
-2. **Code Quality call** — receives the git diff of all changes, evaluates implementation
-3. **NERV Ops call** — receives the event log and a PRD excerpt, evaluates workflow compliance
+1. **Implementation Quality call** — receives the git diff of all changes, evaluates code quality
+2. **Workflow Quality call** — receives the event log (`event-log.jsonl`) and spec file, evaluates planning
+3. **Efficiency call** — receives token usage and cost data, evaluates resource efficiency
+4. **User Experience call** — receives the event log and a PRD excerpt, evaluates UX and workflow compliance
 
 Each call returns a JSON object with `score` (1-10), `strengths`, `weaknesses`, and `evidence`.
 

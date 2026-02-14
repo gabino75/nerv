@@ -35,7 +35,10 @@
   let dangerousCommandRate = $state<{ total: number; caught: number; percentage: number } | null>(null)
   let recoveryRate = $state<{ total: number; recovered: number; percentage: number } | null>(null)
 
-  selectedProject.subscribe(p => { currentProject = p })
+  $effect(() => {
+    const unsub = selectedProject.subscribe(p => { currentProject = p })
+    return () => unsub()
+  })
 
   async function loadMetrics() {
     loading = true

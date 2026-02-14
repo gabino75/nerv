@@ -18,8 +18,11 @@
 
   // Session metrics from store
   let sessionMetrics = $state<SessionMetrics | null>(null)
-  appStore.subscribe(state => {
-    sessionMetrics = state.sessionMetrics
+  $effect(() => {
+    const unsub = appStore.subscribe(state => {
+      sessionMetrics = state.sessionMetrics
+    })
+    return () => unsub()
   })
 
   // Budget

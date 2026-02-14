@@ -67,18 +67,21 @@
   let durationInterval: ReturnType<typeof setInterval> | null = null
 
   // Subscribe to session metrics updates
-  appStore.subscribe(state => {
-    sessionMetrics = state.sessionMetrics
-    const wasRunning = isSessionRunning
-    isSessionRunning = state.isTaskRunning
+  $effect(() => {
+    const unsub = appStore.subscribe(state => {
+      sessionMetrics = state.sessionMetrics
+      const wasRunning = isSessionRunning
+      isSessionRunning = state.isTaskRunning
 
-    // Track session start time
-    if (isSessionRunning && !wasRunning) {
-      sessionStartTime = Date.now()
-      sessionDuration = 0
-    } else if (!isSessionRunning && wasRunning) {
-      sessionStartTime = null
-    }
+      // Track session start time
+      if (isSessionRunning && !wasRunning) {
+        sessionStartTime = Date.now()
+        sessionDuration = 0
+      } else if (!isSessionRunning && wasRunning) {
+        sessionStartTime = null
+      }
+    })
+    return () => unsub()
   })
 
   // Update duration every second while session is running

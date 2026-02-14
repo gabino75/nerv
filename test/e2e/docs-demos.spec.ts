@@ -25,7 +25,7 @@ import os from 'os'
 import { fileURLToPath } from 'url'
 import { SELECTORS } from './helpers/selectors'
 import { waitForRecommendDismissed } from './helpers/recommend-actions'
-import { showCaption, showStepLabel } from './helpers/recording-utils'
+import { showCaption, showStepLabel, cleanupDemoOverlays } from './helpers/recording-utils'
 
 // ES module compatible __dirname
 const __filename = fileURLToPath(import.meta.url)
@@ -546,6 +546,18 @@ test.beforeAll(async () => {
 })
 
 test.afterEach(async () => {
+  // Clean up demo overlays before closing
+  if (electronApp) {
+    try {
+      const pages = electronApp.windows()
+      for (const page of pages) {
+        await cleanupDemoOverlays(page)
+      }
+    } catch {
+      // Pages may already be closed
+    }
+  }
+
   // Clean up app
   if (electronApp) {
     try {

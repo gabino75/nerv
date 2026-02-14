@@ -23,6 +23,7 @@ NERV includes several built-in agents:
 | `researcher` | Exploration and research |
 | `reviewer` | Code review |
 | `debugger` | Bug investigation |
+| `auditor` | Code health, spec drift detection |
 
 ## Using Agents
 

@@ -49,8 +49,11 @@
 
   // Subscribe to project changes
   let currentProjectId: string | null = null
-  selectedProject.subscribe(p => {
-    currentProjectId = p?.id ?? null
+  $effect(() => {
+    const unsub = selectedProject.subscribe(p => {
+      currentProjectId = p?.id ?? null
+    })
+    return () => unsub()
   })
 
   // Load cycles when project changes

@@ -31,10 +31,15 @@
   let currentProject = $state<Project | null>(null)
   let activeBranches = $state<Branch[]>([])
 
-  currentTask.subscribe(t => { activeTask = t })
-  appStore.subscribe(state => { isRunning = state.isTaskRunning })
-  projectTasks.subscribe(t => { tasks = t })
-  selectedProject.subscribe(p => { currentProject = p })
+  $effect(() => {
+    const unsubs = [
+      currentTask.subscribe(t => { activeTask = t }),
+      appStore.subscribe(state => { isRunning = state.isTaskRunning }),
+      projectTasks.subscribe(t => { tasks = t }),
+      selectedProject.subscribe(p => { currentProject = p })
+    ]
+    return () => unsubs.forEach(fn => fn())
+  })
 
   // Load active branches for the current task
   $effect(() => {

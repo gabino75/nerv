@@ -111,6 +111,9 @@ export const db = {
       compactionCount?: number
       model?: string
       sessionId?: string
+      costUsd?: number
+      durationMs?: number
+      numTurns?: number
     }): Promise<SessionMetrics> => ipcRenderer.invoke('db:metrics:update', taskId, metrics),
     getModelStats: (): Promise<Array<{
       model: string

@@ -90,16 +90,19 @@
   let selected = $state<Project | null>(null)
   let readOnly = $state(false)
 
-  appStore.subscribe(state => {
-    projects = state.projects
-  })
-
-  selectedProject.subscribe(p => {
-    selected = p
-  })
-
-  isProjectReadOnly.subscribe(r => {
-    readOnly = r
+  $effect(() => {
+    const unsubs = [
+      appStore.subscribe(state => {
+        projects = state.projects
+      }),
+      selectedProject.subscribe(p => {
+        selected = p
+      }),
+      isProjectReadOnly.subscribe(r => {
+        readOnly = r
+      })
+    ]
+    return () => unsubs.forEach(fn => fn())
   })
 </script>
 

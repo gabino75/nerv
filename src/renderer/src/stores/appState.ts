@@ -31,6 +31,9 @@ export interface SessionMetrics {
   compactionCount: number
   compactionsSinceClear: number  // PRD Section 6: "Since last /clear" counter
   model: string
+  costUsd: number
+  durationMs: number
+  numTurns: number
 }
 
 // Local state interface (combines DB data with runtime state)
@@ -342,6 +345,9 @@ function createMetricsActions(update: UpdateFn) {
       compactionsSinceClear?: number  // PRD Section 6: "Since last /clear" counter
       model?: string
       sessionId?: string
+      costUsd?: number
+      durationMs?: number
+      numTurns?: number
     }) => {
       try {
         // Save to database
@@ -354,7 +360,10 @@ function createMetricsActions(update: UpdateFn) {
             outputTokens: metrics.outputTokens ?? state.sessionMetrics?.outputTokens ?? 0,
             compactionCount: metrics.compactionCount ?? state.sessionMetrics?.compactionCount ?? 0,
             compactionsSinceClear: metrics.compactionsSinceClear ?? state.sessionMetrics?.compactionsSinceClear ?? 0,
-            model: metrics.model ?? state.sessionMetrics?.model ?? ''
+            model: metrics.model ?? state.sessionMetrics?.model ?? '',
+            costUsd: metrics.costUsd ?? state.sessionMetrics?.costUsd ?? 0,
+            durationMs: metrics.durationMs ?? state.sessionMetrics?.durationMs ?? 0,
+            numTurns: metrics.numTurns ?? state.sessionMetrics?.numTurns ?? 0
           }
         }))
       } catch (err) {
@@ -377,7 +386,10 @@ function createMetricsActions(update: UpdateFn) {
               outputTokens: dbMetrics.output_tokens,
               compactionCount: dbMetrics.compaction_count,
               compactionsSinceClear: dbMetrics.compactions_since_clear,
-              model: dbMetrics.model || ''
+              model: dbMetrics.model || '',
+              costUsd: dbMetrics.cost_usd ?? 0,
+              durationMs: dbMetrics.duration_ms ?? 0,
+              numTurns: dbMetrics.num_turns ?? 0
             }
           }))
         } else {

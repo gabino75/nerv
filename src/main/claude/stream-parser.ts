@@ -280,6 +280,19 @@ export function processStreamOutput(session: ClaudeSession, data: string): void 
     // Handle result (session ended)
     if (msg.type === 'result' && msg.result) {
       notifyResult(session.id, msg.result)
+
+      // Persist cost/duration/turns directly to DB so data isn't lost if renderer crashes
+      if (session.taskId) {
+        try {
+          databaseService.updateSessionMetrics(session.taskId, {
+            costUsd: msg.result.cost_usd,
+            durationMs: msg.result.duration_ms,
+            numTurns: msg.result.num_turns
+          })
+        } catch (err) {
+          console.error(`[NERV] Failed to persist session result metrics:`, err)
+        }
+      }
     }
 
     // Detect subagent spawns

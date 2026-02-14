@@ -48,7 +48,12 @@ export function registerOrgHandlers(): void {
     const result = syncOrgConfig()
     // After successful sync, refresh org terminal profiles
     if (result.success) {
-      refreshOrgTerminalProfiles()
+      try {
+        refreshOrgTerminalProfiles()
+      } catch (err) {
+        console.error('[NERV] Failed to refresh org terminal profiles after sync:', err)
+        return { success: true, error: `Sync succeeded but profile refresh failed: ${err instanceof Error ? err.message : String(err)}` }
+      }
     }
     return result
   })

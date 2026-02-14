@@ -211,74 +211,76 @@ app.on('will-quit', () => {
   // Set shutdown flag to suppress errors during cleanup
   setAppShuttingDown(true)
 
-  // Wrap all cleanup in try-catch to prevent error popups on shutdown
   try {
-    // Mark any in-progress tasks as interrupted for graceful shutdown
-    const activeTaskIds = getActiveTaskIds()
-    for (const taskId of activeTaskIds) {
-      try {
-        markTaskInterrupted(taskId)
-      } catch (err) {
-        console.error(`[NERV] Failed to mark task ${taskId} as interrupted:`, err)
+    // Wrap all cleanup in try-catch to prevent error popups on shutdown
+    try {
+      // Mark any in-progress tasks as interrupted for graceful shutdown
+      const activeTaskIds = getActiveTaskIds()
+      for (const taskId of activeTaskIds) {
+        try {
+          markTaskInterrupted(taskId)
+        } catch (err) {
+          console.error(`[NERV] Failed to mark task ${taskId} as interrupted:`, err)
+        }
       }
+    } catch (err) {
+      console.error('[NERV] Failed to get active task IDs:', err)
     }
-  } catch (err) {
-    console.error('[NERV] Failed to get active task IDs:', err)
-  }
 
-  // Clean up session monitors (clears intervals)
-  try {
-    cleanupAllMonitors()
-  } catch (err) {
-    console.error('[NERV] Failed to cleanup monitors:', err)
-  }
+    // Clean up session monitors (clears intervals)
+    try {
+      cleanupAllMonitors()
+    } catch (err) {
+      console.error('[NERV] Failed to cleanup monitors:', err)
+    }
 
-  // Clean up Claude sessions (kills PTY processes)
-  try {
-    cleanupClaudeSessions()
-  } catch (err) {
-    console.error('[NERV] Failed to cleanup Claude sessions:', err)
-  }
+    // Clean up Claude sessions (kills PTY processes)
+    try {
+      cleanupClaudeSessions()
+    } catch (err) {
+      console.error('[NERV] Failed to cleanup Claude sessions:', err)
+    }
 
-  // Clean up terminals (kills PTY processes)
-  try {
-    cleanupTerminals()
-  } catch (err) {
-    console.error('[NERV] Failed to cleanup terminals:', err)
-  }
+    // Clean up terminals (kills PTY processes)
+    try {
+      cleanupTerminals()
+    } catch (err) {
+      console.error('[NERV] Failed to cleanup terminals:', err)
+    }
 
-  // Clean up YOLO benchmarks (uses database, must be before db close)
-  try {
-    cleanupYoloBenchmarks()
-  } catch (err) {
-    console.error('[NERV] Failed to cleanup YOLO benchmarks:', err)
-  }
+    // Clean up YOLO benchmarks (uses database, must be before db close)
+    try {
+      cleanupYoloBenchmarks()
+    } catch (err) {
+      console.error('[NERV] Failed to cleanup YOLO benchmarks:', err)
+    }
 
-  // Clean up org sync interval (PRD Section 20)
-  if (orgSyncInterval) {
-    clearInterval(orgSyncInterval)
-    orgSyncInterval = null
-  }
+    // Clean up org sync interval (PRD Section 20)
+    if (orgSyncInterval) {
+      clearInterval(orgSyncInterval)
+      orgSyncInterval = null
+    }
 
-  // Clean up auto-update (clears interval)
-  try {
-    cleanupAutoUpdater()
-  } catch (err) {
-    console.error('[NERV] Failed to cleanup auto-updater:', err)
-  }
+    // Clean up auto-update (clears interval)
+    try {
+      cleanupAutoUpdater()
+    } catch (err) {
+      console.error('[NERV] Failed to cleanup auto-updater:', err)
+    }
 
-  // Unregister this instance (PRD Section 11 - Multi-Instance Support)
-  // Must be before database close
-  try {
-    databaseService.unregisterInstance()
-  } catch (err) {
-    console.error('[NERV] Failed to unregister instance:', err)
-  }
-
-  // Close database connection gracefully (must be last)
-  try {
-    databaseService.close()
-  } catch (err) {
-    console.error('[NERV] Failed to close database:', err)
+    // Unregister this instance (PRD Section 11 - Multi-Instance Support)
+    // Must be before database close
+    try {
+      databaseService.unregisterInstance()
+    } catch (err) {
+      console.error('[NERV] Failed to unregister instance:', err)
+    }
+  } finally {
+    // Close database connection gracefully (must be last, guaranteed via finally)
+    try {
+      databaseService.close()
+    } catch (err) {
+      console.error('[NERV] Failed to close database:', err)
+    }
   }
 })

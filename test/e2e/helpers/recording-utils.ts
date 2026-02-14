@@ -24,17 +24,19 @@ export const RECORDING_DEFAULTS = {
  * Inject a visible cursor overlay into the page.
  * Playwright headless mode doesn't render the OS cursor, so we create
  * a CSS dot that follows mouse movements for professional demo recordings.
+ *
+ * Returns a cleanup function that removes the cursor and all event listeners.
  */
-export async function injectCursorOverlay(page: Page): Promise<void> {
+export async function injectCursorOverlay(page: Page): Promise<() => Promise<void>> {
   await page.evaluate(() => {
     const cursor = document.createElement('div')
     cursor.id = 'demo-cursor'
     cursor.style.cssText = `
       position: fixed;
-      width: 20px;
-      height: 20px;
+      width: 14px;
+      height: 14px;
       border-radius: 50%;
-      background: rgba(255, 80, 80, 0.7);
+      background: rgba(100, 140, 255, 0.5);
       border: 2px solid rgba(255, 255, 255, 0.9);
       pointer-events: none;
       z-index: 999999;
@@ -44,22 +46,42 @@ export async function injectCursorOverlay(page: Page): Promise<void> {
     `
     document.body.appendChild(cursor)
 
-    document.addEventListener('mousemove', (e) => {
+    // Named handlers so they can be removed during cleanup
+    function onMouseMove(e: MouseEvent) {
       cursor.style.left = e.clientX + 'px'
       cursor.style.top = e.clientY + 'px'
-    })
+    }
+    function onMouseDown() {
+      cursor.style.width = '18px'
+      cursor.style.height = '18px'
+      cursor.style.background = 'rgba(70, 110, 255, 0.7)'
+    }
+    function onMouseUp() {
+      cursor.style.width = '14px'
+      cursor.style.height = '14px'
+      cursor.style.background = 'rgba(100, 140, 255, 0.5)'
+    }
 
-    document.addEventListener('mousedown', () => {
-      cursor.style.width = '28px'
-      cursor.style.height = '28px'
-      cursor.style.background = 'rgba(255, 40, 40, 0.9)'
-    })
-    document.addEventListener('mouseup', () => {
-      cursor.style.width = '20px'
-      cursor.style.height = '20px'
-      cursor.style.background = 'rgba(255, 80, 80, 0.7)'
-    })
+    document.addEventListener('mousemove', onMouseMove)
+    document.addEventListener('mousedown', onMouseDown)
+    document.addEventListener('mouseup', onMouseUp)
+
+    // Store handler references on the element for cleanup
+    ;(cursor as any)._handlers = { onMouseMove, onMouseDown, onMouseUp }
   })
+
+  // Return cleanup function
+  return async () => {
+    await page.evaluate(() => {
+      const cursor = document.getElementById('demo-cursor') as any
+      if (cursor?._handlers) {
+        document.removeEventListener('mousemove', cursor._handlers.onMouseMove)
+        document.removeEventListener('mousedown', cursor._handlers.onMouseDown)
+        document.removeEventListener('mouseup', cursor._handlers.onMouseUp)
+      }
+      cursor?.remove()
+    }).catch(() => {})
+  }
 }
 
 /**
@@ -79,32 +101,41 @@ export async function glideToElement(page: Page, selector: string, steps = 15): 
 }
 
 /**
- * Zoom into a region of the page for emphasis.
- * Applies CSS transform to zoom into a specific element,
- * holds for the specified duration, then zooms back out.
+ * Clean up all demo overlay elements (cursor, step label, speed indicator, captions).
+ * Call this in afterEach to prevent artifacts from leaking between tests.
  */
-export async function zoomInto(page: Page, selector: string, holdMs = 2000, scale = 1.8): Promise<void> {
-  const element = page.locator(selector).first()
-  const box = await element.boundingBox()
-  if (!box) return
-
-  const originX = box.x + box.width / 2
-  const originY = box.y + box.height / 2
-
-  await page.evaluate(({ originX, originY, scale }) => {
-    const app = document.querySelector('[data-testid="app"]') as HTMLElement || document.body
-    app.style.transition = 'transform 0.6s cubic-bezier(0.4, 0, 0.2, 1)'
-    app.style.transformOrigin = `${originX}px ${originY}px`
-    app.style.transform = `scale(${scale})`
-  }, { originX, originY, scale })
-
-  await page.waitForTimeout(holdMs)
-
+export async function cleanupDemoOverlays(page: Page): Promise<void> {
   await page.evaluate(() => {
-    const app = document.querySelector('[data-testid="app"]') as HTMLElement || document.body
-    app.style.transform = 'scale(1)'
+    // Remove cursor and its event listeners
+    const cursor = document.getElementById('demo-cursor') as any
+    if (cursor?._handlers) {
+      document.removeEventListener('mousemove', cursor._handlers.onMouseMove)
+      document.removeEventListener('mousedown', cursor._handlers.onMouseDown)
+      document.removeEventListener('mouseup', cursor._handlers.onMouseUp)
+    }
+    cursor?.remove()
+
+    // Remove step label
+    document.getElementById('nerv-step-label')?.remove()
+
+    // Remove speed indicator
+    document.getElementById('nerv-speed-indicator')?.remove()
+
+    // Remove all caption elements
+    document.querySelectorAll('.nerv-demo-caption').forEach(el => el.remove())
+  }).catch(() => {
+    // Page may already be closed
   })
-  await page.waitForTimeout(700)
+}
+
+/**
+ * @deprecated Use spotlight() instead. zoomInto applies CSS transforms that
+ * can break element positioning and leave artifacts if not cleaned up.
+ */
+export async function zoomInto(page: Page, selector: string, holdMs = 2000, _scale = 1.8): Promise<void> {
+  console.warn('[recording-utils] zoomInto() is deprecated — use spotlight() instead')
+  // Fallback: just wait so existing callers don't break
+  await page.waitForTimeout(holdMs)
 }
 
 /**
@@ -264,8 +295,8 @@ export async function showCaption(
  *
  * @param speed - multiplier to display (e.g. 2 for "2x"), or null/0 to remove
  */
-export async function showSpeedIndicator(page: Page, speed: number | null): Promise<void> {
-  await page.evaluate((speed) => {
+export async function showSpeedIndicator(page: Page, speed: number | null, autoRemoveMs = 5000): Promise<void> {
+  await page.evaluate(({ speed, autoRemoveMs }) => {
     // Remove existing indicator
     document.getElementById('nerv-speed-indicator')?.remove()
 
@@ -285,7 +316,7 @@ export async function showSpeedIndicator(page: Page, speed: number | null): Prom
       font-size: 14px;
       font-weight: 700;
       border-radius: 12px;
-      z-index: 999998;
+      z-index: 999996;
       pointer-events: none;
       opacity: 0;
       transition: opacity 0.3s ease;
@@ -296,7 +327,15 @@ export async function showSpeedIndicator(page: Page, speed: number | null): Prom
     requestAnimationFrame(() => {
       badge.style.opacity = '1'
     })
-  }, speed)
+
+    // Auto-remove after timeout
+    if (autoRemoveMs > 0) {
+      setTimeout(() => {
+        badge.style.opacity = '0'
+        setTimeout(() => badge.remove(), 400)
+      }, autoRemoveMs)
+    }
+  }, { speed, autoRemoveMs })
 }
 
 /**
@@ -346,7 +385,7 @@ export async function showStepLabel(
       font-size: 16px;
       font-weight: 500;
       border-radius: 8px;
-      z-index: 999998;
+      z-index: 999997;
       pointer-events: none;
       opacity: 0;
       transition: opacity 0.4s ease;

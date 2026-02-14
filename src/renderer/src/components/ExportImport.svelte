@@ -16,7 +16,10 @@
   let error = $state<string | null>(null)
   let success = $state<string | null>(null)
 
-  selectedProject.subscribe(p => { projectId = p?.id ?? null })
+  $effect(() => {
+    const unsub = selectedProject.subscribe(p => { projectId = p?.id ?? null })
+    return () => unsub()
+  })
 
   async function handleExport() {
     if (!projectId) {

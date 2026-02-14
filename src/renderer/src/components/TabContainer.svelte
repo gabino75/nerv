@@ -50,10 +50,12 @@
   let currentModel = $state<ModelName>('sonnet')
   let currentProject = $state<Project | null>(null)
 
-  currentTask.subscribe(t => { activeTask = t })
-  appStore.subscribe(state => { isRunning = state.isTaskRunning })
-  selectedModel.subscribe(m => { currentModel = m })
-  selectedProject.subscribe(p => { currentProject = p })
+  const storeUnsubs = [
+    currentTask.subscribe(t => { activeTask = t }),
+    appStore.subscribe(state => { isRunning = state.isTaskRunning }),
+    selectedModel.subscribe(m => { currentModel = m }),
+    selectedProject.subscribe(p => { currentProject = p })
+  ]
 
   // Terminal theme configuration
   const terminalTheme = {
@@ -1030,6 +1032,7 @@
   })
 
   onDestroy(() => {
+    storeUnsubs.forEach(fn => fn())
     window.api.claude.removeAllListeners()
     window.api.terminal.removeAllListeners()
     for (const tab of tabs) {

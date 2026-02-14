@@ -6,8 +6,13 @@
   let isOpen = $state(false)
   let isRunning = $state(false)
 
-  selectedModel.subscribe(m => { currentModel = m })
-  appStore.subscribe(state => { isRunning = state.isTaskRunning })
+  $effect(() => {
+    const unsubs = [
+      selectedModel.subscribe(m => { currentModel = m }),
+      appStore.subscribe(state => { isRunning = state.isTaskRunning })
+    ]
+    return () => unsubs.forEach(fn => fn())
+  })
 
   function selectModel(model: ModelName) {
     appStore.setModel(model)

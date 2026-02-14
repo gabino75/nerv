@@ -18,7 +18,10 @@
   let { onExecuteAction }: Props = $props()
 
   let currentProject = $state<Project | null>(null)
-  selectedProject.subscribe(p => { currentProject = p })
+  $effect(() => {
+    const unsub = selectedProject.subscribe(p => { currentProject = p })
+    return () => unsub()
+  })
 
   let isLoading = $state(false)
   let recommendations = $state<Recommendation[]>([])

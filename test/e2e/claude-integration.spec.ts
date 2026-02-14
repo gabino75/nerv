@@ -731,9 +731,9 @@ test.describe('Claude Code Integration', () => {
       // Assertions
       ctx.logger.info('test', `Task success: ${result.success}`);
 
-      // For now, just verify the test ran without crashing
+      // Verify the test ran without errors
       // Real verification would check if /health endpoint exists in the worktree
-      expect(ctx.logger.getLogsFor('error').length).toBeLessThan(5);
+      expect(ctx.logger.getLogsFor('error').length).toBeLessThan(2);
 
     } finally {
       await teardownTest(ctx);

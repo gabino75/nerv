@@ -21,6 +21,9 @@ export function registerMetricsHandlers(): void {
     cacheCreationTokens?: number
     model?: string
     sessionId?: string
+    costUsd?: number
+    durationMs?: number
+    numTurns?: number
   }): SessionMetrics => {
     return databaseService.updateSessionMetrics(taskId, metrics)
   })

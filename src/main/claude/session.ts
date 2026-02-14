@@ -189,13 +189,18 @@ export function spawnClaude(config: ClaudeSpawnConfig): ClaudeSpawnResult {
       }
     }
 
+    // Decrement system-wide session count (PRD Section 11)
+    // Must happen before deleting from map so count stays consistent if DB fails
+    try {
+      databaseService.decrementClaudeSessions()
+    } catch (err) {
+      console.error(`[NERV] Failed to decrement session count:`, err)
+    }
+
     claudeSessions.delete(id)
 
     // Clear file access tracking for this session (PRD Section 10)
     clearSessionFileAccess(id)
-
-    // Decrement system-wide session count (PRD Section 11)
-    databaseService.decrementClaudeSessions()
 
     // Server-side task status update: when Claude exits successfully with a
     // linked task, transition the task to 'review'. This prevents a race
@@ -227,6 +232,11 @@ export function spawnClaude(config: ClaudeSpawnConfig): ClaudeSpawnResult {
         session.model
       ).catch(err => {
         console.error(`[NERV] Auto-iteration error for task ${session.taskId}:`, err)
+        // Mark task as interrupted so the failure is visible to the user
+        try {
+          databaseService.updateTaskStatus(session.taskId, 'interrupted')
+        } catch { /* best-effort */ }
+        broadcastToRenderers('task:error', session.taskId, err instanceof Error ? err.message : String(err))
       })
     }
   })
@@ -363,13 +373,18 @@ export function resumeClaude(config: ClaudeSpawnConfig, claudeSessionId: string)
       }
     }
 
+    // Decrement system-wide session count (PRD Section 11)
+    // Must happen before deleting from map so count stays consistent if DB fails
+    try {
+      databaseService.decrementClaudeSessions()
+    } catch (err) {
+      console.error(`[NERV] Failed to decrement session count:`, err)
+    }
+
     claudeSessions.delete(id)
 
     // Clear file access tracking for this session (PRD Section 10)
     clearSessionFileAccess(id)
-
-    // Decrement system-wide session count (PRD Section 11)
-    databaseService.decrementClaudeSessions()
 
     // Server-side task status update (same race condition fix as spawnClaude)
     if (session.taskId && exitCode === 0) {
@@ -395,6 +410,11 @@ export function resumeClaude(config: ClaudeSpawnConfig, claudeSessionId: string)
         session.model
       ).catch(err => {
         console.error(`[NERV] Auto-iteration error for task ${session.taskId}:`, err)
+        // Mark task as interrupted so the failure is visible to the user
+        try {
+          databaseService.updateTaskStatus(session.taskId, 'interrupted')
+        } catch { /* best-effort */ }
+        broadcastToRenderers('task:error', session.taskId, err instanceof Error ? err.message : String(err))
       })
     }
   })

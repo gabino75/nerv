@@ -102,7 +102,7 @@ nerv permissions deny "Read(~/.ssh/*)"
 nerv permissions remove <id>
 ```
 
-All permission rules are stored in the SQLite database (`~/.nerv/state.db`), not in separate JSON files.
+All permission rules are stored in `~/.nerv/permissions.json`.
 
 ## Learning from History
 

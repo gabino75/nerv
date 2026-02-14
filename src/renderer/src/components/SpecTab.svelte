@@ -13,11 +13,14 @@
   let editContent = $state('')
   let agentStatus = $state<{ id: string; type: string }[]>([])
 
-  selectedProject.subscribe(p => { project = p })
-
-  // Track active subagents from store
-  appStore.subscribe(state => {
-    agentStatus = state.activeSubagents || []
+  $effect(() => {
+    const unsubs = [
+      selectedProject.subscribe(p => { project = p }),
+      appStore.subscribe(state => {
+        agentStatus = state.activeSubagents || []
+      })
+    ]
+    return () => unsubs.forEach(fn => fn())
   })
 
   // Derive spec content from project goal

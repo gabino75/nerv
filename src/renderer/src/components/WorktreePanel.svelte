@@ -20,7 +20,10 @@
   let cleaningUp = $state(false)
   let showAddRepoDialog = $state(false)
 
-  selectedProject.subscribe(p => { currentProject = p })
+  $effect(() => {
+    const unsub = selectedProject.subscribe(p => { currentProject = p })
+    return () => unsub()
+  })
 
   async function loadWorktrees() {
     if (!currentProject) return

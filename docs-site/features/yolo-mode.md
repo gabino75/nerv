@@ -105,13 +105,14 @@ Benchmark specs define what to build:
 
 ### Scoring
 
-All three scoring categories are **Claude-graded** — a separate Claude instance evaluates the benchmark output:
+Default scoring is **rule-based**. Use `--grade-claude` for AI-graded evaluation. Scores are computed across four categories:
 
 | Category | Weight | What's Evaluated |
 |----------|--------|------------------|
-| Planning | 15% | Cycle progression, task decomposition, spec coverage |
-| Code Quality | 50% | Implementation, functionality, UX |
-| NERV Ops | 35% | Workflow patterns compared against PRD (worktree usage, cycle management, review process) |
+| Implementation Quality | 30% | Code organization, functionality, type safety, test coverage |
+| Workflow Quality | 20% | Cycle progression, task decomposition, spec coverage |
+| Efficiency | 20% | Token usage, cost efficiency, task completion speed |
+| User Experience | 30% | UX quality, workflow patterns (worktree usage, cycle management, review process) |
 
 Each category is scored 1-10. The overall score is the weighted average.
 

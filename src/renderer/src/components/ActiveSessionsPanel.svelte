@@ -23,15 +23,18 @@
   let refreshInterval: ReturnType<typeof setInterval> | null = null
   let tasks = $state<Map<string, { title: string }>>(new Map())
 
-  selectedProject.subscribe(p => { currentProject = p })
-
-  // Subscribe to app store to get tasks
-  appStore.subscribe(state => {
-    const taskMap = new Map<string, { title: string }>()
-    for (const task of state.tasks) {
-      taskMap.set(task.id, { title: task.title })
-    }
-    tasks = taskMap
+  $effect(() => {
+    const unsubs = [
+      selectedProject.subscribe(p => { currentProject = p }),
+      appStore.subscribe(state => {
+        const taskMap = new Map<string, { title: string }>()
+        for (const task of state.tasks) {
+          taskMap.set(task.id, { title: task.title })
+        }
+        tasks = taskMap
+      })
+    ]
+    return () => unsubs.forEach(fn => fn())
   })
 
   async function loadSessions() {
