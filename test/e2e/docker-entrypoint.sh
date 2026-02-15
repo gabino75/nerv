@@ -248,6 +248,13 @@ if [ -d "/app/docs-site/public/demos" ] && ls /app/docs-site/public/demos/*.webm
     log "Demos: docs-site/public/demos/"
 fi
 
+# Copy screenshot demos to docs-site on host
+if [ -d "/app/docs-site/public/screenshots/demos" ]; then
+    mkdir -p /app/host/docs-site/public/screenshots/demos
+    cp -r /app/docs-site/public/screenshots/demos/* /app/host/docs-site/public/screenshots/demos/ 2>/dev/null || true
+    log "Screenshots: docs-site/public/screenshots/demos/"
+fi
+
 if [ -f "$VIDEO_FILE" ]; then
     cp "$VIDEO_FILE" /app/host/test-results/docker/
     log "Video: test-results/docker/recording.mp4"
